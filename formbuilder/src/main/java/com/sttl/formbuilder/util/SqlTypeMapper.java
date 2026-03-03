@@ -3,7 +3,6 @@ package com.sttl.formbuilder.util;
 public class SqlTypeMapper {
 
     public static String map(String type) {
-        // Using toUpperCase() adds a safety net in case the frontend sends "text" instead of "TEXT"
         return switch (type.toUpperCase()) {
 
             // Standard short strings
@@ -22,6 +21,23 @@ public class SqlTypeMapper {
 
             // True/False
             case "BOOLEAN" -> "BOOLEAN";
+
+            // ── NEW TYPES ──────────────────────────────────────────────
+
+            // Star rating stores a numeric value e.g. 3 out of 5
+            case "STAR_RATING" -> "SMALLINT";
+
+            // Linear scale stores the selected number e.g. 4
+            case "LINEAR_SCALE" -> "SMALLINT";
+
+            // File upload stores the file path / URL string
+            case "FILE_UPLOAD" -> "VARCHAR(500)";
+
+            // MC Grid stores a JSON object: { "Row 1": "Col 2", "Row 2": "Col 1" }
+            case "MC_GRID" -> "JSONB";
+
+            // Tick Box Grid stores a JSON object: { "Row 1": ["Col 1", "Col 3"] }
+            case "TICK_BOX_GRID" -> "JSONB";
 
             default -> throw new RuntimeException("Invalid form field type mapped: " + type);
         };

@@ -12,12 +12,16 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
-            .csrf(csrf -> csrf.disable())   // disable CSRF
-            .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll()   // allow all requests
-            )
-            .formLogin(form -> form.disable())   // disable login page
-            .httpBasic(basic -> basic.disable()); // disable basic auth
+                .csrf(csrf -> csrf.disable())   // disable CSRF
+                .authorizeHttpRequests(auth -> auth
+                                .requestMatchers("/api/forms/upload").permitAll()
+                                .requestMatchers("/api/forms/files/**").permitAll()
+                                .anyRequest().permitAll()
+
+                )
+
+                .formLogin(form -> form.disable())   // disable login page
+                .httpBasic(basic -> basic.disable()); // disable basic auth
 
         return http.build();
     }

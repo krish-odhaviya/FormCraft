@@ -52,6 +52,36 @@ public class FormField {
     @Column(name = "option_value")
     private List<String> options = new ArrayList<>();
 
+    // --- STAR RATING ---
+    private Integer maxStars;
+
+    // --- LINEAR SCALE ---
+    private Integer scaleMin;
+    private Integer scaleMax;
+    private String lowLabel;
+    private String highLabel;
+
+    // --- FILE UPLOAD ---
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "form_field_accepted_file_types", joinColumns = @JoinColumn(name = "field_id"))
+    @Column(name = "file_type")
+    private List<String> acceptedFileTypes = new ArrayList<>();
+
+    private Integer maxFileSizeMb;
+
+    // --- GRID (rows & columns for MC Grid and Tickbox Grid) ---
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "form_field_grid_rows", joinColumns = @JoinColumn(name = "field_id"))
+    @Column(name = "row_value")
+    @OrderColumn(name = "row_order")
+    private List<String> gridRows = new ArrayList<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "form_field_grid_columns", joinColumns = @JoinColumn(name = "field_id"))
+    @Column(name = "col_value")
+    @OrderColumn(name = "col_order")
+    private List<String> gridColumns = new ArrayList<>();
+
     // --- UI CONFIG ---
     private String placeholder;
     private String helpText;

@@ -14,11 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
@@ -42,7 +40,6 @@ public class FormSubmissionService {
 
         String tableName = version.getTableName();
 
-        // 1. Map allowed keys to their specific Data Types so we can cast them for PostgreSQL
         Map<String, String> fieldTypes = version.getFields().stream()
                 .collect(Collectors.toMap(f -> f.getFieldKey(), f -> f.getFieldType()));
 
@@ -53,62 +50,141 @@ public class FormSubmissionService {
                 .map(f -> f.getFieldKey())
                 .collect(Collectors.toSet());
 
-        // 2. Validate Required Fields
+        // ── Validate Required Fields ──────────────────────────────────────────────
         for (String reqKey : requiredKeys) {
             Object val = values.get(reqKey);
-            if (val == null || val.toString().trim().isEmpty()) {
-                if (val instanceof List && ((List<?>) val).isEmpty()) {
-                    throw new RuntimeException("Missing required field: " + reqKey);
-                } else if (!(val instanceof List)) {
-                    throw new RuntimeException("Missing required field: " + reqKey);
+            String fieldType = fieldTypes.get(reqKey);
+            boolean isEmpty = false;
+
+            if (val == null) {
+                isEmpty = true;
+            } else if (val instanceof String && ((String) val).trim().isEmpty()) {
+                isEmpty = true;
+            } else if (val instanceof List && ((List<?>) val).isEmpty()) {
+                isEmpty = true;
+            } else if (val instanceof Map && ((Map<?, ?>) val).isEmpty()) {
+                isEmpty = true;
+            } else if ("STAR_RATING".equalsIgnoreCase(fieldType)) {
+                try {
+                    int starVal = Integer.parseInt(val.toString());
+                    if (starVal <= 0) isEmpty = true;
+                } catch (NumberFormatException e) {
+                    isEmpty = true;
                 }
+            } else if ("LINEAR_SCALE".equalsIgnoreCase(fieldType)) {
+                if (val.toString().trim().isEmpty()) isEmpty = true;
+            }
+
+            if (isEmpty) {
+                throw new RuntimeException("Missing required field: " + reqKey);
             }
         }
 
-        // 3. Prepare ordered lists for SQL safely
-        List<String> columnsList = new ArrayList<>();
-        List<Object> argumentsList = new ArrayList<>();
+        // ── Build columns and values ──────────────────────────────────────────────
+        List<String> columnsList      = new ArrayList<>();
+        List<Object> argumentsList    = new ArrayList<>();
+        List<String> placeholdersList = new ArrayList<>(); // ✅ track per-column placeholders
 
         for (Map.Entry<String, Object> entry : values.entrySet()) {
             String key = entry.getKey();
             Object val = entry.getValue();
 
-            if (!allowedKeys.contains(key)) {
-                continue;
-            }
+            if (!allowedKeys.contains(key)) continue;
 
             columnsList.add(key);
 
-            // --- THE FIX: PostgreSQL Strict Type Casting ---
             String expectedType = fieldTypes.get(key);
 
-            if (val != null && val instanceof String) {
-                String strVal = ((String) val).trim();
+            // ── Handle by field type ──────────────────────────────────────────────
+            switch (expectedType.toUpperCase()) {
 
-                // If it's an empty string for a non-required field, push NULL to the DB
-                if (strVal.isEmpty()) {
-                    val = null;
-                } else {
-                    try {
-                        if ("DATE".equalsIgnoreCase(expectedType)) {
-                            val = LocalDate.parse(strVal);
-                        } else if ("TIME".equalsIgnoreCase(expectedType)) {
-                            val = LocalTime.parse(strVal);
-                        } else if ("INTEGER".equalsIgnoreCase(expectedType)) {
-                            val = Integer.parseInt(strVal);
-                        }
-                    } catch (Exception e) {
-                        throw new RuntimeException("Invalid data format for field: " + key);
+                case "DATE" -> {
+                    if (val instanceof String strVal) {
+                        val = strVal.trim().isEmpty() ? null : LocalDate.parse(strVal.trim());
                     }
+                    placeholdersList.add("?");
                 }
-            }
 
-            // Handle Arrays (like Checkbox Groups)
-            if (val instanceof List) {
-                try {
-                    val = objectMapper.writeValueAsString(val);
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException("Failed to parse list value for field: " + key);
+                case "TIME" -> {
+                    if (val instanceof String strVal) {
+                        val = strVal.trim().isEmpty() ? null : LocalTime.parse(strVal.trim());
+                    }
+                    placeholdersList.add("?");
+                }
+
+                case "INTEGER" -> {
+                    if (val instanceof String strVal) {
+                        val = strVal.trim().isEmpty() ? null : Integer.parseInt(strVal.trim());
+                    } else if (val instanceof Number) {
+                        val = ((Number) val).intValue();
+                    }
+                    placeholdersList.add("?");
+                }
+
+                case "STAR_RATING", "LINEAR_SCALE" -> {
+                    if (val instanceof String strVal) {
+                        val = strVal.trim().isEmpty() ? null : Integer.parseInt(strVal.trim());
+                    } else if (val instanceof Number) {
+                        val = ((Number) val).intValue();
+                    }
+                    placeholdersList.add("?");
+                }
+
+                case "BOOLEAN" -> {
+                    if (val instanceof String strVal) {
+                        val = Boolean.parseBoolean(strVal.trim());
+                    }
+                    placeholdersList.add("?");
+                }
+
+                case "CHECKBOX_GROUP" -> {
+                    if (val instanceof List) {
+                        try {
+                            val = objectMapper.writeValueAsString(val);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException("Failed to serialize checkbox values for: " + key);
+                        }
+                    }
+                    placeholdersList.add("?");
+                }
+
+                case "MC_GRID" -> {
+                    // ✅ Serialize to JSON string + cast placeholder to jsonb
+                    if (val instanceof Map) {
+                        try {
+                            val = objectMapper.writeValueAsString(val);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException("Failed to serialize MC grid values for: " + key);
+                        }
+                    }
+                    placeholdersList.add("?::jsonb"); // ✅ tells Postgres to cast VARCHAR → JSONB
+                }
+
+                case "TICK_BOX_GRID" -> {
+                    // ✅ Serialize to JSON string + cast placeholder to jsonb
+                    if (val instanceof Map) {
+                        try {
+                            val = objectMapper.writeValueAsString(val);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException("Failed to serialize tick box grid values for: " + key);
+                        }
+                    }
+                    placeholdersList.add("?::jsonb"); // ✅ tells Postgres to cast VARCHAR → JSONB
+                }
+
+                case "FILE_UPLOAD", "TEXT", "TEXTAREA", "EMAIL",
+                     "RADIO", "DROPDOWN" -> {
+                    if (val instanceof String strVal && strVal.trim().isEmpty()) {
+                        val = null;
+                    }
+                    placeholdersList.add("?");
+                }
+
+                default -> {
+                    if (val instanceof String strVal && strVal.trim().isEmpty()) {
+                        val = null;
+                    }
+                    placeholdersList.add("?");
                 }
             }
 
@@ -119,13 +195,14 @@ public class FormSubmissionService {
             throw new RuntimeException("No valid columns provided for insertion.");
         }
 
-        // 4. Build and Execute SQL
-        String columns = String.join(", ", columnsList);
-        String placeholders = columnsList.stream()
-                .map(k -> "?")
-                .collect(Collectors.joining(", "));
+        // ── Build and execute INSERT ──────────────────────────────────────────────
+        String columns      = String.join(", ", columnsList);
+        String placeholders = String.join(", ", placeholdersList); // ✅ uses per-column placeholders
+        String sql          = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + placeholders + ")";
 
-        String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + placeholders + ")";
+        System.out.println("=== INSERT SQL ===");
+        System.out.println(sql);
+        System.out.println("==================");
 
         jdbcTemplate.update(sql, argumentsList.toArray());
     }
@@ -133,30 +210,56 @@ public class FormSubmissionService {
     @Transactional(readOnly = true)
     public SubmissionsResponse getSubmissions(Long formId) {
 
-        // FIX 1: Pass the Enum directly, not as a String
         FormVersion publishedVersion = versionRepository.findByFormIdAndStatus(formId, FormStatusEnum.PUBLISHED)
                 .orElseThrow(() -> new RuntimeException("No published version found for this form"));
 
         String tableName = publishedVersion.getTableName();
 
-        System.out.println("Querying Table: " + tableName);
-
-        // 2. Map the columns (fields) so the frontend knows what to display
         List<FieldDto> columns = publishedVersion.getFields().stream()
                 .map(f -> {
                     FieldDto dto = new FieldDto();
                     dto.setFieldKey(f.getFieldKey());
                     dto.setFieldLabel(f.getFieldLabel());
                     dto.setFieldType(f.getFieldType());
+                    dto.setRequired(f.getRequired());
+                    dto.setFieldOrder(f.getFieldOrder());
+                    dto.setOptions(f.getOptions());
+
+                    // ✅ Map uiConfig flat fields back into a Map for frontend
+                    Map<String, Object> uiConfig = new HashMap<>();
+                    if (f.getPlaceholder()   != null) uiConfig.put("placeholder",       f.getPlaceholder());
+                    if (f.getHelpText()      != null) uiConfig.put("helpText",           f.getHelpText());
+                    if (f.getMaxStars()      != null) uiConfig.put("maxStars",           f.getMaxStars());
+                    if (f.getScaleMin()      != null) uiConfig.put("scaleMin",           f.getScaleMin());
+                    if (f.getScaleMax()      != null) uiConfig.put("scaleMax",           f.getScaleMax());
+                    if (f.getLowLabel()      != null) uiConfig.put("lowLabel",           f.getLowLabel());
+                    if (f.getHighLabel()     != null) uiConfig.put("highLabel",          f.getHighLabel());
+                    if (f.getMaxFileSizeMb() != null) uiConfig.put("maxFileSizeMb",      f.getMaxFileSizeMb());
+                    if (f.getAcceptedFileTypes() != null && !f.getAcceptedFileTypes().isEmpty())
+                        uiConfig.put("acceptedFileTypes", f.getAcceptedFileTypes());
+                    dto.setUiConfig(uiConfig);
+
+                    // ✅ Map gridRows/gridColumns into validation map for frontend
+                    Map<String, Object> validation = new HashMap<>();
+                    if (f.getMinLength() != null) validation.put("minLength", f.getMinLength());
+                    if (f.getMaxLength() != null) validation.put("maxLength", f.getMaxLength());
+                    if (f.getMinValue()  != null) validation.put("min",       f.getMinValue());
+                    if (f.getMaxValue()  != null) validation.put("max",       f.getMaxValue());
+                    if (f.getPattern()   != null) validation.put("pattern",   f.getPattern());
+                    // ✅ THIS is what was missing — grid rows and columns
+                    if (f.getGridRows()    != null && !f.getGridRows().isEmpty())
+                        validation.put("rows",    f.getGridRows());
+                    if (f.getGridColumns() != null && !f.getGridColumns().isEmpty())
+                        validation.put("columns", f.getGridColumns());
+                    dto.setValidation(validation);
+
                     return dto;
                 })
                 .collect(Collectors.toList());
 
-        // 3. Fetch all rows from the dynamic table
         String sql = "SELECT * FROM " + tableName + " WHERE is_delete = false ORDER BY id DESC";
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
 
-        // 4. Package and return
         SubmissionsResponse response = new SubmissionsResponse();
         response.setColumns(columns);
         response.setRows(rows);

@@ -99,20 +99,36 @@ public class FormService {
 
                                 // --- Map Validation (Entity Columns -> Map) ---
                                 Map<String, Object> validationMap = new HashMap<>();
-                                if (f.getMinLength() != null) validationMap.put("minLength", f.getMinLength());
-                                if (f.getMaxLength() != null) validationMap.put("maxLength", f.getMaxLength());
-                                if (f.getMinValue() != null) validationMap.put("min", f.getMinValue());
-                                if (f.getMaxValue() != null) validationMap.put("max", f.getMaxValue());
-                                if (f.getPattern() != null) validationMap.put("pattern", f.getPattern());
+                                if (f.getMinLength()         != null) validationMap.put("minLength",         f.getMinLength());
+                                if (f.getMaxLength()         != null) validationMap.put("maxLength",         f.getMaxLength());
+                                if (f.getMinValue()          != null) validationMap.put("min",               f.getMinValue());
+                                if (f.getMaxValue()          != null) validationMap.put("max",               f.getMaxValue());
+                                if (f.getPattern()           != null) validationMap.put("pattern",           f.getPattern());
                                 if (f.getValidationMessage() != null) validationMap.put("validationMessage", f.getValidationMessage());
+                                // ✅ Grid rows and columns
+                                if (f.getGridRows() != null && !f.getGridRows().isEmpty())
+                                    validationMap.put("rows", f.getGridRows());
+                                if (f.getGridColumns() != null && !f.getGridColumns().isEmpty())
+                                    validationMap.put("columns", f.getGridColumns());
                                 fd.setValidation(validationMap);
 
                                 // --- Map UI Config (Entity Columns -> Map) ---
                                 Map<String, Object> uiMap = new HashMap<>();
-                                if (f.getPlaceholder() != null) uiMap.put("placeholder", f.getPlaceholder());
-                                if (f.getHelpText() != null) uiMap.put("helpText", f.getHelpText());
-                                if (f.getDefaultValue() != null) uiMap.put("defaultValue", f.getDefaultValue());
-                                if (f.getReadOnly() != null) uiMap.put("readOnly", f.getReadOnly());
+                                if (f.getPlaceholder()  != null) uiMap.put("placeholder",  f.getPlaceholder());
+                                if (f.getHelpText()     != null) uiMap.put("helpText",      f.getHelpText());
+                                if (f.getDefaultValue() != null) uiMap.put("defaultValue",  f.getDefaultValue());
+                                if (f.getReadOnly()     != null) uiMap.put("readOnly",      f.getReadOnly());
+                                // ✅ Star rating
+                                if (f.getMaxStars()     != null) uiMap.put("maxStars",      f.getMaxStars());
+                                // ✅ Linear scale
+                                if (f.getScaleMin()     != null) uiMap.put("scaleMin",      f.getScaleMin());
+                                if (f.getScaleMax()     != null) uiMap.put("scaleMax",      f.getScaleMax());
+                                if (f.getLowLabel()     != null) uiMap.put("lowLabel",      f.getLowLabel());
+                                if (f.getHighLabel()    != null) uiMap.put("highLabel",     f.getHighLabel());
+                                // ✅ File upload
+                                if (f.getMaxFileSizeMb() != null) uiMap.put("maxFileSizeMb", f.getMaxFileSizeMb());
+                                if (f.getAcceptedFileTypes() != null && !f.getAcceptedFileTypes().isEmpty())
+                                    uiMap.put("acceptedFileTypes", f.getAcceptedFileTypes());
                                 fd.setUiConfig(uiMap);
 
                                 return fd;

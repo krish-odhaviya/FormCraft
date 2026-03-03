@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
-
 import java.util.List;
 
 @Getter
@@ -24,24 +23,24 @@ public class AddFieldRequest {
     private Boolean required;
 
     private Integer fieldOrder;
-
     private List<String> options;
 
-    // Catch the nested JSON objects from React
     private ValidationDto validation;
     private UiConfigDto uiConfig;
-
-    // --- Inner DTOs ---
 
     @Getter
     @Setter
     public static class ValidationDto {
         private Integer minLength;
         private Integer maxLength;
-        private Double min; // Maps to min in React
-        private Double max; // Maps to max in React
+        private Double min;
+        private Double max;
         private String pattern;
         private String validationMessage;
+
+        // Grid field rows & columns
+        private List<String> rows;
+        private List<String> columns;
     }
 
     @Getter
@@ -51,5 +50,18 @@ public class AddFieldRequest {
         private String helpText;
         private String defaultValue;
         private Boolean readOnly;
+
+        // Star Rating
+        private Integer maxStars;
+
+        // Linear Scale
+        private Integer scaleMin;
+        private Integer scaleMax;
+        private String lowLabel;
+        private String highLabel;
+
+        // File Upload
+        private List<String> acceptedFileTypes;
+        private Integer maxFileSizeMb;
     }
 }

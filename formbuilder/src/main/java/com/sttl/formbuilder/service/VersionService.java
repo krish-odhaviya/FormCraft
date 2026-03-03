@@ -111,22 +111,29 @@ public class VersionService {
                 field.getOptions().addAll(req.getOptions());
             }
 
-            // --- Map Nested UI Config to Flat Entity Columns ---
             if (req.getUiConfig() != null) {
-                field.setPlaceholder(req.getUiConfig().getPlaceholder());
-                field.setHelpText(req.getUiConfig().getHelpText());
-                field.setDefaultValue(req.getUiConfig().getDefaultValue());
-                field.setReadOnly(req.getUiConfig().getReadOnly());
+                // ... your existing mappings ...
+                field.setMaxStars(req.getUiConfig().getMaxStars());
+                field.setScaleMin(req.getUiConfig().getScaleMin());
+                field.setScaleMax(req.getUiConfig().getScaleMax());
+                field.setLowLabel(req.getUiConfig().getLowLabel());
+                field.setHighLabel(req.getUiConfig().getHighLabel());
+                field.setMaxFileSizeMb(req.getUiConfig().getMaxFileSizeMb());
+
+                if (req.getUiConfig().getAcceptedFileTypes() != null) {
+                    field.getAcceptedFileTypes().addAll(req.getUiConfig().getAcceptedFileTypes());
+                }
             }
 
-            // --- Map Nested Validation to Flat Entity Columns ---
+// --- Map Grid rows/columns from validation ---
             if (req.getValidation() != null) {
-                field.setMinLength(req.getValidation().getMinLength());
-                field.setMaxLength(req.getValidation().getMaxLength());
-                field.setMinValue(req.getValidation().getMin()); // Matches 'min' in DTO
-                field.setMaxValue(req.getValidation().getMax()); // Matches 'max' in DTO
-                field.setPattern(req.getValidation().getPattern());
-                field.setValidationMessage(req.getValidation().getValidationMessage());
+                // ... your existing mappings ...
+                if (req.getValidation().getRows() != null) {
+                    field.getGridRows().addAll(req.getValidation().getRows());
+                }
+                if (req.getValidation().getColumns() != null) {
+                    field.getGridColumns().addAll(req.getValidation().getColumns());
+                }
             }
 
             version.getFields().add(field);
