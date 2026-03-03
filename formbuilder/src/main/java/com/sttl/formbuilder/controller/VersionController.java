@@ -85,7 +85,7 @@ public class VersionController {
     public ResponseEntity<ApiResponse<String>> publishVersion(
             @PathVariable Long versionId,
             HttpServletRequest request) {
-
+        System.out.println("Working");
         schemaService.publishVersion(versionId);
 
         return ApiResponseUtil.success(

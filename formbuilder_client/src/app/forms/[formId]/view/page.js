@@ -11,6 +11,7 @@ export default function DynamicFormPage() {
   const [fields, setFields] = useState([]);
   const [formDetails, setFormDetails] = useState({});
   const [formValues, setFormValues] = useState({});
+  const [publishedVersionId, setPublishedVersionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -19,11 +20,19 @@ export default function DynamicFormPage() {
     async function fetchFields() {
       try {
         const res = await api.getForm(formId);
-        console.log("Form Data:", res.data);
-
         setFormDetails(res.data);
-        const fieldsData = res.data.versions[0]?.fields || [];
 
+        // 1. FIX: Find the PUBLISHED version specifically
+        const publishedVersion = res.data.versions?.find((v) => v.status === "PUBLISHED");
+        
+        if (!publishedVersion) {
+          setMessage("not_published");
+          setLoading(false);
+          return;
+        }
+
+        setPublishedVersionId(publishedVersion.id);
+        const fieldsData = publishedVersion.fields || [];
         setFields(fieldsData);
 
         // Initialize values based on field type
@@ -41,6 +50,7 @@ export default function DynamicFormPage() {
         setFormValues(initialValues);
       } catch (err) {
         console.error(err);
+        setMessage("error");
       } finally {
         setLoading(false);
       }
@@ -66,14 +76,14 @@ export default function DynamicFormPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          versionId: Number(formId),
+          versionId: publishedVersionId, // 2. FIX: Send the published version ID, not the form ID
           values: formValues,
         }),
       });
 
-      if (!res.ok) throw new Error();
-      console.log(formId);
       console.log(formValues)
+
+      if (!res.ok) throw new Error("Submission failed");
 
       setMessage("success");
     } catch (err) {
@@ -90,6 +100,16 @@ export default function DynamicFormPage() {
           <Loader2 className="animate-spin" size={40} />
           <p className="text-sm font-medium text-slate-500">Loading form...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (message === "not_published") {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+        <AlertCircle size={48} className="text-amber-500 mb-4" />
+        <h2 className="text-xl font-bold text-slate-800 mb-2">Form Not Available</h2>
+        <p className="text-slate-500">This form is currently a draft and is not yet published to receive submissions.</p>
       </div>
     );
   }
@@ -168,7 +188,6 @@ export default function DynamicFormPage() {
             </form>
           )}
         </div>
-        
       </div>
     </div>
   );
@@ -181,20 +200,16 @@ function renderInput(field, values, handleChange) {
   const type = field.fieldType?.toLowerCase();
   const value = values[field.fieldKey];
 
-  // Config Destructuring (Safely falling back to empty objects/arrays)
   const uiConfig = field.uiConfig || {};
   const validation = field.validation || {};
-
   const options = field.options || [];
 
   const placeholder = uiConfig.placeholder || `Enter ${field.fieldLabel?.toLowerCase()}...`;
   const helpText = uiConfig.helpText;
 
-  // Base classes for standard text-like inputs
   const inputClass =
     "w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400";
   
-  // Shared Label Component
   const FieldLabel = () => (
     <div className="mb-2">
       <label className="block text-sm font-semibold text-slate-800">
@@ -218,7 +233,6 @@ function renderInput(field, values, handleChange) {
             placeholder={placeholder}
             value={value || ""}
             onChange={(e) => handleChange(field.fieldKey, e.target.value)}
-            // Apply Dynamic Validations
             minLength={validation.minLength}
             maxLength={validation.maxLength}
             pattern={validation.pattern}
@@ -255,7 +269,7 @@ function renderInput(field, values, handleChange) {
             placeholder={placeholder}
             value={value || ""}
             onChange={(e) => handleChange(field.fieldKey, e.target.value)}
-            min={10}
+            min={validation.min}
             max={validation.max}
           />
         </div>
@@ -300,7 +314,6 @@ function renderInput(field, values, handleChange) {
       );
 
     case "checkbox_group":
-      // Value is an array for checkbox groups
       const currentSelections = Array.isArray(value) ? value : [];
       
       const handleCheckboxToggle = (opt, isChecked) => {
@@ -330,7 +343,6 @@ function renderInput(field, values, handleChange) {
               </label>
             ))}
           </div>
-          {/* Hidden input to enforce HTML5 'required' if the array is empty */}
           {field.required && currentSelections.length === 0 && (
             <input type="checkbox" required className="opacity-0 absolute w-0 h-0" />
           )}

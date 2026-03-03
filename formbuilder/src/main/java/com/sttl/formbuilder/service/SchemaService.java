@@ -35,6 +35,8 @@ public class SchemaService {
     @Transactional
     public void publishVersion(Long versionId) {
 
+        System.out.println("Working Inner");
+
         FormVersion version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new RuntimeException("Version not found"));
 
@@ -56,24 +58,21 @@ public class SchemaService {
 
         StringBuilder sql = new StringBuilder();
         sql.append("CREATE TABLE ").append(tableName).append(" (")
-                // MySQL-compatible auto-increment primary key
-                .append("id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,")
-                .append("created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,")
-                .append("is_delete BOOLEAN DEFAULT false,");
+                // Use BIGSERIAL for Postgres auto-increment
+                .append("id BIGSERIAL PRIMARY KEY, ")
+                .append("created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, ")
+                .append("is_delete BOOLEAN DEFAULT false");
 
         for (FormField field : fields) {
-            sql.append(field.getFieldKey())
+            sql.append(", ") // Put comma at start to avoid deleteCharAt logic
+                    .append(field.getFieldKey().toLowerCase()) // Force lowercase for Postgres safety
                     .append(" ")
                     .append(SqlTypeMapper.map(field.getFieldType()));
 
-            if (field.getRequired()) {
+            if (Boolean.TRUE.equals(field.getRequired())) {
                 sql.append(" NOT NULL");
             }
-
-            sql.append(",");
         }
-
-        sql.deleteCharAt(sql.length() - 1);
         sql.append(")");
 
         jdbcTemplate.execute(sql.toString());

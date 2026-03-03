@@ -19,6 +19,7 @@ import com.sttl.formbuilder.service.VersionService;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/forms")
@@ -106,31 +107,32 @@ public class FormController {
     }
 
     @PostMapping("/submit")
-    public ResponseEntity<ApiResponse<String>> submitForm(
-            @RequestBody SubmitFormRequest formRequest,
-            HttpServletRequest request
+    public ResponseEntity<?> submitForm(
+            @RequestBody SubmitFormRequest request,
+            HttpServletRequest httprequest
     ) {
 
-        System.out.println("Working");
+        try {
+            // Pass the data to the service
+            formSubmissionService.submit(request.getVersionId(), request.getValues());
 
-        formSubmissionService.submit(
-                formRequest.getVersionId(),
-                formRequest.getValues()
-        );
+            // Return a valid JSON success message so React's res.ok passes
+            return ResponseEntity.ok(Map.of("status", "success"));
 
+        } catch (Exception e) {
+            // CRITICAL FOR DEBUGGING: This prints the exact reason for the 500 error in your terminal
+            System.err.println("SUBMISSION FAILED: " + e.getMessage());
+            e.printStackTrace();
 
-        return ApiResponseUtil.success(
-                "Reordered successfully",
-                "Fields reordered successfully",
-                request
-        );
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("status", "error", "message", e.getMessage()));
+        }
     }
 
     @GetMapping("/{formId}/submissions")
     public ResponseEntity<ApiResponse<SubmissionsResponse>> getSubmissions(@PathVariable Long formId, HttpServletRequest request) {
         SubmissionsResponse response = formSubmissionService.getSubmissions(formId);
 
-        System.out.println("Working");
         return ApiResponseUtil.success(
                 response,
                 "Fields reordered successfully",

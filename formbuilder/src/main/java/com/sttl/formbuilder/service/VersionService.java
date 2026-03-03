@@ -18,6 +18,7 @@ import com.sttl.formbuilder.repository.FormVersionRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -84,14 +85,15 @@ public class VersionService {
 
         // 1. Clear existing fields to avoid primary key/unique constraint conflicts
         version.getFields().clear();
+        versionRepository.flush();
 
         for (int i = 0; i < fieldRequests.size(); i++) {
             AddFieldRequest req = fieldRequests.get(i);
 
             FormField field = new FormField();
+
             // --- CRITICAL: Link the version so version_id is not null ---
             field.setVersion(version);
-            versionRepository.flush();
 
             // --- Basic Fields ---
             field.setFieldKey(req.getFieldKey());
@@ -100,8 +102,12 @@ public class VersionService {
             field.setRequired(req.getRequired() != null ? req.getRequired() : false);
             field.setFieldOrder(i + 1);
 
-            // --- Handle Options (The Separate Table) ---
-            if (req.getOptions() != null) {
+            // --- Handle Options (THE FIX for Radio/Checkbox) ---
+            if (req.getOptions() != null && !req.getOptions().isEmpty()) {
+                // Safely initialize the list if it's null to prevent NullPointerException
+                if (field.getOptions() == null) {
+                    field.setOptions(new ArrayList<>());
+                }
                 field.getOptions().addAll(req.getOptions());
             }
 
