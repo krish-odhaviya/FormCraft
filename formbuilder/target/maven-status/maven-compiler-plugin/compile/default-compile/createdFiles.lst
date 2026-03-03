@@ -1,0 +1,4 @@
+com\sttl\formbuilder\dto\FormDetailsResponse$VersionDto.class
+com\sttl\formbuilder\dto\ReorderFieldsRequest.class
+com\sttl\formbuilder\dto\FormDetailsResponse.class
+com\sttl\formbuilder\dto\FormDetailsResponse$FieldDto.class
