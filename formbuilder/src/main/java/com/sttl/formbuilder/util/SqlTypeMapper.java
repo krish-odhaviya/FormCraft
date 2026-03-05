@@ -39,6 +39,8 @@ public class SqlTypeMapper {
             // Tick Box Grid stores a JSON object: { "Row 1": ["Col 1", "Col 3"] }
             case "TICK_BOX_GRID" -> "JSONB";
 
+            case "LOOKUP_DROPDOWN" -> "VARCHAR(500)";
+
             default -> throw new RuntimeException("Invalid form field type mapped: " + type);
         };
     }

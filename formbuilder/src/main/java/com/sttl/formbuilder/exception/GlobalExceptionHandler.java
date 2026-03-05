@@ -20,6 +20,24 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleFormValidationException(
+            ValidationException ex,
+            HttpServletRequest request) {
+
+        // Convert Map<fieldKey, errorMsg> to List<ApiErrorDetail>
+        List<ApiErrorDetail> errors = ex.getErrors().entrySet().stream()
+                .map(entry -> new ApiErrorDetail(entry.getKey(), entry.getValue()))
+                .toList();
+
+        return ApiResponseUtil.error(
+                "Form validation failed",
+                errors,
+                HttpStatus.BAD_REQUEST,
+                request
+        );
+    }
+
     // ✅ 1. Validation Error (@Valid)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Object>> handleValidationException(

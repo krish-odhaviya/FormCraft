@@ -82,6 +82,11 @@ public class FormField {
     @OrderColumn(name = "col_order")
     private List<String> gridColumns = new ArrayList<>();
 
+    // --- FOREIGN KEY DROPDOWN ---
+    private String sourceTable;        // e.g. "form_city_v1"
+    private String sourceColumn;       // value column — always "id"
+    private String sourceDisplayColumn; // label column — e.g. "name"
+
     // --- UI CONFIG ---
     private String placeholder;
     private String helpText;
@@ -95,6 +100,8 @@ public class FormField {
     private Double maxValue;
     private String pattern;
     private String validationMessage;
+
+
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

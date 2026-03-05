@@ -8,48 +8,50 @@ import {
   ListTodo, ChevronDown, ToggleRight, Mail, GripVertical,
   Trash2, Rocket, Save, Plus, Settings2, ClipboardList,
   ArrowLeft, LayoutTemplate, X, ShieldCheck, MonitorPlay,
-  Lock, Star, SlidersHorizontal, LayoutGrid, Grid3x3, Upload
+  Lock, Star, SlidersHorizontal, LayoutGrid, Grid3x3, Upload,
+  Link2
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
 import { useForms } from "@/context/FormsContext";
 
 const FIELD_TYPES = [
-  { value: "TEXT",          label: "Short Answer",          icon: <Type size={18} /> },
-  { value: "TEXTAREA",      label: "Paragraph",             icon: <AlignLeft size={18} /> },
-  { value: "RADIO",         label: "Multiple Choice",       icon: <CircleDot size={18} /> },
-  { value: "CHECKBOX_GROUP",label: "Checkboxes",            icon: <ListTodo size={18} /> },
-  { value: "DROPDOWN",      label: "Dropdown",              icon: <ChevronDown size={18} /> },
-  { value: "INTEGER",       label: "Number",                icon: <Hash size={18} /> },
-  { value: "EMAIL",         label: "Email",                 icon: <Mail size={18} /> },
-  { value: "DATE",          label: "Date",                  icon: <Calendar size={18} /> },
-  { value: "TIME",          label: "Time",                  icon: <Clock size={18} /> },
-  { value: "BOOLEAN",       label: "Yes/No (Toggle)",       icon: <ToggleRight size={18} /> },
-  { value: "FILE_UPLOAD",   label: "File Upload",           icon: <Upload size={18} /> },
-  { value: "STAR_RATING",   label: "Star Rating",           icon: <Star size={18} /> },
-  { value: "LINEAR_SCALE",  label: "Linear Scale",          icon: <SlidersHorizontal size={18} /> },
-  { value: "MC_GRID",       label: "Multiple Choice Grid",  icon: <LayoutGrid size={18} /> },
-  { value: "TICK_BOX_GRID", label: "Tick Box Grid",         icon: <Grid3x3 size={18} /> },
+  { value: "TEXT", label: "Short Answer", icon: <Type size={18} /> },
+  { value: "TEXTAREA", label: "Paragraph", icon: <AlignLeft size={18} /> },
+  { value: "RADIO", label: "Multiple Choice", icon: <CircleDot size={18} /> },
+  { value: "CHECKBOX_GROUP", label: "Checkboxes", icon: <ListTodo size={18} /> },
+  { value: "DROPDOWN", label: "Dropdown", icon: <ChevronDown size={18} /> },
+  { value: "INTEGER", label: "Number", icon: <Hash size={18} /> },
+  { value: "EMAIL", label: "Email", icon: <Mail size={18} /> },
+  { value: "DATE", label: "Date", icon: <Calendar size={18} /> },
+  { value: "TIME", label: "Time", icon: <Clock size={18} /> },
+  { value: "BOOLEAN", label: "Yes/No (Toggle)", icon: <ToggleRight size={18} /> },
+  { value: "FILE_UPLOAD", label: "File Upload", icon: <Upload size={18} /> },
+  { value: "STAR_RATING", label: "Star Rating", icon: <Star size={18} /> },
+  { value: "LINEAR_SCALE", label: "Linear Scale", icon: <SlidersHorizontal size={18} /> },
+  { value: "MC_GRID", label: "Multiple Choice Grid", icon: <LayoutGrid size={18} /> },
+  { value: "TICK_BOX_GRID", label: "Tick Box Grid", icon: <Grid3x3 size={18} /> },
+  { value: "LOOKUP_DROPDOWN", label: "Linked Dropdown", icon: <Link2 size={18} /> },
 ];
 
-const OPTIONS_BASED_TYPES  = ["RADIO", "CHECKBOX_GROUP", "DROPDOWN"];
-const TEXT_BASED_TYPES     = ["TEXT", "TEXTAREA", "EMAIL"];
-const NUMBER_BASED_TYPES   = ["INTEGER"];
-const GRID_TYPES           = ["MC_GRID", "TICK_BOX_GRID"];
+const OPTIONS_BASED_TYPES = ["RADIO", "CHECKBOX_GROUP", "DROPDOWN"];
+const TEXT_BASED_TYPES = ["TEXT", "TEXTAREA", "EMAIL"];
+const NUMBER_BASED_TYPES = ["INTEGER"];
+const GRID_TYPES = ["MC_GRID", "TICK_BOX_GRID"];
 
 export default function BuilderPage() {
-  const router   = useRouter();
-  const params   = useParams();
-  const formId   = Array.isArray(params.formId) ? params.formId[0] : params.formId;
+  const router = useRouter();
+  const params = useParams();
+  const formId = Array.isArray(params.formId) ? params.formId[0] : params.formId;
 
   const { getForm, setFormFromServer, updateVersion } = useForms();
   const form = getForm(formId);
 
-  const [loading,    setLoading]    = useState(true);
+  const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
-  const [saving,     setSaving]     = useState(false);
-  const [localFields,    setLocalFields]    = useState([]);
-  const [activeFieldId,  setActiveFieldId]  = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [localFields, setLocalFields] = useState([]);
+  const [activeFieldId, setActiveFieldId] = useState(null);
 
   useEffect(() => {
     const fetchForm = async () => {
@@ -68,7 +70,7 @@ export default function BuilderPage() {
   }, [formId]);
 
   // ── Derived state (BEFORE any early returns so all functions can reference them) ──
-  const draft            = form?.versions?.find((v) => v.status === "DRAFT");
+  const draft = form?.versions?.find((v) => v.status === "DRAFT");
   const publishedVersion = form?.versions?.find((v) => v.status === "PUBLISHED");
 
   // ── Helpers ──────────────────────────────────────────────────────────────────────
@@ -79,29 +81,30 @@ export default function BuilderPage() {
 
   const createNewField = (type, order) => {
     const isOptionsBased = OPTIONS_BASED_TYPES.includes(type);
-    const isGrid         = GRID_TYPES.includes(type);
+    const isGrid = GRID_TYPES.includes(type);
     return {
-      id:         Date.now().toString() + Math.random().toString(36).substr(2, 5),
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       fieldLabel: `New ${type.toLowerCase().replace(/_/g, " ")}`,
-      fieldType:  type,
-      required:   false,
+      fieldType: type,
+      required: false,
       fieldOrder: order,
-      options:    isOptionsBased ? ["Option 1"] : null,
+      options: isOptionsBased ? ["Option 1"] : null,
       validation: isGrid
         ? { rows: ["Row 1", "Row 2"], columns: ["Column 1", "Column 2"] }
         : {},
       uiConfig:
-        type === "STAR_RATING"   ? { maxStars: 5 }
-        : type === "LINEAR_SCALE" ? { scaleMin: 1, scaleMax: 5, lowLabel: "Not likely", highLabel: "Very likely" }
-        : type === "FILE_UPLOAD"  ? { acceptedFileTypes: [".pdf", ".png", ".jpg"], maxFileSizeMb: 5 }
-        : {},
+        type === "STAR_RATING" ? { maxStars: 5 }
+          : type === "LINEAR_SCALE" ? { scaleMin: 1, scaleMax: 5, lowLabel: "Not likely", highLabel: "Very likely" }
+            : type === "FILE_UPLOAD" ? { acceptedFileTypes: [".pdf", ".png", ".jpg"], maxFileSizeMb: 5 }
+              : type === "LOOKUP_DROPDOWN" ? { sourceTable: "", sourceColumn: "" }  // ✅ ADD THIS
+                : {},
     };
   };
 
   // ── Drag handlers ─────────────────────────────────────────────────────────────────
-  const handleSidebarDragStart = (e, type)  => e.dataTransfer.setData("newFieldType", type);
-  const handleFieldDragStart   = (e, index) => e.dataTransfer.setData("existingFieldIndex", index);
-  const handleDragOver         = (e)        => e.preventDefault();
+  const handleSidebarDragStart = (e, type) => e.dataTransfer.setData("newFieldType", type);
+  const handleFieldDragStart = (e, index) => e.dataTransfer.setData("existingFieldIndex", index);
+  const handleDragOver = (e) => e.preventDefault();
 
   const handleDropOnCanvas = (e) => {
     e.preventDefault();
@@ -116,9 +119,9 @@ export default function BuilderPage() {
   const handleDropOnField = (e, targetIndex) => {
     e.preventDefault();
     e.stopPropagation();
-    const newFieldType        = e.dataTransfer.getData("newFieldType");
-    const existingFieldIndex  = e.dataTransfer.getData("existingFieldIndex");
-    const newFields           = [...localFields];
+    const newFieldType = e.dataTransfer.getData("newFieldType");
+    const existingFieldIndex = e.dataTransfer.getData("existingFieldIndex");
+    const newFields = [...localFields];
 
     if (newFieldType) {
       const newField = createNewField(newFieldType, targetIndex + 1);
@@ -169,8 +172,8 @@ export default function BuilderPage() {
     setLocalFields((prev) =>
       prev.map((f) => {
         if (f.id !== fieldId) return f;
-        const newOptions   = [...f.options];
-        newOptions[index]  = newValue;
+        const newOptions = [...f.options];
+        newOptions[index] = newValue;
         return { ...f, options: newOptions };
       })
     );
@@ -186,15 +189,15 @@ export default function BuilderPage() {
   const handleSave = async () => {
     setSaving(true);
     const payload = localFields.map((field, index) => ({
-      fieldKey:   generateFieldKey(field.fieldLabel, index + 1),
+      fieldKey: generateFieldKey(field.fieldLabel, index + 1),
       fieldLabel: field.fieldLabel,
-      fieldType:  field.fieldType,
-      required:   field.required || false,
+      fieldType: field.fieldType,
+      required: field.required || false,
       fieldOrder: index + 1,
-      options:    field.options || [],
+      options: field.options || [],
       validation: {
         ...(field.validation || {}),
-        rows:    field.validation?.rows    || [],
+        rows: field.validation?.rows || [],
         columns: field.validation?.columns || [],
       },
       uiConfig: { ...(field.uiConfig || {}) },
@@ -278,9 +281,9 @@ export default function BuilderPage() {
 
   // ── Field preview renderer ────────────────────────────────────────────────────────
   const renderFieldPreview = (field) => {
-    const opts        = field.options || ["Option 1"];
+    const opts = field.options || ["Option 1"];
     const placeholder = field.uiConfig?.placeholder || "Users will answer here...";
-    const helpText    = field.uiConfig?.helpText    || null;
+    const helpText = field.uiConfig?.helpText || null;
 
     const preview = (() => {
       switch (field.fieldType) {
@@ -351,8 +354,8 @@ export default function BuilderPage() {
           );
 
         case "LINEAR_SCALE": {
-          const min   = field.uiConfig?.scaleMin ?? 1;
-          const max   = field.uiConfig?.scaleMax ?? 5;
+          const min = field.uiConfig?.scaleMin ?? 1;
+          const max = field.uiConfig?.scaleMax ?? 5;
           const steps = Array.from({ length: max - min + 1 }, (_, i) => min + i);
           return (
             <div className="space-y-2">
@@ -366,17 +369,27 @@ export default function BuilderPage() {
                 ))}
               </div>
               <div className="flex justify-between text-xs text-slate-500">
-                <span>{field.uiConfig?.lowLabel  || "Not likely"}</span>
+                <span>{field.uiConfig?.lowLabel || "Not likely"}</span>
                 <span>{field.uiConfig?.highLabel || "Very likely"}</span>
               </div>
             </div>
           );
         }
 
+        case "LOOKUP_DROPDOWN":
+          return (
+            <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-600 flex justify-between items-center">
+              {field.uiConfig?.sourceTable
+                ? `Linked to: ${field.uiConfig.sourceTable}.${field.uiConfig.sourceColumn}`
+                : "No table linked yet"}
+              <ChevronDown size={16} className="text-slate-400" />
+            </div>
+          );
+
         case "MC_GRID":
         case "TICK_BOX_GRID": {
-          const rows      = field.validation?.rows    || ["Row 1"];
-          const cols      = field.validation?.columns || ["Col 1"];
+          const rows = field.validation?.rows || ["Row 1"];
+          const cols = field.validation?.columns || ["Col 1"];
           const isTickBox = field.fieldType === "TICK_BOX_GRID";
           return (
             <div className="overflow-x-auto">
@@ -525,11 +538,10 @@ export default function BuilderPage() {
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDropOnField(e, index)}
                   onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); }}
-                  className={`group relative bg-white rounded-2xl transition-all cursor-pointer border-2 ${
-                    activeFieldId === field.id
-                      ? "border-indigo-600 shadow-md ring-4 ring-indigo-50"
-                      : "border-slate-200 hover:border-indigo-300 shadow-sm"
-                  }`}
+                  className={`group relative bg-white rounded-2xl transition-all cursor-pointer border-2 ${activeFieldId === field.id
+                    ? "border-indigo-600 shadow-md ring-4 ring-indigo-50"
+                    : "border-slate-200 hover:border-indigo-300 shadow-sm"
+                    }`}
                 >
                   <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col items-center justify-center text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50 rounded-l-xl border-r border-slate-100">
                     <GripVertical size={18} />
@@ -682,6 +694,42 @@ export default function BuilderPage() {
                 </div>
               )}
 
+              {activeField.fieldType === "LOOKUP_DROPDOWN" && (
+                <div className="space-y-3 pt-4 border-t border-slate-100">
+                  <label className="block text-sm font-semibold text-slate-700">Linked Table</label>
+                  <select
+                    value={activeField.uiConfig?.sourceTable || ""}
+                    onChange={(e) => {
+                      updateNestedObject(activeField.id, "uiConfig", "sourceTable", e.target.value);
+                      updateNestedObject(activeField.id, "uiConfig", "sourceColumn", ""); // reset column
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">Select a table...</option>
+                    <option value="categories">Categories</option>
+                    <option value="users">Users</option>
+                    <option value="products">Products</option>
+                  </select>
+
+                    {/* {Foreign key} */}
+                  {activeField.uiConfig?.sourceTable && (
+                    <>
+                      <label className="block text-sm font-semibold text-slate-700">Display Column</label>
+                      <input
+                        type="text"
+                        value={activeField.uiConfig?.sourceColumn || ""}
+                        onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "sourceColumn", e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                        placeholder="e.g. name, title, email"
+                      />
+                      <p className="text-xs text-slate-400">
+                        Type the exact column name from the <strong>{activeField.uiConfig.sourceTable}</strong> table.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* ── File Upload settings ── */}
               {activeField.fieldType === "FILE_UPLOAD" && (
                 <div className="space-y-3 pt-4 border-t border-slate-100">
@@ -769,7 +817,7 @@ export default function BuilderPage() {
                       <button
                         onClick={() => {
                           const current = activeField.validation?.[key] || [];
-                          const label   = key === "rows" ? "Row" : "Column";
+                          const label = key === "rows" ? "Row" : "Column";
                           updateNestedObject(activeField.id, "validation", key, [...current, `${label} ${current.length + 1}`]);
                         }}
                         className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors mt-2"
@@ -799,27 +847,49 @@ export default function BuilderPage() {
 
               {/* ── Display settings ── */}
               {!GRID_TYPES.includes(activeField.fieldType) &&
-               activeField.fieldType !== "STAR_RATING" &&
-               activeField.fieldType !== "FILE_UPLOAD" && (
-                <div className="pt-4 border-t border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                    <MonitorPlay size={16} className="text-indigo-600" /> Display Settings
-                  </h3>
-                  <div className="space-y-4">
-                    {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
-                     activeField.fieldType !== "BOOLEAN" &&
-                     activeField.fieldType !== "LINEAR_SCALE" && (
+                activeField.fieldType !== "STAR_RATING" &&
+                activeField.fieldType !== "FILE_UPLOAD" && (
+                  <div className="pt-4 border-t border-slate-100">
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                      <MonitorPlay size={16} className="text-indigo-600" /> Display Settings
+                    </h3>
+                    <div className="space-y-4">
+                      {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
+                        activeField.fieldType !== "BOOLEAN" &&
+                        activeField.fieldType !== "LINEAR_SCALE" && (
+                          <div>
+                            <label className="block text-xs font-medium text-slate-500 mb-1">Placeholder Text</label>
+                            <input
+                              type="text"
+                              value={activeField.uiConfig?.placeholder || ""}
+                              onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "placeholder", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                              placeholder="e.g. Type your answer here..."
+                            />
+                          </div>
+                        )}
                       <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Placeholder Text</label>
-                        <input
-                          type="text"
-                          value={activeField.uiConfig?.placeholder || ""}
-                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "placeholder", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                          placeholder="e.g. Type your answer here..."
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Help / Subtext</label>
+                        <textarea
+                          rows={2}
+                          value={activeField.uiConfig?.helpText || ""}
+                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
+                          placeholder="Add hints or instructions for users..."
                         />
                       </div>
-                    )}
+                    </div>
+                  </div>
+                )}
+
+              {/* ── Help text for grid/star/file types ── */}
+              {(GRID_TYPES.includes(activeField.fieldType) ||
+                activeField.fieldType === "STAR_RATING" ||
+                activeField.fieldType === "FILE_UPLOAD") && (
+                  <div className="pt-4 border-t border-slate-100">
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                      <MonitorPlay size={16} className="text-indigo-600" /> Display Settings
+                    </h3>
                     <div>
                       <label className="block text-xs font-medium text-slate-500 mb-1">Help / Subtext</label>
                       <textarea
@@ -831,29 +901,7 @@ export default function BuilderPage() {
                       />
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* ── Help text for grid/star/file types ── */}
-              {(GRID_TYPES.includes(activeField.fieldType) ||
-                activeField.fieldType === "STAR_RATING"   ||
-                activeField.fieldType === "FILE_UPLOAD") && (
-                <div className="pt-4 border-t border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                    <MonitorPlay size={16} className="text-indigo-600" /> Display Settings
-                  </h3>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Help / Subtext</label>
-                    <textarea
-                      rows={2}
-                      value={activeField.uiConfig?.helpText || ""}
-                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
-                      placeholder="Add hints or instructions for users..."
-                    />
-                  </div>
-                </div>
-              )}
+                )}
 
               {/* ── Validation rules ── */}
               <div className="pt-4 border-t border-slate-100">
@@ -922,13 +970,13 @@ export default function BuilderPage() {
                     </div>
                   )}
                   {!TEXT_BASED_TYPES.includes(activeField.fieldType) &&
-                   !NUMBER_BASED_TYPES.includes(activeField.fieldType) &&
-                   activeField.fieldType !== "TEXT" &&
-                   !GRID_TYPES.includes(activeField.fieldType) && (
-                    <p className="text-xs text-slate-400 italic">
-                      No additional validation rules available for this field type.
-                    </p>
-                  )}
+                    !NUMBER_BASED_TYPES.includes(activeField.fieldType) &&
+                    activeField.fieldType !== "TEXT" &&
+                    !GRID_TYPES.includes(activeField.fieldType) && (
+                      <p className="text-xs text-slate-400 italic">
+                        No additional validation rules available for this field type.
+                      </p>
+                    )}
                 </div>
               </div>
 

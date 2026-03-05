@@ -50,6 +50,19 @@ export default function SubmissionsPage() {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+    function parseJsonbValue(value) {
+    if (value === null || value === undefined) return null;
+    // PostgreSQL JSONB comes back as { type: "jsonb", value: "{...}" }
+    if (typeof value === "object" && value.value !== undefined) {
+      try { return JSON.parse(value.value); } catch { return null; }
+    }
+    if (typeof value === "string") {
+      try { return JSON.parse(value); } catch { return null; }
+    }
+    if (typeof value === "object") return value;
+    return null;
+  }
+
   // ── Cell Renderer ───────────────────────────────────────────────────────────
   const formatCellValue = (value, fieldType, rowIndex, fieldKey) => {
     if (value === null || value === undefined)

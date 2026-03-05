@@ -63,5 +63,8 @@ public class AddFieldRequest {
         // File Upload
         private List<String> acceptedFileTypes;
         private Integer maxFileSizeMb;
+
+        private String sourceTable;
+        private String sourceColumn;
     }
 }

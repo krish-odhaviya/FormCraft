@@ -1,12 +1,16 @@
 package com.sttl.formbuilder.controller;
 
+import com.sttl.formbuilder.common.ApiErrorDetail;
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.SubmissionsResponse;
 import com.sttl.formbuilder.dto.SubmitFormRequest;
+import com.sttl.formbuilder.exception.ValidationException;
 import com.sttl.formbuilder.service.FormSubmissionService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import com.sttl.formbuilder.dto.FormDetailsResponse;
@@ -21,6 +25,7 @@ import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
+
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.nio.file.*;
@@ -38,11 +43,14 @@ public class FormController {
     private final VersionService versionService;
     private final FormSubmissionService formSubmissionService;
 
+    private final JdbcTemplate jdbcTemplate;
+
     public FormController(FormService formService,
-                          VersionService versionService, FormSubmissionService formSubmissionService) {
+                          VersionService versionService, FormSubmissionService formSubmissionService, JdbcTemplate jdbcTemplate) {
         this.formService = formService;
         this.versionService = versionService;
         this.formSubmissionService = formSubmissionService;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @GetMapping
@@ -120,19 +128,20 @@ public class FormController {
             @RequestBody SubmitFormRequest request,
             HttpServletRequest httprequest
     ) {
-
         try {
-            // Pass the data to the service
             formSubmissionService.submit(request.getVersionId(), request.getValues());
+            return ApiResponseUtil.success("Submitted successfully", "Form submitted successfully", httprequest);
 
-            // Return a valid JSON success message so React's res.ok passes
-            return ResponseEntity.ok(Map.of("status", "success"));
+        } catch (ValidationException e) {
+            // ✅ Convert Map<fieldKey, msg> → List<ApiErrorDetail>
+            List<ApiErrorDetail> errors = e.getErrors().entrySet().stream()
+                    .map(entry -> new ApiErrorDetail(entry.getKey(), entry.getValue()))
+                    .toList();
+            return ApiResponseUtil.error("Form validation failed", errors, HttpStatus.BAD_REQUEST, httprequest);
 
         } catch (Exception e) {
-            // CRITICAL FOR DEBUGGING: This prints the exact reason for the 500 error in your terminal
             System.err.println("SUBMISSION FAILED: " + e.getMessage());
             e.printStackTrace();
-
             return ResponseEntity.internalServerError()
                     .body(Map.of("status", "error", "message", e.getMessage()));
         }
@@ -233,6 +242,42 @@ public class FormController {
 
         } catch (MalformedURLException e) {
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping("/lookup")
+    public ResponseEntity<?> getLookupData(
+            @RequestParam String table,
+            @RequestParam String column,
+            HttpServletRequest request) {
+
+        // ✅ Whitelist allowed tables to prevent SQL injection
+        List<String> allowedTables = List.of(
+                "categories", "users", "products"
+                // add more tables here as needed
+        );
+
+        if (!allowedTables.contains(table.toLowerCase())) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Table not allowed: " + table));
+        }
+
+        try {
+            String sql = "SELECT id, " + column + " FROM " + table + " WHERE 1=1";
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+
+            // Map to simple {id, label} list
+            List<Map<String, Object>> result = rows.stream()
+                    .map(row -> Map.of(
+                            "id", row.get("id"),
+                            "label", row.getOrDefault(column, "")
+                    ))
+                    .toList();
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to fetch lookup data"));
         }
     }
 

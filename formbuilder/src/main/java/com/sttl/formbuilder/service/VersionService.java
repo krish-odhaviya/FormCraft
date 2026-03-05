@@ -119,6 +119,8 @@ public class VersionService {
                 field.setLowLabel(req.getUiConfig().getLowLabel());
                 field.setHighLabel(req.getUiConfig().getHighLabel());
                 field.setMaxFileSizeMb(req.getUiConfig().getMaxFileSizeMb());
+                field.setSourceTable(req.getUiConfig().getSourceTable());
+                field.setSourceColumn(req.getUiConfig().getSourceColumn());
 
                 if (req.getUiConfig().getAcceptedFileTypes() != null) {
                     field.getAcceptedFileTypes().addAll(req.getUiConfig().getAcceptedFileTypes());
@@ -127,7 +129,13 @@ public class VersionService {
 
 // --- Map Grid rows/columns from validation ---
             if (req.getValidation() != null) {
-                // ... your existing mappings ...
+                field.setMinLength(req.getValidation().getMinLength());
+                field.setMaxLength(req.getValidation().getMaxLength());
+                field.setMinValue(req.getValidation().getMin());
+                field.setMaxValue(req.getValidation().getMax());
+                field.setPattern(req.getValidation().getPattern());               // ✅ was missing
+                field.setValidationMessage(req.getValidation().getValidationMessage()); // ✅ was missing
+
                 if (req.getValidation().getRows() != null) {
                     field.getGridRows().addAll(req.getValidation().getRows());
                 }
