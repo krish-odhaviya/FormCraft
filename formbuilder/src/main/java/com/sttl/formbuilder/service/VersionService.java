@@ -121,6 +121,7 @@ public class VersionService {
                 field.setMaxFileSizeMb(req.getUiConfig().getMaxFileSizeMb());
                 field.setSourceTable(req.getUiConfig().getSourceTable());
                 field.setSourceColumn(req.getUiConfig().getSourceColumn());
+                field.setSourceDisplayColumn(req.getUiConfig().getSourceDisplayColumn());
 
                 if (req.getUiConfig().getAcceptedFileTypes() != null) {
                     field.getAcceptedFileTypes().addAll(req.getUiConfig().getAcceptedFileTypes());

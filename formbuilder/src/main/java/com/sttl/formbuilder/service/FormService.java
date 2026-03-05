@@ -129,9 +129,11 @@ public class FormService {
                                 if (f.getMaxFileSizeMb() != null) uiMap.put("maxFileSizeMb", f.getMaxFileSizeMb());
                                 if (f.getAcceptedFileTypes() != null && !f.getAcceptedFileTypes().isEmpty())
                                     uiMap.put("acceptedFileTypes", f.getAcceptedFileTypes());
-                                // foreign key
-                                if (f.getSourceTable()  != null) uiMap.put("sourceTable",  f.getSourceTable());
-                                if (f.getSourceColumn() != null) uiMap.put("sourceColumn", f.getSourceColumn());
+
+                                //foreign key
+                                if (f.getSourceTable()         != null) uiMap.put("sourceTable",         f.getSourceTable());
+                                if (f.getSourceColumn()        != null) uiMap.put("sourceColumn",        f.getSourceColumn());
+                                if (f.getSourceDisplayColumn() != null) uiMap.put("sourceDisplayColumn", f.getSourceDisplayColumn());
                                 fd.setUiConfig(uiMap);
 
                                 return fd;

@@ -25,4 +25,5 @@ public interface FormVersionRepository extends JpaRepository<FormVersion, Long> 
     @Query("SELECT v FROM FormVersion v LEFT JOIN FETCH v.fields WHERE v.id = :id")
     Optional<FormVersion> findByIdWithFields(@Param("id") Long id);
 
+    List<FormVersion> findAllByStatus(FormStatusEnum formStatusEnum);
 }

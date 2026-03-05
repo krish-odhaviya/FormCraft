@@ -64,7 +64,9 @@ public class AddFieldRequest {
         private List<String> acceptedFileTypes;
         private Integer maxFileSizeMb;
 
+        // Inside UiConfigDto class, add:
         private String sourceTable;
         private String sourceColumn;
+        private String sourceDisplayColumn;
     }
 }

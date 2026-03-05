@@ -52,7 +52,20 @@ export default function BuilderPage() {
   const [saving, setSaving] = useState(false);
   const [localFields, setLocalFields] = useState([]);
   const [activeFieldId, setActiveFieldId] = useState(null);
+  const [publishedForms, setPublishedForms] = useState([]);
 
+  // ── Fetch published forms for LOOKUP_DROPDOWN ─────────────────────────────
+  useEffect(() => {
+    fetch("http://localhost:9090/api/forms/published-list")
+      .then((r) => r.json())
+      .then((res) => {
+        setPublishedForms(res.data || [])
+        console.log(res)
+      })
+      .catch(console.error);
+  }, []);
+
+  // ── Fetch form ────────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchForm = async () => {
       try {
@@ -69,11 +82,11 @@ export default function BuilderPage() {
     if (formId) fetchForm();
   }, [formId]);
 
-  // ── Derived state (BEFORE any early returns so all functions can reference them) ──
+  // ── Derived state ─────────────────────────────────────────────────────────
   const draft = form?.versions?.find((v) => v.status === "DRAFT");
   const publishedVersion = form?.versions?.find((v) => v.status === "PUBLISHED");
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const generateFieldKey = (label, order) =>
     (label || "field").toLowerCase().trim()
       .replace(/\s+/g, "_")
@@ -89,19 +102,17 @@ export default function BuilderPage() {
       required: false,
       fieldOrder: order,
       options: isOptionsBased ? ["Option 1"] : null,
-      validation: isGrid
-        ? { rows: ["Row 1", "Row 2"], columns: ["Column 1", "Column 2"] }
-        : {},
+      validation: isGrid ? { rows: ["Row 1", "Row 2"], columns: ["Column 1", "Column 2"] } : {},
       uiConfig:
         type === "STAR_RATING" ? { maxStars: 5 }
           : type === "LINEAR_SCALE" ? { scaleMin: 1, scaleMax: 5, lowLabel: "Not likely", highLabel: "Very likely" }
             : type === "FILE_UPLOAD" ? { acceptedFileTypes: [".pdf", ".png", ".jpg"], maxFileSizeMb: 5 }
-              : type === "LOOKUP_DROPDOWN" ? { sourceTable: "", sourceColumn: "" }  // ✅ ADD THIS
+              : type === "LOOKUP_DROPDOWN" ? { sourceTable: "", sourceColumn: "id", sourceDisplayColumn: "" }
                 : {},
     };
   };
 
-  // ── Drag handlers ─────────────────────────────────────────────────────────────────
+  // ── Drag handlers ─────────────────────────────────────────────────────────
   const handleSidebarDragStart = (e, type) => e.dataTransfer.setData("newFieldType", type);
   const handleFieldDragStart = (e, index) => e.dataTransfer.setData("existingFieldIndex", index);
   const handleDragOver = (e) => e.preventDefault();
@@ -137,7 +148,7 @@ export default function BuilderPage() {
     }
   };
 
-  // ── Field updaters ────────────────────────────────────────────────────────────────
+  // ── Field updaters ────────────────────────────────────────────────────────
   const updateLocalField = (id, key, value) =>
     setLocalFields((prev) => prev.map((f) => (f.id === id ? { ...f, [key]: value } : f)));
 
@@ -158,7 +169,7 @@ export default function BuilderPage() {
     if (activeFieldId === id) setActiveFieldId(null);
   };
 
-  // ── Option helpers ────────────────────────────────────────────────────────────────
+  // ── Option helpers ────────────────────────────────────────────────────────
   const addOption = (fieldId) =>
     setLocalFields((prev) =>
       prev.map((f) =>
@@ -185,7 +196,7 @@ export default function BuilderPage() {
       )
     );
 
-  // ── API handlers ──────────────────────────────────────────────────────────────────
+  // ── API handlers ──────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
     const payload = localFields.map((field, index) => ({
@@ -204,7 +215,6 @@ export default function BuilderPage() {
     }));
     try {
       await api.saveDraft(draft.id, payload);
-      console.log("=== FORM VALUES ===", JSON.stringify(localFields, null, 2))
       alert("Draft saved successfully!");
     } catch (e) {
       console.error(e);
@@ -227,7 +237,7 @@ export default function BuilderPage() {
     }
   };
 
-  // ── Early returns (AFTER all hooks & function defs) ───────────────────────────────
+  // ── Early returns ─────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
@@ -258,16 +268,10 @@ export default function BuilderPage() {
             This form is currently live and collecting responses. Its structure cannot be modified to protect data integrity.
           </p>
           <div className="space-y-3">
-            <Link
-              href={`/forms/${formId}/submissions`}
-              className="flex items-center justify-center w-full gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-medium transition-colors"
-            >
+            <Link href={`/forms/${formId}/submissions`} className="flex items-center justify-center w-full gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-medium transition-colors">
               <ClipboardList size={18} /> View Submissions
             </Link>
-            <Link
-              href="/"
-              className="flex items-center justify-center w-full gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-xl font-medium transition-colors"
-            >
+            <Link href="/" className="flex items-center justify-center w-full gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-xl font-medium transition-colors">
               <ArrowLeft size={18} /> Return to Dashboard
             </Link>
           </div>
@@ -276,10 +280,10 @@ export default function BuilderPage() {
     );
   }
 
-  // ── Derived for render ────────────────────────────────────────────────────────────
+  // ── Derived for render ────────────────────────────────────────────────────
   const activeField = localFields.find((f) => f.id === activeFieldId);
 
-  // ── Field preview renderer ────────────────────────────────────────────────────────
+  // ── Field preview renderer ────────────────────────────────────────────────
   const renderFieldPreview = (field) => {
     const opts = field.options || ["Option 1"];
     const placeholder = field.uiConfig?.placeholder || "Users will answer here...";
@@ -361,10 +365,8 @@ export default function BuilderPage() {
             <div className="space-y-2">
               <div className="flex gap-3 items-center flex-wrap">
                 {steps.map((val) => (
-                  <div key={val} className="flex flex-col items-center gap-1">
-                    <div className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-xs text-slate-500 font-medium bg-slate-50">
-                      {val}
-                    </div>
+                  <div key={val} className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-xs text-slate-500 font-medium bg-slate-50">
+                    {val}
                   </div>
                 ))}
               </div>
@@ -376,12 +378,16 @@ export default function BuilderPage() {
           );
         }
 
+        // ✅ Fixed: shows sourceDisplayColumn not sourceColumn
         case "LOOKUP_DROPDOWN":
           return (
             <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-600 flex justify-between items-center">
-              {field.uiConfig?.sourceTable
-                ? `Linked to: ${field.uiConfig.sourceTable}.${field.uiConfig.sourceColumn}`
-                : "No table linked yet"}
+              <span className="flex items-center gap-2">
+                <Link2 size={14} className="text-indigo-400" />
+                {field.uiConfig?.sourceTable && field.uiConfig?.sourceDisplayColumn
+                  ? `${field.uiConfig.sourceTable} → ${field.uiConfig.sourceDisplayColumn}`
+                  : "No source linked yet"}
+              </span>
               <ChevronDown size={16} className="text-slate-400" />
             </div>
           );
@@ -438,17 +444,14 @@ export default function BuilderPage() {
     );
   };
 
-  // ── JSX ───────────────────────────────────────────────────────────────────────────
+  // ── Main JSX ──────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen bg-slate-50/50 overflow-hidden font-sans">
 
-      {/* ── LEFT SIDEBAR: ELEMENTS ── */}
+      {/* ── LEFT SIDEBAR ── */}
       <aside className="w-72 bg-white border-r border-slate-200 flex flex-col shrink-0 z-20">
         <div className="p-5 border-b border-slate-100 bg-slate-50/50">
-          <Link
-            href="/"
-            className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 mb-6 transition-colors"
-          >
+          <Link href="/" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 mb-6 transition-colors">
             <ArrowLeft size={16} className="mr-1" /> Dashboard
           </Link>
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
@@ -477,7 +480,6 @@ export default function BuilderPage() {
 
       {/* ── MAIN CANVAS ── */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Header */}
         <header className="h-[72px] bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-10">
           <div className="flex items-center gap-3">
             <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
@@ -489,31 +491,19 @@ export default function BuilderPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link
-              href={`/forms/${formId}/view`}
-              className="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors"
-            >
+            <Link href={`/forms/${formId}/view`} className="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors">
               <ClipboardList size={18} /> View form
             </Link>
             <div className="w-px h-6 bg-slate-200 mx-1"></div>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            >
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
               <Save size={16} /> {saving ? "Saving..." : "Save Draft"}
             </button>
-            <button
-              onClick={handlePublish}
-              disabled={publishing}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-5 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
-            >
+            <button onClick={handlePublish} disabled={publishing} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-5 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
               <Rocket size={16} /> {publishing ? "Publishing..." : "Publish Form"}
             </button>
           </div>
         </header>
 
-        {/* Canvas drop area */}
         <div
           onDrop={handleDropOnCanvas}
           onDragOver={handleDragOver}
@@ -565,7 +555,7 @@ export default function BuilderPage() {
         </div>
       </main>
 
-      {/* ── RIGHT SIDEBAR: PROPERTIES ── */}
+      {/* ── RIGHT SIDEBAR ── */}
       <aside className="w-[340px] bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 shadow-xl shadow-slate-200/50">
         <div className="p-5 border-b border-slate-100 bg-slate-50/50">
           <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
@@ -573,6 +563,7 @@ export default function BuilderPage() {
           </h2>
         </div>
 
+        {/* ✅ Everything inside one scroll container, properly gated by activeField */}
         <div className="p-6 overflow-y-auto flex-1">
           {!activeField ? (
             <div className="text-center mt-10">
@@ -583,6 +574,7 @@ export default function BuilderPage() {
             </div>
           ) : (
             <div className="space-y-6">
+
               {/* Field type badge */}
               <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-md border border-indigo-100 w-fit">
                 {activeField.fieldType.replace(/_/g, " ")}
@@ -616,25 +608,19 @@ export default function BuilderPage() {
                           onChange={(e) => updateOption(activeField.id, idx, e.target.value)}
                           className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                         />
-                        <button
-                          onClick={() => deleteOption(activeField.id, idx)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
+                        <button onClick={() => deleteOption(activeField.id, idx)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
                           <X size={16} />
                         </button>
                       </div>
                     ))}
                   </div>
-                  <button
-                    onClick={() => addOption(activeField.id)}
-                    className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 mt-2 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
-                  >
+                  <button onClick={() => addOption(activeField.id)} className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 mt-2 px-2 py-1 rounded hover:bg-indigo-50 transition-colors">
                     <Plus size={16} /> Add option
                   </button>
                 </div>
               )}
 
-              {/* ── Star Rating settings ── */}
+              {/* ── Star Rating ── */}
               {activeField.fieldType === "STAR_RATING" && (
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <label className="block text-sm font-semibold text-slate-700">Max Stars</label>
@@ -642,95 +628,77 @@ export default function BuilderPage() {
                     type="number" min={1} max={10}
                     value={activeField.uiConfig?.maxStars || 5}
                     onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxStars", Number(e.target.value))}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
               )}
 
-              {/* ── Linear Scale settings ── */}
+              {/* ── Linear Scale ── */}
               {activeField.fieldType === "LINEAR_SCALE" && (
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <label className="block text-sm font-semibold text-slate-700">Scale Range</label>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Min</label>
-                      <input
-                        type="number"
-                        value={activeField.uiConfig?.scaleMin ?? 1}
-                        onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMin", Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                      />
+                      <input type="number" value={activeField.uiConfig?.scaleMin ?? 1} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMin", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Max</label>
-                      <input
-                        type="number"
-                        value={activeField.uiConfig?.scaleMax ?? 5}
-                        onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMax", Number(e.target.value))}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                      />
+                      <input type="number" value={activeField.uiConfig?.scaleMax ?? 5} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMax", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">Low Label</label>
-                    <input
-                      type="text"
-                      value={activeField.uiConfig?.lowLabel || ""}
-                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "lowLabel", e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                      placeholder="e.g. Not likely"
-                    />
+                    <input type="text" value={activeField.uiConfig?.lowLabel || ""} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "lowLabel", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. Not likely" />
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1">High Label</label>
-                    <input
-                      type="text"
-                      value={activeField.uiConfig?.highLabel || ""}
-                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "highLabel", e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                      placeholder="e.g. Very likely"
-                    />
+                    <input type="text" value={activeField.uiConfig?.highLabel || ""} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "highLabel", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. Very likely" />
                   </div>
                 </div>
               )}
 
+              {/* ✅ LOOKUP_DROPDOWN — Source form + display column (fixed, no duplicate) */}
               {activeField.fieldType === "LOOKUP_DROPDOWN" && (
                 <div className="space-y-3 pt-4 border-t border-slate-100">
-                  <label className="block text-sm font-semibold text-slate-700">Linked Table</label>
+                  <label className="block text-sm font-semibold text-slate-700">Source Form</label>
                   <select
                     value={activeField.uiConfig?.sourceTable || ""}
                     onChange={(e) => {
                       updateNestedObject(activeField.id, "uiConfig", "sourceTable", e.target.value);
-                      updateNestedObject(activeField.id, "uiConfig", "sourceColumn", ""); // reset column
+                      updateNestedObject(activeField.id, "uiConfig", "sourceColumn", "id");
+                      updateNestedObject(activeField.id, "uiConfig", "sourceDisplayColumn", "");
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
                   >
-                    <option value="">Select a table...</option>
-                    <option value="categories">Categories</option>
-                    <option value="users">Users</option>
-                    <option value="products">Products</option>
+                    <option value="">Select a form...</option>
+                    {publishedForms.map((f) => (
+                      <option key={f.formId} value={f.tableName}>{f.formName}</option>
+                    ))}
                   </select>
 
-                    {/* {Foreign key} */}
                   {activeField.uiConfig?.sourceTable && (
                     <>
-                      <label className="block text-sm font-semibold text-slate-700">Display Column</label>
-                      <input
-                        type="text"
-                        value={activeField.uiConfig?.sourceColumn || ""}
-                        onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "sourceColumn", e.target.value)}
+                      <label className="block text-sm font-semibold text-slate-700 mt-3">Display Column</label>
+                      <select
+                        value={activeField.uiConfig?.sourceDisplayColumn || ""}
+                        onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "sourceDisplayColumn", e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                        placeholder="e.g. name, title, email"
-                      />
+                      >
+                        <option value="">Select column to display...</option>
+                        {(publishedForms.find((f) => f.tableName === activeField.uiConfig.sourceTable)?.fields || []).map((f) => (
+                          <option key={f.key} value={f.key}>{f.label}</option>
+                        ))}
+                      </select>
                       <p className="text-xs text-slate-400">
-                        Type the exact column name from the <strong>{activeField.uiConfig.sourceTable}</strong> table.
+                        This column will show in the dropdown. The record ID is always stored.
                       </p>
                     </>
                   )}
                 </div>
               )}
 
-              {/* ── File Upload settings ── */}
+              {/* ── File Upload ── */}
               {activeField.fieldType === "FILE_UPLOAD" && (
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <div>
@@ -748,8 +716,7 @@ export default function BuilderPage() {
                       {(activeField.uiConfig?.acceptedFileTypes || []).map((ft, idx) => (
                         <div key={idx} className="flex items-center gap-2">
                           <input
-                            type="text"
-                            value={ft}
+                            type="text" value={ft}
                             onChange={(e) => {
                               const updated = [...(activeField.uiConfig?.acceptedFileTypes || [])];
                               updated[idx] = e.target.value;
@@ -783,7 +750,7 @@ export default function BuilderPage() {
                 </div>
               )}
 
-              {/* ── Grid settings (MC_GRID + TICK_BOX_GRID) ── */}
+              {/* ── Grid settings ── */}
               {GRID_TYPES.includes(activeField.fieldType) && (
                 <div className="space-y-4 pt-4 border-t border-slate-100">
                   {["rows", "columns"].map((key) => (
@@ -793,8 +760,7 @@ export default function BuilderPage() {
                         {(activeField.validation?.[key] || []).map((val, idx) => (
                           <div key={idx} className="flex items-center gap-2">
                             <input
-                              type="text"
-                              value={val}
+                              type="text" value={val}
                               onChange={(e) => {
                                 const updated = [...(activeField.validation?.[key] || [])];
                                 updated[idx] = e.target.value;
@@ -817,8 +783,8 @@ export default function BuilderPage() {
                       <button
                         onClick={() => {
                           const current = activeField.validation?.[key] || [];
-                          const label = key === "rows" ? "Row" : "Column";
-                          updateNestedObject(activeField.id, "validation", key, [...current, `${label} ${current.length + 1}`]);
+                          const lbl = key === "rows" ? "Row" : "Column";
+                          updateNestedObject(activeField.id, "validation", key, [...current, `${lbl} ${current.length + 1}`]);
                         }}
                         className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors mt-2"
                       >
@@ -846,62 +812,41 @@ export default function BuilderPage() {
               </div>
 
               {/* ── Display settings ── */}
-              {!GRID_TYPES.includes(activeField.fieldType) &&
-                activeField.fieldType !== "STAR_RATING" &&
-                activeField.fieldType !== "FILE_UPLOAD" && (
-                  <div className="pt-4 border-t border-slate-100">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                      <MonitorPlay size={16} className="text-indigo-600" /> Display Settings
-                    </h3>
-                    <div className="space-y-4">
-                      {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
-                        activeField.fieldType !== "BOOLEAN" &&
-                        activeField.fieldType !== "LINEAR_SCALE" && (
-                          <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1">Placeholder Text</label>
-                            <input
-                              type="text"
-                              value={activeField.uiConfig?.placeholder || ""}
-                              onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "placeholder", e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                              placeholder="e.g. Type your answer here..."
-                            />
-                          </div>
-                        )}
+              <div className="pt-4 border-t border-slate-100">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                  <MonitorPlay size={16} className="text-indigo-600" /> Display Settings
+                </h3>
+                <div className="space-y-4">
+                  {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
+                    activeField.fieldType !== "BOOLEAN" &&
+                    activeField.fieldType !== "LINEAR_SCALE" &&
+                    activeField.fieldType !== "STAR_RATING" &&
+                    !GRID_TYPES.includes(activeField.fieldType) &&
+                    activeField.fieldType !== "FILE_UPLOAD" &&
+                    activeField.fieldType !== "LOOKUP_DROPDOWN" && (
                       <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Help / Subtext</label>
-                        <textarea
-                          rows={2}
-                          value={activeField.uiConfig?.helpText || ""}
-                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
-                          placeholder="Add hints or instructions for users..."
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Placeholder Text</label>
+                        <input
+                          type="text"
+                          value={activeField.uiConfig?.placeholder || ""}
+                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "placeholder", e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                          placeholder="e.g. Type your answer here..."
                         />
                       </div>
-                    </div>
+                    )}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Help / Subtext</label>
+                    <textarea
+                      rows={2}
+                      value={activeField.uiConfig?.helpText || ""}
+                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
+                      placeholder="Add hints or instructions for users..."
+                    />
                   </div>
-                )}
-
-              {/* ── Help text for grid/star/file types ── */}
-              {(GRID_TYPES.includes(activeField.fieldType) ||
-                activeField.fieldType === "STAR_RATING" ||
-                activeField.fieldType === "FILE_UPLOAD") && (
-                  <div className="pt-4 border-t border-slate-100">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                      <MonitorPlay size={16} className="text-indigo-600" /> Display Settings
-                    </h3>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-500 mb-1">Help / Subtext</label>
-                      <textarea
-                        rows={2}
-                        value={activeField.uiConfig?.helpText || ""}
-                        onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
-                        placeholder="Add hints or instructions for users..."
-                      />
-                    </div>
-                  </div>
-                )}
+                </div>
+              </div>
 
               {/* ── Validation rules ── */}
               <div className="pt-4 border-t border-slate-100">
@@ -913,23 +858,11 @@ export default function BuilderPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-slate-500 mb-1">Min Length</label>
-                        <input
-                          type="number" min="0"
-                          value={activeField.validation?.minLength || ""}
-                          onChange={(e) => updateNestedObject(activeField.id, "validation", "minLength", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                          placeholder="e.g. 10"
-                        />
+                        <input type="number" min="0" value={activeField.validation?.minLength || ""} onChange={(e) => updateNestedObject(activeField.id, "validation", "minLength", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 10" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-500 mb-1">Max Length</label>
-                        <input
-                          type="number" min="0"
-                          value={activeField.validation?.maxLength || ""}
-                          onChange={(e) => updateNestedObject(activeField.id, "validation", "maxLength", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                          placeholder="e.g. 500"
-                        />
+                        <input type="number" min="0" value={activeField.validation?.maxLength || ""} onChange={(e) => updateNestedObject(activeField.id, "validation", "maxLength", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 500" />
                       </div>
                     </div>
                   )}
@@ -937,23 +870,11 @@ export default function BuilderPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-slate-500 mb-1">Min Value</label>
-                        <input
-                          type="number"
-                          value={activeField.validation?.min || ""}
-                          onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                          placeholder="e.g. 0"
-                        />
+                        <input type="number" value={activeField.validation?.min || ""} onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 0" />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-slate-500 mb-1">Max Value</label>
-                        <input
-                          type="number"
-                          value={activeField.validation?.max || ""}
-                          onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                          placeholder="e.g. 100"
-                        />
+                        <input type="number" value={activeField.validation?.max || ""} onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 100" />
                       </div>
                     </div>
                   )}
@@ -967,6 +888,18 @@ export default function BuilderPage() {
                         className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono text-xs"
                         placeholder="^([A-Z])+$"
                       />
+                      {activeField.validation?.pattern && (
+                        <div className="mt-2">
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Validation Message</label>
+                          <input
+                            type="text"
+                            value={activeField.validation?.validationMessage || ""}
+                            onChange={(e) => updateNestedObject(activeField.id, "validation", "validationMessage", e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                            placeholder="e.g. Please enter a valid phone number"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                   {!TEXT_BASED_TYPES.includes(activeField.fieldType) &&
@@ -981,9 +914,10 @@ export default function BuilderPage() {
               </div>
 
             </div>
-          )}
-        </div>
+
+          )}</div>
       </aside>
+
     </div>
   );
 }

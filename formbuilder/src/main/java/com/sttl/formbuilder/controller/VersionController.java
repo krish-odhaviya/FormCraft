@@ -7,6 +7,7 @@ import com.sttl.formbuilder.service.FormSubmissionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,20 +24,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/versions")
+@RequiredArgsConstructor
 public class VersionController {
 
     private final VersionService versionService;
     private final SchemaService schemaService;
     private final FormSubmissionService formSubmissionService;
     private final FormVersionRepository versionRepository;
-
-    public VersionController(VersionService versionService,
-                             SchemaService schemaService, FormSubmissionService formSubmissionService, FormVersionRepository versionRepository) {
-        this.versionService = versionService;
-        this.schemaService = schemaService;
-        this.formSubmissionService = formSubmissionService;
-        this.versionRepository = versionRepository;
-    }
 
     // Add Field
     @PostMapping("/{versionId}/fields")

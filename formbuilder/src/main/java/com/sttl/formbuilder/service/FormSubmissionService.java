@@ -80,6 +80,9 @@ public class FormSubmissionService {
                 }
             } else if ("LINEAR_SCALE".equalsIgnoreCase(fieldType)) {
                 if (val.toString().trim().isEmpty()) isEmpty = true;
+            } else if ("LOOKUP_DROPDOWN".equalsIgnoreCase(fieldType)) {
+                // required check for lookup: must have a value key
+                if (val instanceof Map<?, ?> m && m.get("value") == null) isEmpty = true;
             }
 
             if (isEmpty) errors.put(key, "'" + label + "' is required.");
@@ -192,6 +195,7 @@ public class FormSubmissionService {
                     }
                 }
 
+                // ✅ No extra validation for LOOKUP_DROPDOWN — required check above is enough
                 default -> {
                 }
             }
@@ -214,7 +218,6 @@ public class FormSubmissionService {
             if (!allowedKeys.contains(key)) continue;
 
             columnsList.add(key);
-
             String expectedType = fieldTypes.get(key);
 
             switch (expectedType.toUpperCase()) {
@@ -286,13 +289,13 @@ public class FormSubmissionService {
                     placeholdersList.add("?::jsonb");
                 }
 
+                // ✅ Store only the ID from { value: 3, label: "PATANA" }
                 case "LOOKUP_DROPDOWN" -> {
-                    if (val instanceof Map) {
-                        try {
-                            val = objectMapper.writeValueAsString(val);
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException("Failed to serialize lookup value for: " + key);
-                        }
+                    if (val instanceof Map<?, ?> map) {
+                        val = map.get("value"); // discard label, store only ID
+                    }
+                    if (val instanceof Number) {
+                        val = ((Number) val).longValue();
                     }
                     placeholdersList.add("?");
                 }
@@ -345,33 +348,33 @@ public class FormSubmissionService {
                     dto.setFieldOrder(f.getFieldOrder());
                     dto.setOptions(f.getOptions());
 
-                    // ✅ Map uiConfig flat fields back into a Map for frontend
+                    // ── uiConfig ────────────────────────────────────────────────
                     Map<String, Object> uiConfig = new HashMap<>();
-                    if (f.getPlaceholder() != null) uiConfig.put("placeholder", f.getPlaceholder());
-                    if (f.getHelpText() != null) uiConfig.put("helpText", f.getHelpText());
-                    if (f.getMaxStars() != null) uiConfig.put("maxStars", f.getMaxStars());
-                    if (f.getScaleMin() != null) uiConfig.put("scaleMin", f.getScaleMin());
-                    if (f.getScaleMax() != null) uiConfig.put("scaleMax", f.getScaleMax());
-                    if (f.getLowLabel() != null) uiConfig.put("lowLabel", f.getLowLabel());
-                    if (f.getHighLabel() != null) uiConfig.put("highLabel", f.getHighLabel());
-                    if (f.getMaxFileSizeMb() != null) uiConfig.put("maxFileSizeMb", f.getMaxFileSizeMb());
-                    if (f.getSourceTable() != null) uiConfig.put("sourceTable", f.getSourceTable());
-                    if (f.getSourceColumn() != null) uiConfig.put("sourceColumn", f.getSourceColumn());
-                    if (f.getAcceptedFileTypes() != null && !f.getAcceptedFileTypes().isEmpty())
+                    if (f.getPlaceholder()        != null) uiConfig.put("placeholder",        f.getPlaceholder());
+                    if (f.getHelpText()           != null) uiConfig.put("helpText",           f.getHelpText());
+                    if (f.getMaxStars()           != null) uiConfig.put("maxStars",           f.getMaxStars());
+                    if (f.getScaleMin()           != null) uiConfig.put("scaleMin",           f.getScaleMin());
+                    if (f.getScaleMax()           != null) uiConfig.put("scaleMax",           f.getScaleMax());
+                    if (f.getLowLabel()           != null) uiConfig.put("lowLabel",           f.getLowLabel());
+                    if (f.getHighLabel()          != null) uiConfig.put("highLabel",          f.getHighLabel());
+                    if (f.getMaxFileSizeMb()      != null) uiConfig.put("maxFileSizeMb",      f.getMaxFileSizeMb());
+                    if (f.getSourceTable()        != null) uiConfig.put("sourceTable",        f.getSourceTable());
+                    if (f.getSourceColumn()       != null) uiConfig.put("sourceColumn",       f.getSourceColumn());
+                    if (f.getSourceDisplayColumn()!= null) uiConfig.put("sourceDisplayColumn",f.getSourceDisplayColumn());
+                    if (f.getAcceptedFileTypes()  != null && !f.getAcceptedFileTypes().isEmpty())
                         uiConfig.put("acceptedFileTypes", f.getAcceptedFileTypes());
                     dto.setUiConfig(uiConfig);
 
-                    // ✅ Map gridRows/gridColumns into validation map for frontend
+                    // ── validation ──────────────────────────────────────────────
                     Map<String, Object> validation = new HashMap<>();
-                    if (f.getMinLength() != null) validation.put("minLength", f.getMinLength());
-                    if (f.getMaxLength() != null) validation.put("maxLength", f.getMaxLength());
-                    if (f.getMinValue() != null) validation.put("min", f.getMinValue());
-                    if (f.getMaxValue() != null) validation.put("max", f.getMaxValue());
-                    if (f.getPattern() != null) validation.put("pattern", f.getPattern());
-                    // ✅ THIS is what was missing — grid rows and columns
-                    if (f.getGridRows() != null && !f.getGridRows().isEmpty())
-                        validation.put("rows", f.getGridRows());
-                    if (f.getGridColumns() != null && !f.getGridColumns().isEmpty())
+                    if (f.getMinLength()  != null) validation.put("minLength", f.getMinLength());
+                    if (f.getMaxLength()  != null) validation.put("maxLength", f.getMaxLength());
+                    if (f.getMinValue()   != null) validation.put("min",       f.getMinValue());
+                    if (f.getMaxValue()   != null) validation.put("max",       f.getMaxValue());
+                    if (f.getPattern()    != null) validation.put("pattern",   f.getPattern());
+                    if (f.getGridRows()   != null && !f.getGridRows().isEmpty())
+                        validation.put("rows",    f.getGridRows());
+                    if (f.getGridColumns()!= null && !f.getGridColumns().isEmpty())
                         validation.put("columns", f.getGridColumns());
                     dto.setValidation(validation);
 
@@ -379,7 +382,46 @@ public class FormSubmissionService {
                 })
                 .collect(Collectors.toList());
 
-        String sql = "SELECT * FROM " + tableName + " WHERE is_delete = false ORDER BY id DESC";
+        // ── Build SELECT with JOIN for LOOKUP_DROPDOWN fields ────────────────────
+        StringBuilder select = new StringBuilder("SELECT t.id");
+        StringBuilder joins  = new StringBuilder();
+
+        for (FormField f : publishedVersion.getFields()) {
+            if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
+                    && f.getSourceTable() != null
+                    && f.getSourceColumn() != null) {
+
+                String alias      = "ref_" + f.getFieldKey();
+                String displayCol = f.getSourceDisplayColumn() != null
+                        ? f.getSourceDisplayColumn()
+                        : f.getSourceColumn();
+
+                String sourceTable = f.getSourceTable();
+
+                // SELECT ref_city.name AS city_field_key
+                select.append(", ").append(alias).append(".").append(displayCol)
+                        .append(" AS ").append(f.getFieldKey());
+
+                // LEFT JOIN form_city_v1 ref_city ON t.city_field_key = ref_city.id
+                joins.append(" LEFT JOIN ").append(sourceTable)
+                        .append(" ").append(alias)
+                        .append(" ON CAST(t.").append(f.getFieldKey())
+                        .append(" AS BIGINT) = ").append(alias).append(".").append(f.getSourceColumn());
+
+            } else {
+                select.append(", t.").append(f.getFieldKey());
+            }
+        }
+
+        String sql = select.toString()
+                + " FROM " + tableName + " t"
+                + joins.toString()
+                + " WHERE t.is_delete = false ORDER BY t.id DESC";
+
+        System.out.println("=== SUBMISSIONS SQL ===");
+        System.out.println(sql);
+        System.out.println("======================");
+
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
 
         SubmissionsResponse response = new SubmissionsResponse();

@@ -6,7 +6,8 @@ import Link from "next/link";
 import {
   ArrowLeft, Loader2, Database, Download,
   FileSpreadsheet, Trash2, Star, SlidersHorizontal,
-  LayoutGrid, Grid3x3, Upload, CheckSquare
+  LayoutGrid, Grid3x3, Upload, CheckSquare,
+  Link2
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 
@@ -24,11 +25,32 @@ export default function SubmissionsPage() {
 
   const fetchSubmissions = async () => {
     try {
+      const formRes = await api.getForm(formId);
+      const isPublished = formRes.data?.data?.versions?.some(v => v.status === "PUBLISHED");
+
+      if (!isPublished) {
+        setError("This form has not been published yet. Publish it first to view submissions.");
+        setLoading(false);
+        return; 
+      }
+
+
       const res = await api.getSubmissions(formId);
+
+      const payload = res.data?.data || res.data;
+
+      if (!payload?.columns || !payload?.rows) {
+        setError("Form is not published yet.");
+        return;
+      }
       setData(res.data);
     } catch (err) {
-      console.error(err);
-      setError(err.response || "Failed to load submissions. Is the form published?");
+      console.error(err.response?.data?.errors[0]?.message);
+      setError(
+        err.response?.data?.errors[0]?.message ||
+        err.response?.data?.message ||
+        "Failed to load submissions. Is the form published?"
+      );
     } finally {
       setLoading(false);
     }
@@ -50,7 +72,7 @@ export default function SubmissionsPage() {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-    function parseJsonbValue(value) {
+  function parseJsonbValue(value) {
     if (value === null || value === undefined) return null;
     // PostgreSQL JSONB comes back as { type: "jsonb", value: "{...}" }
     if (typeof value === "object" && value.value !== undefined) {
@@ -156,7 +178,7 @@ export default function SubmissionsPage() {
       // ── Multiple Choice Grid ─────────────────────────────────────────────────
       case "MC_GRID": {
         try {
-          const parsed = typeof value === "string" ? JSON.parse(value) : value;
+          const parsed = parseJsonbValue(value);
           if (typeof parsed !== "object" || parsed === null)
             return <span className="text-slate-300">—</span>;
 
@@ -193,7 +215,7 @@ export default function SubmissionsPage() {
       // ── Tick Box Grid ────────────────────────────────────────────────────────
       case "TICK_BOX_GRID": {
         try {
-          const parsed = typeof value === "string" ? JSON.parse(value) : value;
+          const parsed = parseJsonbValue(value);
           if (typeof parsed !== "object" || parsed === null)
             return <span className="text-slate-300">—</span>;
 
@@ -237,6 +259,14 @@ export default function SubmissionsPage() {
         }
       }
 
+      case "LOOKUP_DROPDOWN":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md text-xs font-medium">
+            <Link2 size={11} />
+            {String(value)}
+          </span>
+        );
+
       // ── Default (text, email, number, date, time, radio, dropdown) ───────────
       default:
         return (
@@ -263,8 +293,8 @@ export default function SubmissionsPage() {
         <Database className="text-slate-300 mb-4" size={48} />
         <h2 className="text-lg font-bold text-slate-800 mb-2">No Data Available</h2>
         <p className="text-sm text-slate-500 mb-6">{error}</p>
-        <Link href={`/forms/${formId}/builder`} className="text-indigo-600 font-medium hover:underline">
-          Return to Builder
+        <Link href={`/`} className="text-indigo-600 font-medium hover:underline">
+          Return to Dashboard
         </Link>
       </div>
     );
@@ -279,10 +309,10 @@ export default function SubmissionsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <Link
-              href={`/forms/${formId}/builder`}
+              href={`/`}
               className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 mb-2 transition-colors"
             >
-              <ArrowLeft size={16} className="mr-1" /> Back to Builder
+              <ArrowLeft size={16} className="mr-1" /> Back to Dashboard
             </Link>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               <Database size={24} className="text-indigo-600" /> Form Responses
@@ -374,6 +404,7 @@ function getColumnIcon(fieldType) {
     case "MC_GRID": return <LayoutGrid size={12} className="text-indigo-400" />;
     case "TICK_BOX_GRID": return <Grid3x3 size={12} className="text-indigo-400" />;
     case "CHECKBOX_GROUP": return <CheckSquare size={12} className="text-indigo-400" />;
+    case "LOOKUP_DROPDOWN": return <Link2 size={12} className="text-indigo-400" />;
     default: return null;
   }
 }

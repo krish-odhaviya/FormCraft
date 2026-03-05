@@ -21,6 +21,29 @@ export default function DynamicFormPage() {
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});  // { fieldKey: "error msg" }
 
+  const [lookupData, setLookupData] = useState({});
+
+  // Add this inside the existing useEffect after setFields(fieldsData):
+  useEffect(() => {
+    fields.forEach((field) => {
+      if (field.fieldType === "LOOKUP_DROPDOWN") {
+        const { sourceTable, sourceColumn, sourceDisplayColumn } = field.uiConfig || {};
+        if (!sourceTable || !sourceColumn || !sourceDisplayColumn) return;
+
+        fetch(
+          `http://localhost:9090/api/forms/lookup?table=${sourceTable}&valueColumn=${sourceColumn}&labelColumn=${sourceDisplayColumn}`
+        )
+          .then((r) => r.json())
+          .then((res) => {
+            setLookupData((prev) => ({
+              ...prev,
+              [field.fieldKey]: res.data || [],
+            }));
+          })
+          .catch(console.error);
+      }
+    });
+  }, [fields]);
   // ── Fetch Form ──────────────────────────────────────────────────────────────
   useEffect(() => {
     async function fetchFields() {
@@ -192,9 +215,8 @@ export default function DynamicFormPage() {
             <form onSubmit={handleSubmit} className="space-y-8">
               <div className="space-y-8">
                 {fields.map((field) => (
-                  // ✅ id used for scroll-to-error
                   <div key={field.fieldKey} id={`field_${field.fieldKey}`}>
-                    {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey])}
+                    {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData)}
                   </div>
                 ))}
               </div>
@@ -222,7 +244,7 @@ export default function DynamicFormPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 // renderInput — accepts error string for the field
 // ─────────────────────────────────────────────────────────────────────────────
-function renderInput(field, values, handleChange, error = null) {
+function renderInput(field, values, handleChange, error = null, lookupData = {}) {
   const type = field.fieldType?.toUpperCase();
   const value = values[field.fieldKey];
   const uiConfig = field.uiConfig || {};
@@ -485,8 +507,8 @@ function renderInput(field, values, handleChange, error = null) {
                   type="button"
                   onClick={() => handleChange(field.fieldKey, val)}
                   className={`w-10 h-10 rounded-full border-2 text-sm font-semibold transition-all focus:outline-none ${value === val
-                      ? "bg-indigo-600 border-indigo-600 text-white shadow-md"
-                      : "bg-white border-slate-300 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"
+                    ? "bg-indigo-600 border-indigo-600 text-white shadow-md"
+                    : "bg-white border-slate-300 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"
                     }`}
                 >
                   {val}
@@ -543,8 +565,8 @@ function renderInput(field, values, handleChange, error = null) {
         <div>
           <FieldLabel />
           <label className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-xl p-8 transition-all group ${error ? "border-red-400 bg-red-50/20"
-              : isUploaded ? "border-green-400 bg-green-50 cursor-default"
-                : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer"
+            : isUploaded ? "border-green-400 bg-green-50 cursor-default"
+              : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer"
             }`}>
             {isUploading ? (
               <><Loader2 size={28} className="text-indigo-500 animate-spin mb-3" /><p className="text-sm font-medium text-indigo-600">Uploading...</p></>
@@ -663,6 +685,36 @@ function renderInput(field, values, handleChange, error = null) {
               </tbody>
             </table>
           </div>
+          <FieldError />
+        </div>
+      );
+    }
+
+    case "LOOKUP_DROPDOWN": {
+      const options = lookupData[field.fieldKey] || [];
+      return (
+        <div>
+          <FieldLabel />
+          {options.length === 0 ? (
+            <div className={`${inputClass} text-slate-400`}>Loading options...</div>
+          ) : (
+            <div className="relative">
+              <select
+                className={`${inputClass} appearance-none cursor-pointer`}
+                value={value?.value || ""}
+                onChange={(e) => {
+                  const selected = options.find((o) => String(o.value) === e.target.value);
+                  handleChange(field.fieldKey, selected || "");
+                }}
+              >
+                <option value="">Select an option...</option>
+                {options.map((opt, idx) => (
+                  <option key={idx} value={String(opt.value)}>{opt.label}</option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
+          )}
           <FieldError />
         </div>
       );
