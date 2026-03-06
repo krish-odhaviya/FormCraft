@@ -348,6 +348,7 @@ public class FormSubmissionService {
                     dto.setFieldType(f.getFieldType());
                     dto.setRequired(f.getRequired());
                     dto.setFieldOrder(f.getFieldOrder());
+                    dto.setConditions(f.getConditions());
                     dto.setOptions(f.getOptions());
 
                     // ── uiConfig ────────────────────────────────────────────────

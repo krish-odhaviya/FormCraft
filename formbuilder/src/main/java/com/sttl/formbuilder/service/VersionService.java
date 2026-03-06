@@ -100,6 +100,7 @@ public class VersionService {
             field.setFieldLabel(req.getFieldLabel());
             field.setFieldType(req.getFieldType());
             field.setRequired(req.getRequired() != null ? req.getRequired() : false);
+            field.setConditions(req.getConditions()); // save conditions JSON as-is
             field.setFieldOrder(i + 1);
 
             // --- Handle Options (THE FIX for Radio/Checkbox) ---

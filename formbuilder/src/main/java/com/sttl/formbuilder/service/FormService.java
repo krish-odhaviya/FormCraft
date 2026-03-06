@@ -90,6 +90,7 @@ public class FormService {
                                 fd.setFieldLabel(f.getFieldLabel());
                                 fd.setFieldType(f.getFieldType());
                                 fd.setRequired(f.getRequired());
+                                fd.setConditions(f.getConditions());
                                 fd.setFieldOrder(f.getFieldOrder());
 
                                 // --- Map Options (from separate table) ---

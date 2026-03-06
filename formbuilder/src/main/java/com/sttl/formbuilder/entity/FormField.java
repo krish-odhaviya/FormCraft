@@ -82,6 +82,9 @@ public class FormField {
     @OrderColumn(name = "col_order")
     private List<String> gridColumns = new ArrayList<>();
 
+    @Column(columnDefinition = "TEXT")
+    private String conditions;  // stores JSON: { action, logic, rules[] }
+
     // --- FOREIGN KEY DROPDOWN ---
     private String sourceTable;        // e.g. "form_city_v1"
     private String sourceColumn;       // value column — always "id"

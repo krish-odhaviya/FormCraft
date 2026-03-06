@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api/formService";
 import {
@@ -8,20 +8,106 @@ import {
   ChevronDown, Star, Upload
 } from "lucide-react";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Condition evaluator
+// ─────────────────────────────────────────────────────────────────────────────
+function evaluateConditions(field, formValues) {
+  if (!field.conditions) return { visible: true, disabled: false };
+  let cond;
+  try { cond = typeof field.conditions === "string" ? JSON.parse(field.conditions) : field.conditions; }
+  catch { return { visible: true, disabled: false }; }
+  if (!cond.rules || cond.rules.length === 0) return { visible: true, disabled: false };
+
+  const results = cond.rules.map((rule) => {
+    if (!rule.fieldKey) return false;
+    const rawVal = formValues[rule.fieldKey];
+    const fieldValue = rawVal !== null && rawVal !== undefined ? String(rawVal) : "";
+    switch (rule.operator) {
+      case "equals":      return fieldValue === String(rule.value);
+      case "notEquals":   return fieldValue !== String(rule.value);
+      case "contains":    return fieldValue.toLowerCase().includes(String(rule.value).toLowerCase());
+      case "greaterThan": return Number(fieldValue) > Number(rule.value);
+      case "lessThan":    return Number(fieldValue) < Number(rule.value);
+      case "isEmpty":     return fieldValue.trim() === "";
+      case "isNotEmpty":  return fieldValue.trim() !== "";
+      default:            return false;
+    }
+  });
+
+  const passed = cond.logic === "OR" ? results.some(Boolean) : results.every(Boolean);
+  switch (cond.action) {
+    case "show":    return { visible: passed,  disabled: false };
+    case "hide":    return { visible: !passed, disabled: false };
+    case "enable":  return { visible: true,    disabled: !passed };
+    case "disable": return { visible: true,    disabled: passed };
+    default:        return { visible: true,    disabled: false };
+  }
+}
+
+// Formula evaluator — formula: "{price_1} * {qty_2}"
+function evaluateFormula(formula, formValues) {
+  if (!formula) return "";
+  try {
+    const expression = formula.replace(/\{([^}]+)\}/g, (_, key) => {
+      const val = Number(formValues[key]);
+      return isNaN(val) ? 0 : val;
+    });
+    // eslint-disable-next-line no-new-func
+    const result = Function(`"use strict"; return (${expression})`)();
+    return isNaN(result) ? "" : String(Math.round(result * 100) / 100);
+  } catch { return ""; }
+}
+
 export default function DynamicFormPage() {
   const { formId } = useParams();
   const router = useRouter();
 
-  const [fields, setFields] = useState([]);
-  const [formDetails, setFormDetails] = useState({});
-  const [formValues, setFormValues] = useState({});
+  const [fields, setFields]                     = useState([]);
+  const [formDetails, setFormDetails]           = useState({});
+  const [formValues, setFormValues]             = useState({});
   const [publishedVersionId, setPublishedVersionId] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [lookupData, setLookupData] = useState({});
+  const [loading, setLoading]                   = useState(true);
+  const [message, setMessage]                   = useState("");
+  const [submitting, setSubmitting]             = useState(false);
+  const [fieldErrors, setFieldErrors]           = useState({});
+  const [lookupData, setLookupData]             = useState({});
 
+  // ── Evaluate conditions reactively ────────────────────────────────────────
+  const fieldStates = useMemo(() => {
+    const states = {};
+    fields.forEach((field) => {
+      if (field.fieldType === "SECTION" || field.fieldType === "LABEL") {
+        states[field.fieldKey] = { visible: true, disabled: false };
+        return;
+      }
+      let cond;
+      try { cond = field.conditions ? JSON.parse(field.conditions) : null; } catch { cond = null; }
+
+      if (cond?.action === "calculate" && cond.formula) {
+        const calcValue = evaluateFormula(cond.formula, formValues);
+        states[field.fieldKey] = { visible: true, disabled: true, calculatedValue: calcValue };
+      } else {
+        states[field.fieldKey] = evaluateConditions(field, formValues);
+      }
+    });
+    return states;
+  }, [fields, formValues]);
+
+  // ── Auto-update calculated fields ─────────────────────────────────────────
+  useEffect(() => {
+    const updates = {};
+    fields.forEach((field) => {
+      const state = fieldStates[field.fieldKey];
+      if (state?.calculatedValue !== undefined && state.calculatedValue !== formValues[field.fieldKey]) {
+        updates[field.fieldKey] = state.calculatedValue;
+      }
+    });
+    if (Object.keys(updates).length > 0) {
+      setFormValues((prev) => ({ ...prev, ...updates }));
+    }
+  }, [fieldStates]);
+
+  // ── Fetch lookup data ─────────────────────────────────────────────────────
   useEffect(() => {
     fields.forEach((field) => {
       if (field.fieldType === "LOOKUP_DROPDOWN") {
@@ -35,6 +121,7 @@ export default function DynamicFormPage() {
     });
   }, [fields]);
 
+  // ── Fetch form ────────────────────────────────────────────────────────────
   useEffect(() => {
     async function fetchFields() {
       try {
@@ -50,24 +137,21 @@ export default function DynamicFormPage() {
 
         const initialValues = {};
         fieldsData.forEach((field) => {
-          // ✅ SECTION and LABEL have no user input — skip them
           if (field.fieldType === "SECTION" || field.fieldType === "LABEL") return;
-
           if      (field.fieldType === "BOOLEAN")        initialValues[field.fieldKey] = false;
           else if (field.fieldType === "CHECKBOX_GROUP") initialValues[field.fieldKey] = [];
           else if (field.fieldType === "MC_GRID") {
-            const rows = field.validation?.rows || field.gridRows || [];
+            const rows = field.validation?.rows || [];
             const init = {}; rows.forEach((r) => (init[r] = ""));
             initialValues[field.fieldKey] = init;
           } else if (field.fieldType === "TICK_BOX_GRID") {
-            const rows = field.validation?.rows || field.gridRows || [];
+            const rows = field.validation?.rows || [];
             const init = {}; rows.forEach((r) => (init[r] = []));
             initialValues[field.fieldKey] = init;
           } else if (field.fieldType === "STAR_RATING")  initialValues[field.fieldKey] = 0;
           else if  (field.fieldType === "LINEAR_SCALE")  initialValues[field.fieldKey] = "";
           else                                           initialValues[field.fieldKey] = "";
         });
-
         setFormValues(initialValues);
       } catch (err) {
         console.error(err);
@@ -89,17 +173,25 @@ export default function DynamicFormPage() {
     });
   };
 
+  // ── Submit — only visible fields ──────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     setMessage("");
     setFieldErrors({});
 
+    // Filter out hidden fields
+    const visibleValues = {};
+    Object.keys(formValues).forEach((key) => {
+      const state = fieldStates[key];
+      if (state?.visible !== false) visibleValues[key] = formValues[key];
+    });
+
     try {
       const res = await fetch("http://localhost:9090/api/forms/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ versionId: publishedVersionId, values: formValues }),
+        body: JSON.stringify({ versionId: publishedVersionId, values: visibleValues }),
       });
 
       const data = await res.json();
@@ -180,12 +272,19 @@ export default function DynamicFormPage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-8">
               <div className="space-y-8">
-                {fields.map((field) => (
-                  <div key={field.fieldKey} id={`field_${field.fieldKey}`}>
-                    {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData)}
-                  </div>
-                ))}
+                {fields.map((field) => {
+                  const state = fieldStates[field.fieldKey] || { visible: true, disabled: false };
+                  // ✅ Hidden fields render nothing
+                  if (state.visible === false) return null;
+
+                  return (
+                    <div key={field.fieldKey} id={`field_${field.fieldKey}`} className="transition-all duration-300">
+                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled)}
+                    </div>
+                  );
+                })}
               </div>
+
               {formDetails.versions[0].status === "PUBLISHED" && (
                 <div className="pt-6 mt-8 border-t border-slate-100 flex justify-end">
                   <button type="submit" disabled={submitting || message === "success"}
@@ -203,7 +302,10 @@ export default function DynamicFormPage() {
   );
 }
 
-function renderInput(field, values, handleChange, error = null, lookupData = {}) {
+// ─────────────────────────────────────────────────────────────────────────────
+// renderInput — isDisabled added for conditional enable/disable
+// ─────────────────────────────────────────────────────────────────────────────
+function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false) {
   const type      = field.fieldType?.toUpperCase();
   const value     = values[field.fieldKey];
   const uiConfig  = field.uiConfig || {};
@@ -215,6 +317,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
   const inputClass = [
     "w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-slate-900",
     "focus:outline-none focus:ring-2 transition-all placeholder:text-slate-400",
+    isDisabled ? "opacity-60 cursor-not-allowed bg-slate-100" : "",
     error ? "border-red-400 focus:ring-red-500/20 focus:border-red-500"
            : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500",
   ].join(" ");
@@ -222,7 +325,9 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
   const FieldLabel = () => (
     <div className="mb-3">
       <label className="block text-sm font-semibold text-slate-800">
-        {field.fieldLabel}{field.required && <span className="text-red-500 ml-1">*</span>}
+        {field.fieldLabel}
+        {field.required && !isDisabled && <span className="text-red-500 ml-1">*</span>}
+        {isDisabled && <span className="ml-2 text-xs font-normal text-slate-400 italic">(auto-calculated)</span>}
       </label>
       {helpText && <p className="text-xs text-slate-500 mt-1 leading-relaxed">{helpText}</p>}
     </div>
@@ -236,85 +341,87 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
 
   switch (type) {
 
-    // ✅ SECTION — horizontal divider with title + optional description
+    // ── SECTION ───────────────────────────────────────────────────────────────
     case "SECTION":
       return (
         <div className="pt-2 pb-1">
           <div className="border-t-2 border-indigo-500 pt-5">
-            <h3 className="text-lg font-bold text-slate-900">
-              {uiConfig.title || field.fieldLabel}
-            </h3>
-            {uiConfig.description && (
-              <p className="text-sm text-slate-500 mt-1 leading-relaxed">{uiConfig.description}</p>
-            )}
+            <h3 className="text-lg font-bold text-slate-900">{uiConfig.title || field.fieldLabel}</h3>
+            {uiConfig.description && <p className="text-sm text-slate-500 mt-1 leading-relaxed">{uiConfig.description}</p>}
           </div>
         </div>
       );
 
-    // ✅ LABEL — info/instruction box, no input
+    // ── LABEL ─────────────────────────────────────────────────────────────────
     case "LABEL":
       return (
         <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-5 py-4">
-          <h4 className="text-sm font-bold text-indigo-900">
-            {uiConfig.title || field.fieldLabel}
-          </h4>
-          {uiConfig.description && (
-            <p className="text-sm text-indigo-700 mt-1 leading-relaxed">{uiConfig.description}</p>
-          )}
+          <h4 className="text-sm font-bold text-indigo-900">{uiConfig.title || field.fieldLabel}</h4>
+          {uiConfig.description && <p className="text-sm text-indigo-700 mt-1 leading-relaxed">{uiConfig.description}</p>}
         </div>
       );
 
+    // ── Text / Email ──────────────────────────────────────────────────────────
     case "TEXT":
     case "EMAIL":
       return (
         <div>
           <FieldLabel />
-          <input type={type === "EMAIL" ? "email" : "text"} className={inputClass} placeholder={placeholder}
-            value={value || ""} onChange={(e) => handleChange(field.fieldKey, e.target.value)}
+          <input type={type === "EMAIL" ? "email" : "text"} className={inputClass}
+            placeholder={placeholder} value={value || ""} disabled={isDisabled}
+            onChange={(e) => handleChange(field.fieldKey, e.target.value)}
             title={validation.validationMessage || ""} />
           <FieldError />
         </div>
       );
 
+    // ── Textarea ──────────────────────────────────────────────────────────────
     case "TEXTAREA":
       return (
         <div>
           <FieldLabel />
-          <textarea className={`${inputClass} resize-y min-h-[100px]`} rows={4} placeholder={placeholder}
-            value={value || ""} onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
+          <textarea className={`${inputClass} resize-y min-h-[100px]`} rows={4}
+            placeholder={placeholder} value={value || ""} disabled={isDisabled}
+            onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>
       );
 
+    // ── Integer ───────────────────────────────────────────────────────────────
     case "INTEGER":
       return (
         <div>
           <FieldLabel />
           <input type="number" className={inputClass} placeholder={placeholder}
-            value={value || ""} onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
+            value={value || ""} disabled={isDisabled}
+            onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>
       );
 
+    // ── Date / Time ───────────────────────────────────────────────────────────
     case "DATE":
     case "TIME":
       return (
         <div>
           <FieldLabel />
           <input type={type.toLowerCase()} className={`${inputClass} cursor-pointer`}
-            value={value || ""} onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
+            value={value || ""} disabled={isDisabled}
+            onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>
       );
 
+    // ── Radio ─────────────────────────────────────────────────────────────────
     case "RADIO":
       return (
-        <div>
+        <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
           <div className="space-y-3">
             {options.map((opt, idx) => (
               <label key={idx} className="flex items-center gap-3 cursor-pointer group">
                 <input type="radio" name={field.fieldKey} value={opt} checked={value === opt}
+                  disabled={isDisabled}
                   onChange={(e) => handleChange(field.fieldKey, e.target.value)}
                   className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500" />
                 <span className="text-sm text-slate-700 group-hover:text-slate-900">{opt}</span>
@@ -325,15 +432,16 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
         </div>
       );
 
+    // ── Checkbox Group ────────────────────────────────────────────────────────
     case "CHECKBOX_GROUP": {
       const sel = Array.isArray(value) ? value : [];
       return (
-        <div>
+        <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
           <div className="space-y-3">
             {options.map((opt, idx) => (
               <label key={idx} className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" checked={sel.includes(opt)}
+                <input type="checkbox" checked={sel.includes(opt)} disabled={isDisabled}
                   onChange={(e) => handleChange(field.fieldKey, e.target.checked ? [...sel, opt] : sel.filter((i) => i !== opt))}
                   className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500" />
                 <span className="text-sm text-slate-700 group-hover:text-slate-900">{opt}</span>
@@ -345,12 +453,14 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
       );
     }
 
+    // ── Dropdown ──────────────────────────────────────────────────────────────
     case "DROPDOWN":
       return (
         <div>
           <FieldLabel />
           <div className="relative">
-            <select className={`${inputClass} appearance-none cursor-pointer`} value={value || ""}
+            <select className={`${inputClass} appearance-none cursor-pointer`}
+              value={value || ""} disabled={isDisabled}
               onChange={(e) => handleChange(field.fieldKey, e.target.value)}>
               <option value="" disabled>Select an option...</option>
               {options.map((opt, idx) => <option key={idx} value={opt}>{opt}</option>)}
@@ -361,11 +471,12 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
         </div>
       );
 
+    // ── Boolean ───────────────────────────────────────────────────────────────
     case "BOOLEAN":
       return (
         <div>
-          <div className={`flex items-start gap-3 p-4 border rounded-xl transition-colors bg-white ${error ? "border-red-400" : "border-slate-200 hover:bg-slate-50"}`}>
-            <input type="checkbox" id={field.fieldKey} checked={value || false}
+          <div className={`flex items-start gap-3 p-4 border rounded-xl transition-colors bg-white ${isDisabled ? "opacity-50" : ""} ${error ? "border-red-400" : "border-slate-200 hover:bg-slate-50"}`}>
+            <input type="checkbox" id={field.fieldKey} checked={value || false} disabled={isDisabled}
               onChange={(e) => handleChange(field.fieldKey, e.target.checked)}
               className="h-5 w-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer mt-0.5" />
             <label htmlFor={field.fieldKey} className="text-sm font-semibold text-slate-800 cursor-pointer">
@@ -376,17 +487,18 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
         </div>
       );
 
+    // ── Star Rating ───────────────────────────────────────────────────────────
     case "STAR_RATING": {
       const maxStars  = uiConfig.maxStars || 5;
       const starValue = value || 0;
       return (
-        <div>
+        <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
           <div className="flex gap-2">
             {Array.from({ length: maxStars }).map((_, i) => {
               const n = i + 1;
               return (
-                <button key={i} type="button" onClick={() => handleChange(field.fieldKey, n)}
+                <button key={i} type="button" onClick={() => !isDisabled && handleChange(field.fieldKey, n)}
                   className="focus:outline-none transition-transform hover:scale-110 active:scale-95">
                   <Star size={32} className={n <= starValue ? "text-amber-400 fill-amber-400" : "text-slate-300 fill-slate-100"} />
                 </button>
@@ -399,6 +511,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
       );
     }
 
+    // ── Linear Scale ──────────────────────────────────────────────────────────
     case "LINEAR_SCALE": {
       const scaleMin  = uiConfig.scaleMin ?? 1;
       const scaleMax  = uiConfig.scaleMax ?? 5;
@@ -406,12 +519,12 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
       const highLabel = uiConfig.highLabel || "";
       const steps = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i);
       return (
-        <div>
+        <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
           <div className="space-y-3">
             <div className="flex gap-3 flex-wrap">
               {steps.map((val) => (
-                <button key={val} type="button" onClick={() => handleChange(field.fieldKey, val)}
+                <button key={val} type="button" onClick={() => !isDisabled && handleChange(field.fieldKey, val)}
                   className={`w-10 h-10 rounded-full border-2 text-sm font-semibold transition-all focus:outline-none ${
                     value === val ? "bg-indigo-600 border-indigo-600 text-white shadow-md"
                                   : "bg-white border-slate-300 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"}`}>
@@ -430,6 +543,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
       );
     }
 
+    // ── File Upload ───────────────────────────────────────────────────────────
     case "FILE_UPLOAD": {
       const acceptedTypes = uiConfig.acceptedFileTypes || [];
       const maxSizeMb     = uiConfig.maxFileSizeMb || 5;
@@ -449,13 +563,13 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
           const data = await res.json();
           handleChange(field.fieldKey, data.url);
         } catch (err) {
-          console.error(err); alert("File upload failed. Please try again.");
+          console.error(err); alert("File upload failed.");
           handleChange(field.fieldKey, ""); e.target.value = "";
         }
       };
 
       return (
-        <div>
+        <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
           <label className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-xl p-8 transition-all group ${
             error ? "border-red-400 bg-red-50/20" : isUploaded ? "border-green-400 bg-green-50 cursor-default" : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer"}`}>
@@ -482,12 +596,13 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
       );
     }
 
+    // ── MC Grid ───────────────────────────────────────────────────────────────
     case "MC_GRID": {
-      const rows    = field.validation?.rows    || field.gridRows    || ["Row 1"];
-      const columns = field.validation?.columns || field.gridColumns || ["Col 1"];
+      const rows    = field.validation?.rows    || [];
+      const columns = field.validation?.columns || [];
       const gridVal = value || {};
       return (
-        <div>
+        <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
           <div className={`overflow-x-auto rounded-xl border ${error ? "border-red-400" : "border-slate-200"}`}>
             <table className="w-full text-sm">
@@ -503,7 +618,8 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
                     <td className="p-3 text-sm font-medium text-slate-700">{row}</td>
                     {columns.map((col, ci) => (
                       <td key={ci} className="p-3 text-center">
-                        <input type="radio" name={`${field.fieldKey}_${row}`} value={col} checked={gridVal[row] === col}
+                        <input type="radio" name={`${field.fieldKey}_${row}`} value={col}
+                          checked={gridVal[row] === col} disabled={isDisabled}
                           onChange={() => handleChange(field.fieldKey, { ...gridVal, [row]: col })}
                           className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer" />
                       </td>
@@ -518,12 +634,13 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
       );
     }
 
+    // ── Tick Box Grid ─────────────────────────────────────────────────────────
     case "TICK_BOX_GRID": {
-      const rows    = field.validation?.rows    || field.gridRows    || ["Row 1"];
-      const columns = field.validation?.columns || field.gridColumns || ["Col 1"];
+      const rows    = field.validation?.rows    || [];
+      const columns = field.validation?.columns || [];
       const gridVal = value || {};
       return (
-        <div>
+        <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
           <div className={`overflow-x-auto rounded-xl border ${error ? "border-red-400" : "border-slate-200"}`}>
             <table className="w-full text-sm">
@@ -541,7 +658,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
                       <td className="p-3 text-sm font-medium text-slate-700">{row}</td>
                       {columns.map((col, ci) => (
                         <td key={ci} className="p-3 text-center">
-                          <input type="checkbox" checked={rowSel.includes(col)}
+                          <input type="checkbox" checked={rowSel.includes(col)} disabled={isDisabled}
                             onChange={(e) => {
                               const updated = e.target.checked ? [...rowSel, col] : rowSel.filter((c) => c !== col);
                               handleChange(field.fieldKey, { ...gridVal, [row]: updated });
@@ -560,16 +677,18 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
       );
     }
 
+    // ── Lookup Dropdown ───────────────────────────────────────────────────────
     case "LOOKUP_DROPDOWN": {
       const opts = lookupData[field.fieldKey] || [];
       return (
-        <div>
+        <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
           {opts.length === 0 ? (
             <div className={`${inputClass} text-slate-400`}>Loading options...</div>
           ) : (
             <div className="relative">
-              <select className={`${inputClass} appearance-none cursor-pointer`} value={value?.value || ""}
+              <select className={`${inputClass} appearance-none cursor-pointer`}
+                value={value?.value || ""} disabled={isDisabled}
                 onChange={(e) => {
                   const selected = opts.find((o) => String(o.value) === e.target.value);
                   handleChange(field.fieldKey, selected || "");
@@ -585,12 +704,14 @@ function renderInput(field, values, handleChange, error = null, lookupData = {})
       );
     }
 
+    // ── Default ───────────────────────────────────────────────────────────────
     default:
       return (
         <div>
           <FieldLabel />
           <input type="text" className={inputClass} placeholder="Enter value..."
-            value={value || ""} onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
+            value={value || ""} disabled={isDisabled}
+            onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>
       );

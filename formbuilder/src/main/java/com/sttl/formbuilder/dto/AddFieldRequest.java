@@ -25,6 +25,8 @@ public class AddFieldRequest {
     private Integer fieldOrder;
     private List<String> options;
 
+    private String conditions;
+
     private ValidationDto validation;
     private UiConfigDto uiConfig;
 
@@ -68,5 +70,7 @@ public class AddFieldRequest {
         private String sourceTable;
         private String sourceColumn;
         private String sourceDisplayColumn;
+
+
     }
 }

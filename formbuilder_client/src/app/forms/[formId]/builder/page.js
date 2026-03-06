@@ -9,37 +9,55 @@ import {
   Trash2, Rocket, Save, Plus, Settings2, ClipboardList,
   ArrowLeft, LayoutTemplate, X, ShieldCheck, MonitorPlay,
   Lock, Star, SlidersHorizontal, LayoutGrid, Grid3x3, Upload,
-  Link2, Heading1, AlignLeft as AlignLeftIcon
+  Link2, Heading1, AlignLeft as AlignLeftIcon, GitBranch
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
 import { useForms } from "@/context/FormsContext";
 
 const FIELD_TYPES = [
-  { value: "TEXT", label: "Short Answer", icon: <Type size={18} /> },
-  { value: "TEXTAREA", label: "Paragraph", icon: <AlignLeft size={18} /> },
-  { value: "RADIO", label: "Multiple Choice", icon: <CircleDot size={18} /> },
-  { value: "CHECKBOX_GROUP", label: "Checkboxes", icon: <ListTodo size={18} /> },
-  { value: "DROPDOWN", label: "Dropdown", icon: <ChevronDown size={18} /> },
-  { value: "INTEGER", label: "Number", icon: <Hash size={18} /> },
-  { value: "EMAIL", label: "Email", icon: <Mail size={18} /> },
-  { value: "DATE", label: "Date", icon: <Calendar size={18} /> },
-  { value: "TIME", label: "Time", icon: <Clock size={18} /> },
-  { value: "BOOLEAN", label: "Yes/No (Toggle)", icon: <ToggleRight size={18} /> },
-  { value: "FILE_UPLOAD", label: "File Upload", icon: <Upload size={18} /> },
-  { value: "STAR_RATING", label: "Star Rating", icon: <Star size={18} /> },
-  { value: "LINEAR_SCALE", label: "Linear Scale", icon: <SlidersHorizontal size={18} /> },
-  { value: "MC_GRID", label: "Multiple Choice Grid", icon: <LayoutGrid size={18} /> },
-  { value: "TICK_BOX_GRID", label: "Tick Box Grid", icon: <Grid3x3 size={18} /> },
-  { value: "LOOKUP_DROPDOWN", label: "Linked Dropdown", icon: <Link2 size={18} /> },
-  { value: "SECTION", label: "Section Break", icon: <Heading1 size={18} /> },
-  { value: "LABEL", label: "Label / Info", icon: <AlignLeftIcon size={18} /> },
+  { value: "TEXT",           label: "Short Answer",          icon: <Type size={18} /> },
+  { value: "TEXTAREA",       label: "Paragraph",             icon: <AlignLeft size={18} /> },
+  { value: "RADIO",          label: "Multiple Choice",       icon: <CircleDot size={18} /> },
+  { value: "CHECKBOX_GROUP", label: "Checkboxes",            icon: <ListTodo size={18} /> },
+  { value: "DROPDOWN",       label: "Dropdown",              icon: <ChevronDown size={18} /> },
+  { value: "INTEGER",        label: "Number",                icon: <Hash size={18} /> },
+  { value: "EMAIL",          label: "Email",                 icon: <Mail size={18} /> },
+  { value: "DATE",           label: "Date",                  icon: <Calendar size={18} /> },
+  { value: "TIME",           label: "Time",                  icon: <Clock size={18} /> },
+  { value: "BOOLEAN",        label: "Yes/No (Toggle)",       icon: <ToggleRight size={18} /> },
+  { value: "FILE_UPLOAD",    label: "File Upload",           icon: <Upload size={18} /> },
+  { value: "STAR_RATING",    label: "Star Rating",           icon: <Star size={18} /> },
+  { value: "LINEAR_SCALE",   label: "Linear Scale",          icon: <SlidersHorizontal size={18} /> },
+  { value: "MC_GRID",        label: "Multiple Choice Grid",  icon: <LayoutGrid size={18} /> },
+  { value: "TICK_BOX_GRID",  label: "Tick Box Grid",         icon: <Grid3x3 size={18} /> },
+  { value: "LOOKUP_DROPDOWN",label: "Linked Dropdown",       icon: <Link2 size={18} /> },
+  { value: "SECTION",        label: "Section Break",         icon: <Heading1 size={18} /> },
+  { value: "LABEL",          label: "Label / Info",          icon: <AlignLeftIcon size={18} /> },
 ];
 
 const OPTIONS_BASED_TYPES = ["RADIO", "CHECKBOX_GROUP", "DROPDOWN"];
-const TEXT_BASED_TYPES = ["TEXT", "TEXTAREA", "EMAIL"];
-const NUMBER_BASED_TYPES = ["INTEGER"];
-const GRID_TYPES = ["MC_GRID", "TICK_BOX_GRID"];
+const TEXT_BASED_TYPES    = ["TEXT", "TEXTAREA", "EMAIL"];
+const NUMBER_BASED_TYPES  = ["INTEGER"];
+const GRID_TYPES          = ["MC_GRID", "TICK_BOX_GRID"];
+
+const OPERATORS = [
+  { value: "equals",      label: "equals" },
+  { value: "notEquals",   label: "not equals" },
+  { value: "contains",    label: "contains" },
+  { value: "greaterThan", label: "greater than" },
+  { value: "lessThan",    label: "less than" },
+  { value: "isEmpty",     label: "is empty" },
+  { value: "isNotEmpty",  label: "is not empty" },
+];
+
+const CONDITION_ACTIONS = [
+  { value: "show",      label: "Show" },
+  { value: "hide",      label: "Hide" },
+  { value: "enable",    label: "Enable" },
+  { value: "disable",   label: "Disable" },
+  { value: "calculate", label: "Calculate (auto-fill)" },
+];
 
 export default function BuilderPage() {
   const router = useRouter();
@@ -49,10 +67,10 @@ export default function BuilderPage() {
   const { getForm, setFormFromServer, updateVersion } = useForms();
   const form = getForm(formId);
 
-  const [loading, setLoading] = useState(true);
-  const [publishing, setPublishing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [localFields, setLocalFields] = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [publishing, setPublishing]     = useState(false);
+  const [saving, setSaving]             = useState(false);
+  const [localFields, setLocalFields]   = useState([]);
   const [activeFieldId, setActiveFieldId] = useState(null);
   const [publishedForms, setPublishedForms] = useState([]);
 
@@ -60,10 +78,7 @@ export default function BuilderPage() {
   useEffect(() => {
     fetch("http://localhost:9090/api/forms/published-list")
       .then((r) => r.json())
-      .then((res) => {
-        setPublishedForms(res.data || [])
-        console.log(res)
-      })
+      .then((res) => setPublishedForms(res.data || []))
       .catch(console.error);
   }, []);
 
@@ -84,8 +99,19 @@ export default function BuilderPage() {
     if (formId) fetchForm();
   }, [formId]);
 
+  // ── Conditions helpers ────────────────────────────────────────────────────
+  const parseConditions = (field) => {
+    if (!field?.conditions) return { action: "show", logic: "AND", rules: [] };
+    try { return JSON.parse(field.conditions); }
+    catch { return { action: "show", logic: "AND", rules: [] }; }
+  };
+
+  const saveConditions = (fieldId, condObj) => {
+    updateLocalField(fieldId, "conditions", JSON.stringify(condObj));
+  };
+
   // ── Derived state ─────────────────────────────────────────────────────────
-  const draft = form?.versions?.find((v) => v.status === "DRAFT");
+  const draft           = form?.versions?.find((v) => v.status === "DRAFT");
   const publishedVersion = form?.versions?.find((v) => v.status === "PUBLISHED");
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -106,21 +132,21 @@ export default function BuilderPage() {
       options: isOptionsBased ? ["Option 1"] : null,
       validation: isGrid ? { rows: ["Row 1", "Row 2"], columns: ["Column 1", "Column 2"] } : {},
       uiConfig:
-        type === "STAR_RATING" ? { maxStars: 5 }
-          : type === "LINEAR_SCALE" ? { scaleMin: 1, scaleMax: 5, lowLabel: "Not likely", highLabel: "Very likely" }
-            : type === "FILE_UPLOAD" ? { acceptedFileTypes: [".pdf", ".png", ".jpg"], maxFileSizeMb: 5 }
-              : type === "LOOKUP_DROPDOWN" ? { sourceTable: "", sourceColumn: "id", sourceDisplayColumn: "" }
-                : type === "SECTION" ? { title: "New Section", description: "" }
-                  : type === "LABEL" ? { title: "Label Title", description: "" }
-                    : {}
-
+        type === "STAR_RATING"      ? { maxStars: 5 }
+        : type === "LINEAR_SCALE"   ? { scaleMin: 1, scaleMax: 5, lowLabel: "Not likely", highLabel: "Very likely" }
+        : type === "FILE_UPLOAD"    ? { acceptedFileTypes: [".pdf", ".png", ".jpg"], maxFileSizeMb: 5 }
+        : type === "LOOKUP_DROPDOWN"? { sourceTable: "", sourceColumn: "id", sourceDisplayColumn: "" }
+        : type === "SECTION"        ? { title: "New Section", description: "" }
+        : type === "LABEL"          ? { title: "Label Title", description: "" }
+        : {},
+      conditions: null,
     };
   };
 
   // ── Drag handlers ─────────────────────────────────────────────────────────
   const handleSidebarDragStart = (e, type) => e.dataTransfer.setData("newFieldType", type);
-  const handleFieldDragStart = (e, index) => e.dataTransfer.setData("existingFieldIndex", index);
-  const handleDragOver = (e) => e.preventDefault();
+  const handleFieldDragStart   = (e, index) => e.dataTransfer.setData("existingFieldIndex", index);
+  const handleDragOver         = (e) => e.preventDefault();
 
   const handleDropOnCanvas = (e) => {
     e.preventDefault();
@@ -135,8 +161,8 @@ export default function BuilderPage() {
   const handleDropOnField = (e, targetIndex) => {
     e.preventDefault();
     e.stopPropagation();
-    const newFieldType = e.dataTransfer.getData("newFieldType");
-    const existingFieldIndex = e.dataTransfer.getData("existingFieldIndex");
+    const newFieldType        = e.dataTransfer.getData("newFieldType");
+    const existingFieldIndex  = e.dataTransfer.getData("existingFieldIndex");
     const newFields = [...localFields];
 
     if (newFieldType) {
@@ -201,22 +227,23 @@ export default function BuilderPage() {
       )
     );
 
-  // ── API handlers ──────────────────────────────────────────────────────────
+  // ── Save / Publish ────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
     const payload = localFields.map((field, index) => ({
-      fieldKey: generateFieldKey(field.fieldLabel, index + 1),
+      fieldKey:   generateFieldKey(field.fieldLabel, index + 1),
       fieldLabel: field.fieldLabel,
-      fieldType: field.fieldType,
-      required: field.required || false,
+      fieldType:  field.fieldType,
+      required:   field.required || false,
       fieldOrder: index + 1,
-      options: field.options || [],
+      options:    field.options || [],
       validation: {
         ...(field.validation || {}),
-        rows: field.validation?.rows || [],
+        rows:    field.validation?.rows    || [],
         columns: field.validation?.columns || [],
       },
-      uiConfig: { ...(field.uiConfig || {}) },
+      uiConfig:   { ...(field.uiConfig || {}) },
+      conditions: field.conditions || null,   // ✅ persist conditions
     }));
     try {
       await api.saveDraft(draft.id, payload);
@@ -285,23 +312,18 @@ export default function BuilderPage() {
     );
   }
 
-  // ── Derived for render ────────────────────────────────────────────────────
   const activeField = localFields.find((f) => f.id === activeFieldId);
 
   // ── Field preview renderer ────────────────────────────────────────────────
   const renderFieldPreview = (field) => {
-    const opts = field.options || ["Option 1"];
+    const opts        = field.options || ["Option 1"];
     const placeholder = field.uiConfig?.placeholder || "Users will answer here...";
-    const helpText = field.uiConfig?.helpText || null;
+    const helpText    = field.uiConfig?.helpText || null;
 
     const preview = (() => {
       switch (field.fieldType) {
         case "TEXTAREA":
-          return (
-            <div className="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400">
-              {placeholder}
-            </div>
-          );
+          return <div className="w-full h-20 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400">{placeholder}</div>;
 
         case "RADIO":
           return (
@@ -345,24 +367,16 @@ export default function BuilderPage() {
         case "SECTION":
           return (
             <div className="border-t-2 border-indigo-400 pt-4">
-              <h3 className="text-base font-bold text-slate-800">
-                {field.uiConfig?.title || "New Section"}
-              </h3>
-              {field.uiConfig?.description && (
-                <p className="text-sm text-slate-500 mt-1">{field.uiConfig.description}</p>
-              )}
+              <h3 className="text-base font-bold text-slate-800">{field.uiConfig?.title || "New Section"}</h3>
+              {field.uiConfig?.description && <p className="text-sm text-slate-500 mt-1">{field.uiConfig.description}</p>}
             </div>
           );
 
         case "LABEL":
           return (
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
-              <h4 className="text-sm font-bold text-indigo-900">
-                {field.uiConfig?.title || "Label Title"}
-              </h4>
-              {field.uiConfig?.description && (
-                <p className="text-sm text-indigo-700 mt-1">{field.uiConfig.description}</p>
-              )}
+              <h4 className="text-sm font-bold text-indigo-900">{field.uiConfig?.title || "Label Title"}</h4>
+              {field.uiConfig?.description && <p className="text-sm text-indigo-700 mt-1">{field.uiConfig.description}</p>}
             </div>
           );
 
@@ -371,9 +385,7 @@ export default function BuilderPage() {
             <div className="w-full border-2 border-dashed border-slate-300 rounded-xl px-6 py-8 flex flex-col items-center gap-2 text-slate-400 bg-slate-50">
               <Upload size={24} />
               <p className="text-sm font-medium">Click to upload or drag &amp; drop</p>
-              <p className="text-xs">
-                {field.uiConfig?.acceptedFileTypes?.join(", ") || "Any file"} · max {field.uiConfig?.maxFileSizeMb || 5}MB
-              </p>
+              <p className="text-xs">{field.uiConfig?.acceptedFileTypes?.join(", ") || "Any file"} · max {field.uiConfig?.maxFileSizeMb || 5}MB</p>
             </div>
           );
 
@@ -387,16 +399,14 @@ export default function BuilderPage() {
           );
 
         case "LINEAR_SCALE": {
-          const min = field.uiConfig?.scaleMin ?? 1;
-          const max = field.uiConfig?.scaleMax ?? 5;
+          const min   = field.uiConfig?.scaleMin ?? 1;
+          const max   = field.uiConfig?.scaleMax ?? 5;
           const steps = Array.from({ length: max - min + 1 }, (_, i) => min + i);
           return (
             <div className="space-y-2">
               <div className="flex gap-3 items-center flex-wrap">
                 {steps.map((val) => (
-                  <div key={val} className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-xs text-slate-500 font-medium bg-slate-50">
-                    {val}
-                  </div>
+                  <div key={val} className="w-8 h-8 rounded-full border-2 border-slate-300 flex items-center justify-center text-xs text-slate-500 font-medium bg-slate-50">{val}</div>
                 ))}
               </div>
               <div className="flex justify-between text-xs text-slate-500">
@@ -407,7 +417,6 @@ export default function BuilderPage() {
           );
         }
 
-        // ✅ Fixed: shows sourceDisplayColumn not sourceColumn
         case "LOOKUP_DROPDOWN":
           return (
             <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-600 flex justify-between items-center">
@@ -423,8 +432,8 @@ export default function BuilderPage() {
 
         case "MC_GRID":
         case "TICK_BOX_GRID": {
-          const rows = field.validation?.rows || ["Row 1"];
-          const cols = field.validation?.columns || ["Col 1"];
+          const rows      = field.validation?.rows    || ["Row 1"];
+          const cols      = field.validation?.columns || ["Col 1"];
           const isTickBox = field.fieldType === "TICK_BOX_GRID";
           return (
             <div className="overflow-x-auto">
@@ -432,9 +441,7 @@ export default function BuilderPage() {
                 <thead>
                   <tr>
                     <th className="p-2"></th>
-                    {cols.map((col, i) => (
-                      <th key={i} className="p-2 text-center text-slate-600 font-medium text-xs">{col}</th>
-                    ))}
+                    {cols.map((col, i) => <th key={i} className="p-2 text-center text-slate-600 font-medium text-xs">{col}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -457,11 +464,7 @@ export default function BuilderPage() {
         }
 
         default:
-          return (
-            <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400">
-              {placeholder}
-            </div>
-          );
+          return <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400">{placeholder}</div>;
       }
     })();
 
@@ -496,9 +499,7 @@ export default function BuilderPage() {
               className="group flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-sm transition-all"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-100 transition-colors">
-                  {type.icon}
-                </div>
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg group-hover:bg-indigo-100 transition-colors">{type.icon}</div>
                 <span className="text-sm font-medium text-slate-700">{type.label}</span>
               </div>
               <GripVertical size={16} className="text-slate-300 group-hover:text-slate-500" />
@@ -511,9 +512,7 @@ export default function BuilderPage() {
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         <header className="h-[72px] bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-10">
           <div className="flex items-center gap-3">
-            <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
-              <LayoutTemplate size={20} />
-            </div>
+            <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><LayoutTemplate size={20} /></div>
             <div>
               <h1 className="text-base font-bold text-slate-900 leading-tight line-clamp-1">{form.name}</h1>
               <p className="text-xs text-slate-500 font-medium">Builder Mode</p>
@@ -557,20 +556,35 @@ export default function BuilderPage() {
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDropOnField(e, index)}
                   onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); }}
-                  className={`group relative bg-white rounded-2xl transition-all cursor-pointer border-2 ${activeFieldId === field.id
-                    ? "border-indigo-600 shadow-md ring-4 ring-indigo-50"
-                    : "border-slate-200 hover:border-indigo-300 shadow-sm"
-                    }`}
+                  className={`group relative bg-white rounded-2xl transition-all cursor-pointer border-2 ${
+                    activeFieldId === field.id
+                      ? "border-indigo-600 shadow-md ring-4 ring-indigo-50"
+                      : "border-slate-200 hover:border-indigo-300 shadow-sm"
+                  }`}
                 >
+                  {/* Drag handle */}
                   <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col items-center justify-center text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50 rounded-l-xl border-r border-slate-100">
                     <GripVertical size={18} />
                   </div>
+                  {/* Delete button */}
                   <button
                     onClick={(e) => deleteLocalField(field.id, e)}
                     className="absolute -right-3 -top-3 bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 shadow-sm p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all z-10"
                   >
                     <Trash2 size={16} />
                   </button>
+                  {/* Condition indicator badge */}
+                  {field.conditions && (() => {
+                    try {
+                      const c = JSON.parse(field.conditions);
+                      if (c.rules?.length > 0) return (
+                        <div className="absolute -left-3 -top-3 bg-indigo-600 text-white p-1 rounded-full shadow-sm z-10" title="Has conditions">
+                          <GitBranch size={12} />
+                        </div>
+                      );
+                    } catch {}
+                    return null;
+                  })()}
                   <div className="p-8 pl-14 pointer-events-none">
                     <label className="block text-base font-semibold text-slate-800 mb-4">
                       {field.fieldLabel} {field.required && <span className="text-red-500">*</span>}
@@ -592,7 +606,6 @@ export default function BuilderPage() {
           </h2>
         </div>
 
-        {/* ✅ Everything inside one scroll container, properly gated by activeField */}
         <div className="p-6 overflow-y-auto flex-1">
           {!activeField ? (
             <div className="text-center mt-10">
@@ -621,7 +634,33 @@ export default function BuilderPage() {
                 />
               </div>
 
-              {/* ── Options (RADIO / CHECKBOX_GROUP / DROPDOWN) ── */}
+              {/* ── SECTION / LABEL settings ── */}
+              {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL") && (
+                <div className="space-y-3 pt-4 border-t border-slate-100">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={activeField.uiConfig?.title || ""}
+                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "title", e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                      placeholder="Section title..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
+                    <textarea
+                      rows={2}
+                      value={activeField.uiConfig?.description || ""}
+                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "description", e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
+                      placeholder="Optional description..."
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* ── Options ── */}
               {OPTIONS_BASED_TYPES.includes(activeField.fieldType) && (
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <label className="block text-sm font-semibold text-slate-700">Options</label>
@@ -632,8 +671,7 @@ export default function BuilderPage() {
                         {activeField.fieldType === "CHECKBOX_GROUP" && <div className="w-4 h-4 rounded border-2 border-slate-300 shrink-0"></div>}
                         {activeField.fieldType === "DROPDOWN" && <span className="text-xs font-mono text-slate-400 shrink-0">{idx + 1}.</span>}
                         <input
-                          type="text"
-                          value={opt}
+                          type="text" value={opt}
                           onChange={(e) => updateOption(activeField.id, idx, e.target.value)}
                           className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                         />
@@ -653,8 +691,7 @@ export default function BuilderPage() {
               {activeField.fieldType === "STAR_RATING" && (
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <label className="block text-sm font-semibold text-slate-700">Max Stars</label>
-                  <input
-                    type="number" min={1} max={10}
+                  <input type="number" min={1} max={10}
                     value={activeField.uiConfig?.maxStars || 5}
                     onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxStars", Number(e.target.value))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
@@ -687,7 +724,7 @@ export default function BuilderPage() {
                 </div>
               )}
 
-              {/* ✅ LOOKUP_DROPDOWN — Source form + display column (fixed, no duplicate) */}
+              {/* ── Lookup Dropdown ── */}
               {activeField.fieldType === "LOOKUP_DROPDOWN" && (
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <label className="block text-sm font-semibold text-slate-700">Source Form</label>
@@ -705,32 +742,6 @@ export default function BuilderPage() {
                       <option key={f.formId} value={f.tableName}>{f.formName}</option>
                     ))}
                   </select>
-
-                  {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL") && (
-                    <div className="space-y-3 pt-4 border-t border-slate-100">
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Title</label>
-                        <input
-                          type="text"
-                          value={activeField.uiConfig?.title || ""}
-                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "title", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                          placeholder="Section title..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
-                        <textarea
-                          rows={2}
-                          value={activeField.uiConfig?.description || ""}
-                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "description", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
-                          placeholder="Optional description..."
-                        />
-                      </div>
-                    </div>
-                  )}
-
                   {activeField.uiConfig?.sourceTable && (
                     <>
                       <label className="block text-sm font-semibold text-slate-700 mt-3">Display Column</label>
@@ -744,9 +755,7 @@ export default function BuilderPage() {
                           <option key={f.key} value={f.key}>{f.label}</option>
                         ))}
                       </select>
-                      <p className="text-xs text-slate-400">
-                        This column will show in the dropdown. The record ID is always stored.
-                      </p>
+                      <p className="text-xs text-slate-400">This column will show in the dropdown. The record ID is always stored.</p>
                     </>
                   )}
                 </div>
@@ -757,8 +766,7 @@ export default function BuilderPage() {
                 <div className="space-y-3 pt-4 border-t border-slate-100">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Max File Size (MB)</label>
-                    <input
-                      type="number" min={1} max={100}
+                    <input type="number" min={1} max={100}
                       value={activeField.uiConfig?.maxFileSizeMb || 5}
                       onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxFileSizeMb", Number(e.target.value))}
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
@@ -769,8 +777,7 @@ export default function BuilderPage() {
                     <div className="space-y-2">
                       {(activeField.uiConfig?.acceptedFileTypes || []).map((ft, idx) => (
                         <div key={idx} className="flex items-center gap-2">
-                          <input
-                            type="text" value={ft}
+                          <input type="text" value={ft}
                             onChange={(e) => {
                               const updated = [...(activeField.uiConfig?.acceptedFileTypes || [])];
                               updated[idx] = e.target.value;
@@ -779,25 +786,19 @@ export default function BuilderPage() {
                             className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
                             placeholder=".pdf"
                           />
-                          <button
-                            onClick={() => {
-                              const updated = (activeField.uiConfig?.acceptedFileTypes || []).filter((_, i) => i !== idx);
-                              updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
-                            }}
-                            className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
-                          >
+                          <button onClick={() => {
+                            const updated = (activeField.uiConfig?.acceptedFileTypes || []).filter((_, i) => i !== idx);
+                            updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
+                          }} className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
                             <X size={16} />
                           </button>
                         </div>
                       ))}
                     </div>
-                    <button
-                      onClick={() => {
-                        const updated = [...(activeField.uiConfig?.acceptedFileTypes || []), ""];
-                        updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
-                      }}
-                      className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors mt-2"
-                    >
+                    <button onClick={() => {
+                      const updated = [...(activeField.uiConfig?.acceptedFileTypes || []), ""];
+                      updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
+                    }} className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors mt-2">
                       <Plus size={16} /> Add file type
                     </button>
                   </div>
@@ -813,8 +814,7 @@ export default function BuilderPage() {
                       <div className="space-y-2">
                         {(activeField.validation?.[key] || []).map((val, idx) => (
                           <div key={idx} className="flex items-center gap-2">
-                            <input
-                              type="text" value={val}
+                            <input type="text" value={val}
                               onChange={(e) => {
                                 const updated = [...(activeField.validation?.[key] || [])];
                                 updated[idx] = e.target.value;
@@ -822,26 +822,20 @@ export default function BuilderPage() {
                               }}
                               className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
                             />
-                            <button
-                              onClick={() => {
-                                const updated = (activeField.validation?.[key] || []).filter((_, i) => i !== idx);
-                                updateNestedObject(activeField.id, "validation", key, updated);
-                              }}
-                              className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
-                            >
+                            <button onClick={() => {
+                              const updated = (activeField.validation?.[key] || []).filter((_, i) => i !== idx);
+                              updateNestedObject(activeField.id, "validation", key, updated);
+                            }} className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
                               <X size={16} />
                             </button>
                           </div>
                         ))}
                       </div>
-                      <button
-                        onClick={() => {
-                          const current = activeField.validation?.[key] || [];
-                          const lbl = key === "rows" ? "Row" : "Column";
-                          updateNestedObject(activeField.id, "validation", key, [...current, `${lbl} ${current.length + 1}`]);
-                        }}
-                        className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors mt-2"
-                      >
+                      <button onClick={() => {
+                        const current = activeField.validation?.[key] || [];
+                        const lbl = key === "rows" ? "Row" : "Column";
+                        updateNestedObject(activeField.id, "validation", key, [...current, `${lbl} ${current.length + 1}`]);
+                      }} className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors mt-2">
                         <Plus size={16} /> Add {key === "rows" ? "row" : "column"}
                       </button>
                     </div>
@@ -850,126 +844,296 @@ export default function BuilderPage() {
               )}
 
               {/* ── Required toggle ── */}
-              <div className="pt-4 border-t border-slate-100">
-                <label className="flex items-center justify-between p-4 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-slate-800">Required Field</span>
-                    <span className="text-xs text-slate-500 mt-0.5">Force users to answer this</span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={activeField.required}
-                    onChange={(e) => updateLocalField(activeField.id, "required", e.target.checked)}
-                    className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                  />
-                </label>
-              </div>
+              {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
+                <div className="pt-4 border-t border-slate-100">
+                  <label className="flex items-center justify-between p-4 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-slate-800">Required Field</span>
+                      <span className="text-xs text-slate-500 mt-0.5">Force users to answer this</span>
+                    </div>
+                    <input type="checkbox" checked={activeField.required}
+                      onChange={(e) => updateLocalField(activeField.id, "required", e.target.checked)}
+                      className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                    />
+                  </label>
+                </div>
+              )}
 
               {/* ── Display settings ── */}
-              <div className="pt-4 border-t border-slate-100">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                  <MonitorPlay size={16} className="text-indigo-600" /> Display Settings
-                </h3>
-                <div className="space-y-4">
-                  {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
-                    activeField.fieldType !== "BOOLEAN" &&
-                    activeField.fieldType !== "LINEAR_SCALE" &&
-                    activeField.fieldType !== "STAR_RATING" &&
-                    !GRID_TYPES.includes(activeField.fieldType) &&
-                    activeField.fieldType !== "FILE_UPLOAD" &&
-                    activeField.fieldType !== "LOOKUP_DROPDOWN" && (
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Placeholder Text</label>
-                        <input
-                          type="text"
-                          value={activeField.uiConfig?.placeholder || ""}
-                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "placeholder", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                          placeholder="e.g. Type your answer here..."
-                        />
-                      </div>
-                    )}
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Help / Subtext</label>
-                    <textarea
-                      rows={2}
-                      value={activeField.uiConfig?.helpText || ""}
-                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
-                      placeholder="Add hints or instructions for users..."
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* ── Validation rules ── */}
-              <div className="pt-4 border-t border-slate-100">
-                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                  <ShieldCheck size={16} className="text-indigo-600" /> Validation Rules
-                </h3>
-                <div className="space-y-4">
-                  {TEXT_BASED_TYPES.includes(activeField.fieldType) && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Min Length</label>
-                        <input type="number" min="0" value={activeField.validation?.minLength || ""} onChange={(e) => updateNestedObject(activeField.id, "validation", "minLength", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 10" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Max Length</label>
-                        <input type="number" min="0" value={activeField.validation?.maxLength || ""} onChange={(e) => updateNestedObject(activeField.id, "validation", "maxLength", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 500" />
-                      </div>
-                    </div>
-                  )}
-                  {NUMBER_BASED_TYPES.includes(activeField.fieldType) && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Min Value</label>
-                        <input type="number" value={activeField.validation?.min || ""} onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 0" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Max Value</label>
-                        <input type="number" value={activeField.validation?.max || ""} onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 100" />
-                      </div>
-                    </div>
-                  )}
-                  {activeField.fieldType === "TEXT" && (
-                    <div>
-                      <label className="block text-xs font-medium text-slate-500 mb-1">Custom Regex Pattern</label>
-                      <input
-                        type="text"
-                        value={activeField.validation?.pattern || ""}
-                        onChange={(e) => updateNestedObject(activeField.id, "validation", "pattern", e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono text-xs"
-                        placeholder="^([A-Z])+$"
-                      />
-                      {activeField.validation?.pattern && (
-                        <div className="mt-2">
-                          <label className="block text-xs font-medium text-slate-500 mb-1">Validation Message</label>
-                          <input
-                            type="text"
-                            value={activeField.validation?.validationMessage || ""}
-                            onChange={(e) => updateNestedObject(activeField.id, "validation", "validationMessage", e.target.value)}
+              {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
+                <div className="pt-4 border-t border-slate-100">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                    <MonitorPlay size={16} className="text-indigo-600" /> Display Settings
+                  </h3>
+                  <div className="space-y-4">
+                    {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
+                      activeField.fieldType !== "BOOLEAN" &&
+                      activeField.fieldType !== "LINEAR_SCALE" &&
+                      activeField.fieldType !== "STAR_RATING" &&
+                      !GRID_TYPES.includes(activeField.fieldType) &&
+                      activeField.fieldType !== "FILE_UPLOAD" &&
+                      activeField.fieldType !== "LOOKUP_DROPDOWN" && (
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Placeholder Text</label>
+                          <input type="text" value={activeField.uiConfig?.placeholder || ""}
+                            onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "placeholder", e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                            placeholder="e.g. Please enter a valid phone number"
+                            placeholder="e.g. Type your answer here..."
                           />
                         </div>
                       )}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Help / Subtext</label>
+                      <textarea rows={2} value={activeField.uiConfig?.helpText || ""}
+                        onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
+                        placeholder="Add hints or instructions for users..."
+                      />
                     </div>
-                  )}
-                  {!TEXT_BASED_TYPES.includes(activeField.fieldType) &&
-                    !NUMBER_BASED_TYPES.includes(activeField.fieldType) &&
-                    activeField.fieldType !== "TEXT" &&
-                    !GRID_TYPES.includes(activeField.fieldType) && (
-                      <p className="text-xs text-slate-400 italic">
-                        No additional validation rules available for this field type.
-                      </p>
-                    )}
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* ── Validation rules ── */}
+              {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
+                <div className="pt-4 border-t border-slate-100">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                    <ShieldCheck size={16} className="text-indigo-600" /> Validation Rules
+                  </h3>
+                  <div className="space-y-4">
+                    {TEXT_BASED_TYPES.includes(activeField.fieldType) && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Min Length</label>
+                          <input type="number" min="0" value={activeField.validation?.minLength || ""}
+                            onChange={(e) => updateNestedObject(activeField.id, "validation", "minLength", e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 10" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Max Length</label>
+                          <input type="number" min="0" value={activeField.validation?.maxLength || ""}
+                            onChange={(e) => updateNestedObject(activeField.id, "validation", "maxLength", e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 500" />
+                        </div>
+                      </div>
+                    )}
+                    {NUMBER_BASED_TYPES.includes(activeField.fieldType) && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Min Value</label>
+                          <input type="number" value={activeField.validation?.min || ""}
+                            onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 0" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Max Value</label>
+                          <input type="number" value={activeField.validation?.max || ""}
+                            onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" placeholder="e.g. 100" />
+                        </div>
+                      </div>
+                    )}
+                    {activeField.fieldType === "TEXT" && (
+                      <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Custom Regex Pattern</label>
+                        <input type="text" value={activeField.validation?.pattern || ""}
+                          onChange={(e) => updateNestedObject(activeField.id, "validation", "pattern", e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono text-xs"
+                          placeholder="^([A-Z])+$"
+                        />
+                        {activeField.validation?.pattern && (
+                          <div className="mt-2">
+                            <label className="block text-xs font-medium text-slate-500 mb-1">Validation Message</label>
+                            <input type="text" value={activeField.validation?.validationMessage || ""}
+                              onChange={(e) => updateNestedObject(activeField.id, "validation", "validationMessage", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                              placeholder="e.g. Please enter a valid phone number"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {!TEXT_BASED_TYPES.includes(activeField.fieldType) &&
+                      !NUMBER_BASED_TYPES.includes(activeField.fieldType) &&
+                      activeField.fieldType !== "TEXT" &&
+                      !GRID_TYPES.includes(activeField.fieldType) && (
+                        <p className="text-xs text-slate-400 italic">No additional validation rules available for this field type.</p>
+                      )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Conditional Logic ── */}
+              {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
+                <div className="pt-4 border-t border-slate-100">
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                    <GitBranch size={16} className="text-indigo-600" /> Conditional Logic
+                  </h3>
+
+                  {(() => {
+                    const cond = parseConditions(activeField);
+
+                    const updateCond = (updates) =>
+                      saveConditions(activeField.id, { ...cond, ...updates });
+
+                    const addRule = () => updateCond({
+                      rules: [...cond.rules, { fieldKey: "", operator: "equals", value: "" }],
+                    });
+
+                    const removeRule = (idx) => updateCond({
+                      rules: cond.rules.filter((_, i) => i !== idx),
+                    });
+
+                    const updateRule = (idx, key, val) => {
+                      const newRules = [...cond.rules];
+                      newRules[idx] = { ...newRules[idx], [key]: val };
+                      updateCond({ rules: newRules });
+                    };
+
+                    // Fields available as condition sources (exclude self, SECTION, LABEL, FILE_UPLOAD)
+                    const otherFields = localFields.filter(
+                      (f) => f.id !== activeField.id &&
+                             f.fieldType !== "SECTION" &&
+                             f.fieldType !== "LABEL" &&
+                             f.fieldType !== "FILE_UPLOAD"
+                    );
+
+                    return (
+                      <div className="space-y-3">
+
+                        {/* Action */}
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Action</label>
+                          <select
+                            value={cond.action}
+                            onChange={(e) => updateCond({ action: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                          >
+                            {CONDITION_ACTIONS.map((a) => (
+                              <option key={a.value} value={a.value}>{a.label} this field when:</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Formula input for calculate action */}
+                        {cond.action === "calculate" && (
+                          <div>
+                            <label className="block text-xs font-medium text-slate-500 mb-1">Formula</label>
+                            <input
+                              type="text"
+                              value={cond.formula || ""}
+                              onChange={(e) => updateCond({ formula: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                              placeholder="e.g. {price_1} * {quantity_2}"
+                            />
+                            <p className="text-xs text-slate-400 mt-1">
+                              Use {"{fieldKey}"} to reference other fields. Supports + - * / ( )
+                            </p>
+                            <div className="mt-2 space-y-1">
+                              {otherFields.map((f, i) => (
+                                <button
+                                  key={f.id}
+                                  type="button"
+                                  onClick={() => updateCond({ formula: (cond.formula || "") + `{${generateFieldKey(f.fieldLabel, localFields.indexOf(f) + 1)}}` })}
+                                  className="inline-flex items-center gap-1 mr-1 mb-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-xs hover:bg-indigo-100 transition-colors"
+                                >
+                                  + {f.fieldLabel}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Rules */}
+                        {cond.action !== "calculate" && (
+                          <>
+                            {cond.rules.length > 1 && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500">Match:</span>
+                                {["AND", "OR"].map((l) => (
+                                  <button key={l} type="button"
+                                    onClick={() => updateCond({ logic: l })}
+                                    className={`px-3 py-1 rounded-md text-xs font-semibold border transition-colors ${
+                                      cond.logic === l
+                                        ? "bg-indigo-600 text-white border-indigo-600"
+                                        : "bg-white text-slate-600 border-slate-200 hover:border-indigo-400"
+                                    }`}
+                                  >
+                                    {l}
+                                  </button>
+                                ))}
+                                <span className="text-xs text-slate-500">conditions</span>
+                              </div>
+                            )}
+
+                            <div className="space-y-2">
+                              {cond.rules.map((rule, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5 bg-slate-50 rounded-lg p-2 border border-slate-100">
+                                  {/* Field selector */}
+                                  <select
+                                    value={rule.fieldKey}
+                                    onChange={(e) => updateRule(idx, "fieldKey", e.target.value)}
+                                    className="flex-1 bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs min-w-0"
+                                  >
+                                    <option value="">Select field...</option>
+                                    {otherFields.map((f, fi) => (
+                                      <option key={f.id} value={generateFieldKey(f.fieldLabel, localFields.indexOf(f) + 1)}>
+                                        {f.fieldLabel}
+                                      </option>
+                                    ))}
+                                  </select>
+
+                                  {/* Operator */}
+                                  <select
+                                    value={rule.operator}
+                                    onChange={(e) => updateRule(idx, "operator", e.target.value)}
+                                    className="bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+                                  >
+                                    {OPERATORS.map((op) => (
+                                      <option key={op.value} value={op.value}>{op.label}</option>
+                                    ))}
+                                  </select>
+
+                                  {/* Value — hidden for isEmpty / isNotEmpty */}
+                                  {!["isEmpty", "isNotEmpty"].includes(rule.operator) && (
+                                    <input
+                                      type="text"
+                                      value={rule.value}
+                                      onChange={(e) => updateRule(idx, "value", e.target.value)}
+                                      className="w-16 bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs"
+                                      placeholder="value"
+                                    />
+                                  )}
+
+                                  <button onClick={() => removeRule(idx)}
+                                    className="p-1 text-slate-400 hover:text-red-500 rounded transition-colors shrink-0">
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+
+                            <button onClick={addRule}
+                              className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors">
+                              <Plus size={14} /> Add condition
+                            </button>
+
+                            {cond.rules.length === 0 && (
+                              <p className="text-xs text-slate-400 italic">
+                                No conditions — field always visible and enabled.
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
             </div>
-
-          )}</div>
+          )}
+        </div>
       </aside>
 
     </div>

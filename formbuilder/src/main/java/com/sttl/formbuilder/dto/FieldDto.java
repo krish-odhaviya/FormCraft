@@ -17,6 +17,7 @@ public class FieldDto {
     private String fieldType;
     private Boolean required;
     private Integer fieldOrder;
+    private String conditions;
 
     // Add these so Spring automatically parses the incoming JSON
     private List<String> options;
