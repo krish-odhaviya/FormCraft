@@ -41,6 +41,9 @@ public class SqlTypeMapper {
 
             case "LOOKUP_DROPDOWN" -> "VARCHAR(500)";
 
+            case "SECTION",
+                 "LABEL" -> "TEXT";
+
             default -> throw new RuntimeException("Invalid form field type mapped: " + type);
         };
     }

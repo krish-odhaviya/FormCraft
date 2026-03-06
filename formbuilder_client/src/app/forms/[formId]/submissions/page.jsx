@@ -26,7 +26,10 @@ export default function SubmissionsPage() {
   const fetchSubmissions = async () => {
     try {
       const formRes = await api.getForm(formId);
-      const isPublished = formRes.data?.data?.versions?.some(v => v.status === "PUBLISHED");
+      console.log(formRes.data?.versions?.some(v => v.status === "PUBLISHED"))
+      const isPublished = formRes.data?.versions?.some(v => v.status === "PUBLISHED");
+
+      console.log(isPublished)
 
       if (!isPublished) {
         setError("This form has not been published yet. Publish it first to view submissions.");

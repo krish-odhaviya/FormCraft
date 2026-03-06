@@ -9,7 +9,7 @@ import {
   Trash2, Rocket, Save, Plus, Settings2, ClipboardList,
   ArrowLeft, LayoutTemplate, X, ShieldCheck, MonitorPlay,
   Lock, Star, SlidersHorizontal, LayoutGrid, Grid3x3, Upload,
-  Link2
+  Link2, Heading1, AlignLeft as AlignLeftIcon
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
@@ -32,6 +32,8 @@ const FIELD_TYPES = [
   { value: "MC_GRID", label: "Multiple Choice Grid", icon: <LayoutGrid size={18} /> },
   { value: "TICK_BOX_GRID", label: "Tick Box Grid", icon: <Grid3x3 size={18} /> },
   { value: "LOOKUP_DROPDOWN", label: "Linked Dropdown", icon: <Link2 size={18} /> },
+  { value: "SECTION", label: "Section Break", icon: <Heading1 size={18} /> },
+  { value: "LABEL", label: "Label / Info", icon: <AlignLeftIcon size={18} /> },
 ];
 
 const OPTIONS_BASED_TYPES = ["RADIO", "CHECKBOX_GROUP", "DROPDOWN"];
@@ -108,7 +110,10 @@ export default function BuilderPage() {
           : type === "LINEAR_SCALE" ? { scaleMin: 1, scaleMax: 5, lowLabel: "Not likely", highLabel: "Very likely" }
             : type === "FILE_UPLOAD" ? { acceptedFileTypes: [".pdf", ".png", ".jpg"], maxFileSizeMb: 5 }
               : type === "LOOKUP_DROPDOWN" ? { sourceTable: "", sourceColumn: "id", sourceDisplayColumn: "" }
-                : {},
+                : type === "SECTION" ? { title: "New Section", description: "" }
+                  : type === "LABEL" ? { title: "Label Title", description: "" }
+                    : {}
+
     };
   };
 
@@ -334,6 +339,30 @@ export default function BuilderPage() {
           return (
             <div className="w-10 h-5 bg-slate-200 rounded-full flex items-center px-1">
               <div className="w-3.5 h-3.5 bg-white rounded-full shadow-sm"></div>
+            </div>
+          );
+
+        case "SECTION":
+          return (
+            <div className="border-t-2 border-indigo-400 pt-4">
+              <h3 className="text-base font-bold text-slate-800">
+                {field.uiConfig?.title || "New Section"}
+              </h3>
+              {field.uiConfig?.description && (
+                <p className="text-sm text-slate-500 mt-1">{field.uiConfig.description}</p>
+              )}
+            </div>
+          );
+
+        case "LABEL":
+          return (
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+              <h4 className="text-sm font-bold text-indigo-900">
+                {field.uiConfig?.title || "Label Title"}
+              </h4>
+              {field.uiConfig?.description && (
+                <p className="text-sm text-indigo-700 mt-1">{field.uiConfig.description}</p>
+              )}
             </div>
           );
 
@@ -676,6 +705,31 @@ export default function BuilderPage() {
                       <option key={f.formId} value={f.tableName}>{f.formName}</option>
                     ))}
                   </select>
+
+                  {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL") && (
+                    <div className="space-y-3 pt-4 border-t border-slate-100">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Title</label>
+                        <input
+                          type="text"
+                          value={activeField.uiConfig?.title || ""}
+                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "title", e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                          placeholder="Section title..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Description</label>
+                        <textarea
+                          rows={2}
+                          value={activeField.uiConfig?.description || ""}
+                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "description", e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
+                          placeholder="Optional description..."
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {activeField.uiConfig?.sourceTable && (
                     <>

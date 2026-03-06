@@ -339,6 +339,8 @@ public class FormSubmissionService {
         String tableName = publishedVersion.getTableName();
 
         List<FieldDto> columns = publishedVersion.getFields().stream()
+                .filter(f -> !"SECTION".equalsIgnoreCase(f.getFieldType())
+                        && !"LABEL".equalsIgnoreCase(f.getFieldType()))
                 .map(f -> {
                     FieldDto dto = new FieldDto();
                     dto.setFieldKey(f.getFieldKey());
@@ -387,6 +389,9 @@ public class FormSubmissionService {
         StringBuilder joins  = new StringBuilder();
 
         for (FormField f : publishedVersion.getFields()) {
+            if ("SECTION".equalsIgnoreCase(f.getFieldType()) || "LABEL".equalsIgnoreCase(f.getFieldType())) {
+                continue;
+            }
             if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
                     && f.getSourceTable() != null
                     && f.getSourceColumn() != null) {
