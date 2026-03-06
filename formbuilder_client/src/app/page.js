@@ -95,10 +95,6 @@ export default function DashboardPage() {
               >
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-4">
-                    {/* <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Published</span>
-                    </div> */}
                     <Settings2 size={16} className="text-slate-300 hover:text-slate-600 cursor-pointer" />
                   </div>
                   
