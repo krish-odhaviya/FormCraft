@@ -113,7 +113,6 @@ public class VersionService {
             }
 
             if (req.getUiConfig() != null) {
-                // ... your existing mappings ...
                 field.setMaxStars(req.getUiConfig().getMaxStars());
                 field.setScaleMin(req.getUiConfig().getScaleMin());
                 field.setScaleMax(req.getUiConfig().getScaleMax());
@@ -123,6 +122,10 @@ public class VersionService {
                 field.setSourceTable(req.getUiConfig().getSourceTable());
                 field.setSourceColumn(req.getUiConfig().getSourceColumn());
                 field.setSourceDisplayColumn(req.getUiConfig().getSourceDisplayColumn());
+                field.setPlaceholder(req.getUiConfig().getPlaceholder());
+                field.setHelpText(req.getUiConfig().getHelpText());
+                field.setDefaultValue(req.getUiConfig().getDefaultValue());
+                field.setReadOnly(req.getUiConfig().getReadOnly());
 
                 if (req.getUiConfig().getAcceptedFileTypes() != null) {
                     field.getAcceptedFileTypes().addAll(req.getUiConfig().getAcceptedFileTypes());

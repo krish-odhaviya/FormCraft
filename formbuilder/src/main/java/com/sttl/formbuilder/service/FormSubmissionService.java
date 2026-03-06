@@ -400,6 +400,8 @@ public class FormSubmissionService {
                     Map<String, Object> uiConfig = new HashMap<>();
                     if (f.getPlaceholder()        != null) uiConfig.put("placeholder",        f.getPlaceholder());
                     if (f.getHelpText()           != null) uiConfig.put("helpText",           f.getHelpText());
+                    if (f.getDefaultValue()       != null) uiConfig.put("defaultValue",       f.getDefaultValue());
+                    if (f.getReadOnly()           != null) uiConfig.put("readOnly",           f.getReadOnly());
                     if (f.getMaxStars()           != null) uiConfig.put("maxStars",           f.getMaxStars());
                     if (f.getScaleMin()           != null) uiConfig.put("scaleMin",           f.getScaleMin());
                     if (f.getScaleMax()           != null) uiConfig.put("scaleMax",           f.getScaleMax());

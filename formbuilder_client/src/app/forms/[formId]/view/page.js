@@ -170,7 +170,8 @@ export default function DynamicFormPage() {
         const initialValues = {};
         fieldsData.forEach((field) => {
           if (field.fieldType === "SECTION" || field.fieldType === "LABEL") return;
-          if (field.fieldType === "BOOLEAN") initialValues[field.fieldKey] = false;
+          const defaultVal = field.uiConfig?.defaultValue;
+          if (field.fieldType === "BOOLEAN") initialValues[field.fieldKey] = defaultVal === "true" ? true : false;
           else if (field.fieldType === "CHECKBOX_GROUP") initialValues[field.fieldKey] = [];
           else if (field.fieldType === "MC_GRID") {
             const rows = field.validation?.rows || [];
@@ -180,9 +181,9 @@ export default function DynamicFormPage() {
             const rows = field.validation?.rows || [];
             const init = {}; rows.forEach((r) => (init[r] = []));
             initialValues[field.fieldKey] = init;
-          } else if (field.fieldType === "STAR_RATING") initialValues[field.fieldKey] = 0;
-          else if (field.fieldType === "LINEAR_SCALE") initialValues[field.fieldKey] = "";
-          else initialValues[field.fieldKey] = "";
+          } else if (field.fieldType === "STAR_RATING") initialValues[field.fieldKey] = defaultVal ? parseInt(defaultVal) : 0;
+          else if (field.fieldType === "LINEAR_SCALE") initialValues[field.fieldKey] = defaultVal || "";
+          else initialValues[field.fieldKey] = defaultVal || "";
         });
         setFormValues(initialValues);
       } catch (err) {
@@ -428,9 +429,10 @@ export default function DynamicFormPage() {
                   if (state.visible === false) return null;
 
                   const isCondRequired = conditionallyRequiredFields.has(field.fieldKey);
+                  const isReadOnly = field.uiConfig?.readOnly === true;
                   return (
                     <div key={field.fieldKey} id={`field_${field.fieldKey}`} className="transition-all duration-300">
-                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled, isCondRequired)}
+                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled, isCondRequired, isReadOnly)}
                     </div>
                   );
                 })}
@@ -456,7 +458,7 @@ export default function DynamicFormPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 // renderInput — isDisabled added for conditional enable/disable
 // ─────────────────────────────────────────────────────────────────────────────
-function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false) {
+function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false, isReadOnly = false) {
   const type = field.fieldType?.toUpperCase();
   const value = values[field.fieldKey];
   const uiConfig = field.uiConfig || {};
@@ -469,7 +471,9 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
     "w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-slate-900",
     "focus:outline-none focus:ring-2 transition-all placeholder:text-slate-400",
     isDisabled ? "opacity-60 cursor-not-allowed bg-slate-100" : "",
+    isReadOnly ? "bg-amber-50/60 border-amber-200 cursor-default text-slate-700" : "",
     error ? "border-red-400 focus:ring-red-500/20 focus:border-red-500"
+      : isReadOnly ? "focus:ring-amber-300/20"
       : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500",
   ].join(" ");
 
@@ -481,6 +485,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
         {isConditionallyRequired && !field.required && !isDisabled && (
           <span className="ml-1.5 text-xs font-normal text-amber-600 italic">(conditionally required)</span>
         )}
+        {isReadOnly && <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">read-only</span>}
         {isDisabled && <span className="ml-2 text-xs font-normal text-slate-400 italic">(auto-calculated)</span>}
       </label>
       {helpText && <p className="text-xs text-slate-500 mt-1 leading-relaxed">{helpText}</p>}
@@ -523,7 +528,8 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           <FieldLabel />
           <input type={type === "EMAIL" ? "email" : "text"} className={inputClass}
             placeholder={placeholder} value={value || ""} disabled={isDisabled}
-            onChange={(e) => handleChange(field.fieldKey, e.target.value)}
+            readOnly={isReadOnly}
+            onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)}
             title={validation.validationMessage || ""} />
           <FieldError />
         </div>
@@ -536,7 +542,8 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           <FieldLabel />
           <textarea className={`${inputClass} resize-y min-h-[100px]`} rows={4}
             placeholder={placeholder} value={value || ""} disabled={isDisabled}
-            onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
+            readOnly={isReadOnly}
+            onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>
       );
@@ -548,7 +555,8 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           <FieldLabel />
           <input type="number" className={inputClass} placeholder={placeholder}
             value={value || ""} disabled={isDisabled}
-            onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
+            readOnly={isReadOnly}
+            onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>
       );
@@ -559,9 +567,10 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
       return (
         <div>
           <FieldLabel />
-          <input type={type.toLowerCase()} className={`${inputClass} cursor-pointer`}
+          <input type={type.toLowerCase()} className={`${inputClass} ${isReadOnly ? "" : "cursor-pointer"}`}
             value={value || ""} disabled={isDisabled}
-            onChange={(e) => handleChange(field.fieldKey, e.target.value)} />
+            readOnly={isReadOnly}
+            onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>
       );
