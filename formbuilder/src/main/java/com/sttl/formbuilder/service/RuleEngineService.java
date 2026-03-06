@@ -137,9 +137,20 @@ public class RuleEngineService {
             }
 
             if (rule.getActions() == null || rule.getActions().isEmpty()) continue;
-            
+
+            // ── DEBUG LOGGING ──────────────────────────────────────────────────────
+            System.out.println("[RuleEngine] Field: " + field.getFieldKey());
+            System.out.println("[RuleEngine] Actions count: " + rule.getActions().size());
+            rule.getActions().forEach(a -> System.out.println(
+                "[RuleEngine]   Action → type=" + a.getType() +
+                " targetField=" + a.getTargetField() +
+                " value=" + a.getValue() +
+                " message=" + a.getMessage()));
+            // ──────────────────────────────────────────────────────────────────────
+
             // Check condition (evaluates ALL rules for match based on logic).
             boolean isMatch = evaluateRule(rule, answers);
+            System.out.println("[RuleEngine] isMatch=" + isMatch + " | answers=" + answers);
 
             if (isMatch) {
                 for (RuleActionDTO action : rule.getActions()) {

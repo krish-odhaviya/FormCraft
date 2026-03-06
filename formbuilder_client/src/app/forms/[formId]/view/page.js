@@ -23,24 +23,24 @@ function evaluateConditions(field, formValues) {
     const rawVal = formValues[rule.fieldKey];
     const fieldValue = rawVal !== null && rawVal !== undefined ? String(rawVal) : "";
     switch (rule.operator) {
-      case "equals":      return fieldValue === String(rule.value);
-      case "notEquals":   return fieldValue !== String(rule.value);
-      case "contains":    return fieldValue.toLowerCase().includes(String(rule.value).toLowerCase());
+      case "equals": return fieldValue === String(rule.value);
+      case "notEquals": return fieldValue !== String(rule.value);
+      case "contains": return fieldValue.toLowerCase().includes(String(rule.value).toLowerCase());
       case "greaterThan": return Number(fieldValue) > Number(rule.value);
-      case "lessThan":    return Number(fieldValue) < Number(rule.value);
-      case "isEmpty":     return fieldValue.trim() === "";
-      case "isNotEmpty":  return fieldValue.trim() !== "";
-      default:            return false;
+      case "lessThan": return Number(fieldValue) < Number(rule.value);
+      case "isEmpty": return fieldValue.trim() === "";
+      case "isNotEmpty": return fieldValue.trim() !== "";
+      default: return false;
     }
   });
 
   const passed = cond.logic === "OR" ? results.some(Boolean) : results.every(Boolean);
   switch (cond.action) {
-    case "show":    return { visible: passed,  disabled: false };
-    case "hide":    return { visible: !passed, disabled: false };
-    case "enable":  return { visible: true,    disabled: !passed };
-    case "disable": return { visible: true,    disabled: passed };
-    default:        return { visible: true,    disabled: false };
+    case "show": return { visible: passed, disabled: false };
+    case "hide": return { visible: !passed, disabled: false };
+    case "enable": return { visible: true, disabled: !passed };
+    case "disable": return { visible: true, disabled: passed };
+    default: return { visible: true, disabled: false };
   }
 }
 
@@ -62,15 +62,15 @@ export default function DynamicFormPage() {
   const { formId } = useParams();
   const router = useRouter();
 
-  const [fields, setFields]                     = useState([]);
-  const [formDetails, setFormDetails]           = useState({});
-  const [formValues, setFormValues]             = useState({});
+  const [fields, setFields] = useState([]);
+  const [formDetails, setFormDetails] = useState({});
+  const [formValues, setFormValues] = useState({});
   const [publishedVersionId, setPublishedVersionId] = useState(null);
-  const [loading, setLoading]                   = useState(true);
-  const [message, setMessage]                   = useState("");
-  const [submitting, setSubmitting]             = useState(false);
-  const [fieldErrors, setFieldErrors]           = useState({});
-  const [lookupData, setLookupData]             = useState({});
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [lookupData, setLookupData] = useState({});
 
   // ── Evaluate conditions reactively ────────────────────────────────────────
   const { fieldStates, conditionallyRequiredFields } = useMemo(() => {
@@ -100,14 +100,14 @@ export default function DynamicFormPage() {
           const rawVal = formValues[rule.fieldKey];
           const fv = rawVal !== null && rawVal !== undefined ? String(rawVal) : "";
           switch (rule.operator) {
-            case "equals":      return fv === String(rule.value);
-            case "notEquals":   return fv !== String(rule.value);
-            case "contains":    return fv.toLowerCase().includes(String(rule.value).toLowerCase());
+            case "equals": return fv === String(rule.value);
+            case "notEquals": return fv !== String(rule.value);
+            case "contains": return fv.toLowerCase().includes(String(rule.value).toLowerCase());
             case "greaterThan": return Number(fv) > Number(rule.value);
-            case "lessThan":    return Number(fv) < Number(rule.value);
-            case "isEmpty":     return fv.trim() === "";
-            case "isNotEmpty":  return fv.trim() !== "";
-            default:            return false;
+            case "lessThan": return Number(fv) < Number(rule.value);
+            case "isEmpty": return fv.trim() === "";
+            case "isNotEmpty": return fv.trim() !== "";
+            default: return false;
           }
         });
         const rulePassed = cond.logic === "OR" ? ruleResults.some(Boolean) : ruleResults.every(Boolean);
@@ -170,7 +170,7 @@ export default function DynamicFormPage() {
         const initialValues = {};
         fieldsData.forEach((field) => {
           if (field.fieldType === "SECTION" || field.fieldType === "LABEL") return;
-          if      (field.fieldType === "BOOLEAN")        initialValues[field.fieldKey] = false;
+          if (field.fieldType === "BOOLEAN") initialValues[field.fieldKey] = false;
           else if (field.fieldType === "CHECKBOX_GROUP") initialValues[field.fieldKey] = [];
           else if (field.fieldType === "MC_GRID") {
             const rows = field.validation?.rows || [];
@@ -180,9 +180,9 @@ export default function DynamicFormPage() {
             const rows = field.validation?.rows || [];
             const init = {}; rows.forEach((r) => (init[r] = []));
             initialValues[field.fieldKey] = init;
-          } else if (field.fieldType === "STAR_RATING")  initialValues[field.fieldKey] = 0;
-          else if  (field.fieldType === "LINEAR_SCALE")  initialValues[field.fieldKey] = "";
-          else                                           initialValues[field.fieldKey] = "";
+          } else if (field.fieldType === "STAR_RATING") initialValues[field.fieldKey] = 0;
+          else if (field.fieldType === "LINEAR_SCALE") initialValues[field.fieldKey] = "";
+          else initialValues[field.fieldKey] = "";
         });
         setFormValues(initialValues);
       } catch (err) {
@@ -226,8 +226,46 @@ export default function DynamicFormPage() {
       let cond;
       try { cond = typeof field.conditions === "string" ? JSON.parse(field.conditions) : field.conditions; }
       catch { return; }
-      
+
       if (!cond.actions || cond.actions.length === 0) return;
+
+      // ── Format validators — ALWAYS run regardless of outer conditions ──────
+      // REGEX_MATCH and MATCH_FIELD are format validators that fire unconditionally.
+      cond.actions.forEach(action => {
+        if (action.type === "REGEX_MATCH") {
+          const target = action.targetField;
+          const pattern = action.value;
+          if (target && pattern) {
+            const targetVal = visibleValues[target] ? String(visibleValues[target]).trim() : "";
+            if (targetVal.length > 0) {
+              try {
+                const regex = new RegExp(pattern);
+                if (!regex.test(targetVal)) {
+                  customErrors[target] = action.message && action.message.trim() !== ""
+                    ? action.message
+                    : `'${target}' is not in a valid format.`;
+                }
+              } catch (e) { /* Ignore invalid regex pattern */ }
+            }
+          }
+        } else if (action.type === "MATCH_FIELD") {
+          const target = action.targetField;
+          const matchTarget = action.value;
+          if (target && matchTarget) {
+            const targetVal = visibleValues[target] ? String(visibleValues[target]) : "";
+            const matchVal = visibleValues[matchTarget] ? String(visibleValues[matchTarget]) : "";
+            if (targetVal.length > 0 || matchVal.length > 0) {
+              if (targetVal !== matchVal) {
+                customErrors[target] = action.message && action.message.trim() !== ""
+                  ? action.message
+                  : `Fields do not match.`;
+              }
+            }
+          }
+        }
+      });
+
+      // ── Conditional validators — only run when rule conditions pass ────────
       if (!cond.rules || cond.rules.length === 0) return;
 
       const results = cond.rules.map((rule) => {
@@ -235,14 +273,14 @@ export default function DynamicFormPage() {
         const rawVal = visibleValues[rule.fieldKey]; // evaluate against visible only? Or all? Let's use visible for accuracy with server
         const fieldValue = rawVal !== null && rawVal !== undefined ? String(rawVal) : "";
         switch (rule.operator) {
-          case "equals":      return fieldValue === String(rule.value);
-          case "notEquals":   return fieldValue !== String(rule.value);
-          case "contains":    return fieldValue.toLowerCase().includes(String(rule.value).toLowerCase());
+          case "equals": return fieldValue === String(rule.value);
+          case "notEquals": return fieldValue !== String(rule.value);
+          case "contains": return fieldValue.toLowerCase().includes(String(rule.value).toLowerCase());
           case "greaterThan": return Number(fieldValue) > Number(rule.value);
-          case "lessThan":    return Number(fieldValue) < Number(rule.value);
-          case "isEmpty":     return fieldValue.trim() === "";
-          case "isNotEmpty":  return fieldValue.trim() !== "";
-          default:            return false;
+          case "lessThan": return Number(fieldValue) < Number(rule.value);
+          case "isEmpty": return fieldValue.trim() === "";
+          case "isNotEmpty": return fieldValue.trim() !== "";
+          default: return false;
         }
       });
       const passed = cond.logic === "OR" ? results.some(Boolean) : results.every(Boolean);
@@ -256,9 +294,9 @@ export default function DynamicFormPage() {
             if (target) {
               const targetVal = visibleValues[target];
               if (targetVal === null || targetVal === undefined || String(targetVal).trim() === "") {
-                const reqMsg = action.message && action.message.trim() !== "" 
-                                ? action.message 
-                                : `Validation Error: '${target}' is a required field.`;
+                const reqMsg = action.message && action.message.trim() !== ""
+                  ? action.message
+                  : `Validation Error: '${target}' is a required field.`;
                 customErrors[target] = reqMsg;
               }
             }
@@ -268,9 +306,9 @@ export default function DynamicFormPage() {
             if (target && !isNaN(minLen)) {
               const targetVal = visibleValues[target] ? String(visibleValues[target]) : "";
               if (targetVal.trim().length < minLen && targetVal.trim().length > 0) {
-                 customErrors[target] = action.message && action.message.trim() !== "" 
-                    ? action.message 
-                    : `'${target}' must be at least ${minLen} characters.`;
+                customErrors[target] = action.message && action.message.trim() !== ""
+                  ? action.message
+                  : `'${target}' must be at least ${minLen} characters.`;
               }
             }
           } else if (action.type === "MAX_LENGTH") {
@@ -279,39 +317,9 @@ export default function DynamicFormPage() {
             if (target && !isNaN(maxLen)) {
               const targetVal = visibleValues[target] ? String(visibleValues[target]) : "";
               if (targetVal.trim().length > maxLen) {
-                 customErrors[target] = action.message && action.message.trim() !== "" 
-                    ? action.message 
-                    : `'${target}' cannot exceed ${maxLen} characters.`;
-              }
-            }
-          } else if (action.type === "REGEX_MATCH") {
-            const target = action.targetField;
-            const pattern = action.value;
-            if (target && pattern) {
-              const targetVal = visibleValues[target] ? String(visibleValues[target]) : "";
-              if (targetVal.trim().length > 0) {
-                try {
-                  const regex = new RegExp(pattern);
-                  if (!regex.test(targetVal)) {
-                    customErrors[target] = action.message && action.message.trim() !== "" 
-                      ? action.message 
-                      : `'${target}' is not in a valid format.`;
-                  }
-                } catch (e) {
-                  // Ignore invalid regex compilation
-                }
-              }
-            }
-          } else if (action.type === "MATCH_FIELD") {
-            const target = action.targetField;
-            const matchTarget = action.value;
-            if (target && matchTarget) {
-              const targetVal = visibleValues[target] ? String(visibleValues[target]) : "";
-              const matchVal = visibleValues[matchTarget] ? String(visibleValues[matchTarget]) : "";
-              if (targetVal !== matchVal) {
-                customErrors[target] = action.message && action.message.trim() !== "" 
-                  ? action.message 
-                  : `Fields do not match.`;
+                customErrors[target] = action.message && action.message.trim() !== ""
+                  ? action.message
+                  : `'${target}' cannot exceed ${maxLen} characters.`;
               }
             }
           }
@@ -449,20 +457,20 @@ export default function DynamicFormPage() {
 // renderInput — isDisabled added for conditional enable/disable
 // ─────────────────────────────────────────────────────────────────────────────
 function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false) {
-  const type      = field.fieldType?.toUpperCase();
-  const value     = values[field.fieldKey];
-  const uiConfig  = field.uiConfig || {};
+  const type = field.fieldType?.toUpperCase();
+  const value = values[field.fieldKey];
+  const uiConfig = field.uiConfig || {};
   const validation = field.validation || {};
-  const options   = field.options || [];
+  const options = field.options || [];
   const placeholder = uiConfig.placeholder || `Enter ${field.fieldLabel?.toLowerCase()}...`;
-  const helpText  = uiConfig.helpText;
+  const helpText = uiConfig.helpText;
 
   const inputClass = [
     "w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-slate-900",
     "focus:outline-none focus:ring-2 transition-all placeholder:text-slate-400",
     isDisabled ? "opacity-60 cursor-not-allowed bg-slate-100" : "",
     error ? "border-red-400 focus:ring-red-500/20 focus:border-red-500"
-           : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500",
+      : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500",
   ].join(" ");
 
   const FieldLabel = () => (
@@ -635,7 +643,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
 
     // ── Star Rating ───────────────────────────────────────────────────────────
     case "STAR_RATING": {
-      const maxStars  = uiConfig.maxStars || 5;
+      const maxStars = uiConfig.maxStars || 5;
       const starValue = value || 0;
       return (
         <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
@@ -659,9 +667,9 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
 
     // ── Linear Scale ──────────────────────────────────────────────────────────
     case "LINEAR_SCALE": {
-      const scaleMin  = uiConfig.scaleMin ?? 1;
-      const scaleMax  = uiConfig.scaleMax ?? 5;
-      const lowLabel  = uiConfig.lowLabel  || "";
+      const scaleMin = uiConfig.scaleMin ?? 1;
+      const scaleMax = uiConfig.scaleMax ?? 5;
+      const lowLabel = uiConfig.lowLabel || "";
       const highLabel = uiConfig.highLabel || "";
       const steps = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i);
       return (
@@ -671,9 +679,8 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
             <div className="flex gap-3 flex-wrap">
               {steps.map((val) => (
                 <button key={val} type="button" onClick={() => !isDisabled && handleChange(field.fieldKey, val)}
-                  className={`w-10 h-10 rounded-full border-2 text-sm font-semibold transition-all focus:outline-none ${
-                    value === val ? "bg-indigo-600 border-indigo-600 text-white shadow-md"
-                                  : "bg-white border-slate-300 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"}`}>
+                  className={`w-10 h-10 rounded-full border-2 text-sm font-semibold transition-all focus:outline-none ${value === val ? "bg-indigo-600 border-indigo-600 text-white shadow-md"
+                      : "bg-white border-slate-300 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"}`}>
                   {val}
                 </button>
               ))}
@@ -692,9 +699,9 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
     // ── File Upload ───────────────────────────────────────────────────────────
     case "FILE_UPLOAD": {
       const acceptedTypes = uiConfig.acceptedFileTypes || [];
-      const maxSizeMb     = uiConfig.maxFileSizeMb || 5;
-      const isUploading   = value === "__uploading__";
-      const isUploaded    = value && value !== "__uploading__";
+      const maxSizeMb = uiConfig.maxFileSizeMb || 5;
+      const isUploading = value === "__uploading__";
+      const isUploaded = value && value !== "__uploading__";
 
       const handleFileChange = async (e) => {
         const file = e.target.files?.[0];
@@ -717,8 +724,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
       return (
         <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
-          <label className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-xl p-8 transition-all group ${
-            error ? "border-red-400 bg-red-50/20" : isUploaded ? "border-green-400 bg-green-50 cursor-default" : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer"}`}>
+          <label className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-xl p-8 transition-all group ${error ? "border-red-400 bg-red-50/20" : isUploaded ? "border-green-400 bg-green-50 cursor-default" : "border-slate-300 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer"}`}>
             {isUploading ? (
               <><Loader2 size={28} className="text-indigo-500 animate-spin mb-3" /><p className="text-sm font-medium text-indigo-600">Uploading...</p></>
             ) : isUploaded ? (
@@ -744,7 +750,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
 
     // ── MC Grid ───────────────────────────────────────────────────────────────
     case "MC_GRID": {
-      const rows    = field.validation?.rows    || [];
+      const rows = field.validation?.rows || [];
       const columns = field.validation?.columns || [];
       const gridVal = value || {};
       return (
@@ -782,7 +788,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
 
     // ── Tick Box Grid ─────────────────────────────────────────────────────────
     case "TICK_BOX_GRID": {
-      const rows    = field.validation?.rows    || [];
+      const rows = field.validation?.rows || [];
       const columns = field.validation?.columns || [];
       const gridVal = value || {};
       return (
