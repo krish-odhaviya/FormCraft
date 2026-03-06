@@ -73,8 +73,10 @@ export default function DynamicFormPage() {
   const [lookupData, setLookupData]             = useState({});
 
   // ── Evaluate conditions reactively ────────────────────────────────────────
-  const fieldStates = useMemo(() => {
+  const { fieldStates, conditionallyRequiredFields } = useMemo(() => {
     const states = {};
+    const requiredSet = new Set();
+
     fields.forEach((field) => {
       if (field.fieldType === "SECTION" || field.fieldType === "LABEL") {
         states[field.fieldKey] = { visible: true, disabled: false };
@@ -89,8 +91,38 @@ export default function DynamicFormPage() {
       } else {
         states[field.fieldKey] = evaluateConditions(field, formValues);
       }
+
+      // ── Detect active REQUIRE actions and mark target fields ──────────────
+      if (cond?.actions?.length > 0 && cond?.rules?.length > 0) {
+        // Evaluate whether this rule's conditions are currently passing
+        const ruleResults = (cond.rules || []).map((rule) => {
+          if (!rule.fieldKey) return false;
+          const rawVal = formValues[rule.fieldKey];
+          const fv = rawVal !== null && rawVal !== undefined ? String(rawVal) : "";
+          switch (rule.operator) {
+            case "equals":      return fv === String(rule.value);
+            case "notEquals":   return fv !== String(rule.value);
+            case "contains":    return fv.toLowerCase().includes(String(rule.value).toLowerCase());
+            case "greaterThan": return Number(fv) > Number(rule.value);
+            case "lessThan":    return Number(fv) < Number(rule.value);
+            case "isEmpty":     return fv.trim() === "";
+            case "isNotEmpty":  return fv.trim() !== "";
+            default:            return false;
+          }
+        });
+        const rulePassed = cond.logic === "OR" ? ruleResults.some(Boolean) : ruleResults.every(Boolean);
+
+        if (rulePassed) {
+          cond.actions.forEach((action) => {
+            if (action?.type === "REQUIRE" && action.targetField) {
+              requiredSet.add(action.targetField);
+            }
+          });
+        }
+      }
     });
-    return states;
+
+    return { fieldStates: states, conditionallyRequiredFields: requiredSet };
   }, [fields, formValues]);
 
   // ── Auto-update calculated fields ─────────────────────────────────────────
@@ -187,6 +219,116 @@ export default function DynamicFormPage() {
       if (state?.visible !== false) visibleValues[key] = formValues[key];
     });
 
+    // ── Evaluate FormRuleDTO actions on client side ────────────────────────
+    let customErrors = {};
+    fields.forEach((field) => {
+      if (!field.conditions) return;
+      let cond;
+      try { cond = typeof field.conditions === "string" ? JSON.parse(field.conditions) : field.conditions; }
+      catch { return; }
+      
+      if (!cond.actions || cond.actions.length === 0) return;
+      if (!cond.rules || cond.rules.length === 0) return;
+
+      const results = cond.rules.map((rule) => {
+        if (!rule.fieldKey) return false;
+        const rawVal = visibleValues[rule.fieldKey]; // evaluate against visible only? Or all? Let's use visible for accuracy with server
+        const fieldValue = rawVal !== null && rawVal !== undefined ? String(rawVal) : "";
+        switch (rule.operator) {
+          case "equals":      return fieldValue === String(rule.value);
+          case "notEquals":   return fieldValue !== String(rule.value);
+          case "contains":    return fieldValue.toLowerCase().includes(String(rule.value).toLowerCase());
+          case "greaterThan": return Number(fieldValue) > Number(rule.value);
+          case "lessThan":    return Number(fieldValue) < Number(rule.value);
+          case "isEmpty":     return fieldValue.trim() === "";
+          case "isNotEmpty":  return fieldValue.trim() !== "";
+          default:            return false;
+        }
+      });
+      const passed = cond.logic === "OR" ? results.some(Boolean) : results.every(Boolean);
+
+      if (passed) {
+        cond.actions.forEach(action => {
+          if (action.type === "VALIDATION_ERROR") {
+            customErrors[field.fieldKey] = action.message || "Custom validation error.";
+          } else if (action.type === "REQUIRE") {
+            const target = action.targetField;
+            if (target) {
+              const targetVal = visibleValues[target];
+              if (targetVal === null || targetVal === undefined || String(targetVal).trim() === "") {
+                const reqMsg = action.message && action.message.trim() !== "" 
+                                ? action.message 
+                                : `Validation Error: '${target}' is a required field.`;
+                customErrors[target] = reqMsg;
+              }
+            }
+          } else if (action.type === "MIN_LENGTH") {
+            const target = action.targetField;
+            const minLen = parseInt(action.value, 10);
+            if (target && !isNaN(minLen)) {
+              const targetVal = visibleValues[target] ? String(visibleValues[target]) : "";
+              if (targetVal.trim().length < minLen && targetVal.trim().length > 0) {
+                 customErrors[target] = action.message && action.message.trim() !== "" 
+                    ? action.message 
+                    : `'${target}' must be at least ${minLen} characters.`;
+              }
+            }
+          } else if (action.type === "MAX_LENGTH") {
+            const target = action.targetField;
+            const maxLen = parseInt(action.value, 10);
+            if (target && !isNaN(maxLen)) {
+              const targetVal = visibleValues[target] ? String(visibleValues[target]) : "";
+              if (targetVal.trim().length > maxLen) {
+                 customErrors[target] = action.message && action.message.trim() !== "" 
+                    ? action.message 
+                    : `'${target}' cannot exceed ${maxLen} characters.`;
+              }
+            }
+          } else if (action.type === "REGEX_MATCH") {
+            const target = action.targetField;
+            const pattern = action.value;
+            if (target && pattern) {
+              const targetVal = visibleValues[target] ? String(visibleValues[target]) : "";
+              if (targetVal.trim().length > 0) {
+                try {
+                  const regex = new RegExp(pattern);
+                  if (!regex.test(targetVal)) {
+                    customErrors[target] = action.message && action.message.trim() !== "" 
+                      ? action.message 
+                      : `'${target}' is not in a valid format.`;
+                  }
+                } catch (e) {
+                  // Ignore invalid regex compilation
+                }
+              }
+            }
+          } else if (action.type === "MATCH_FIELD") {
+            const target = action.targetField;
+            const matchTarget = action.value;
+            if (target && matchTarget) {
+              const targetVal = visibleValues[target] ? String(visibleValues[target]) : "";
+              const matchVal = visibleValues[matchTarget] ? String(visibleValues[matchTarget]) : "";
+              if (targetVal !== matchVal) {
+                customErrors[target] = action.message && action.message.trim() !== "" 
+                  ? action.message 
+                  : `Fields do not match.`;
+              }
+            }
+          }
+        });
+      }
+    });
+
+    if (Object.keys(customErrors).length > 0) {
+      setFieldErrors(customErrors);
+      setSubmitting(false);
+      const firstKey = Object.keys(customErrors)[0];
+      const el = document.getElementById(`field_${firstKey}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     try {
       const res = await fetch("http://localhost:9090/api/forms/submit", {
         method: "POST",
@@ -277,9 +419,10 @@ export default function DynamicFormPage() {
                   // ✅ Hidden fields render nothing
                   if (state.visible === false) return null;
 
+                  const isCondRequired = conditionallyRequiredFields.has(field.fieldKey);
                   return (
                     <div key={field.fieldKey} id={`field_${field.fieldKey}`} className="transition-all duration-300">
-                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled)}
+                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled, isCondRequired)}
                     </div>
                   );
                 })}
@@ -305,7 +448,7 @@ export default function DynamicFormPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 // renderInput — isDisabled added for conditional enable/disable
 // ─────────────────────────────────────────────────────────────────────────────
-function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false) {
+function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false) {
   const type      = field.fieldType?.toUpperCase();
   const value     = values[field.fieldKey];
   const uiConfig  = field.uiConfig || {};
@@ -326,7 +469,10 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
     <div className="mb-3">
       <label className="block text-sm font-semibold text-slate-800">
         {field.fieldLabel}
-        {field.required && !isDisabled && <span className="text-red-500 ml-1">*</span>}
+        {(field.required || isConditionallyRequired) && !isDisabled && <span className="text-red-500 ml-1">*</span>}
+        {isConditionallyRequired && !field.required && !isDisabled && (
+          <span className="ml-1.5 text-xs font-normal text-amber-600 italic">(conditionally required)</span>
+        )}
         {isDisabled && <span className="ml-2 text-xs font-normal text-slate-400 italic">(auto-calculated)</span>}
       </label>
       {helpText && <p className="text-xs text-slate-500 mt-1 leading-relaxed">{helpText}</p>}

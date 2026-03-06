@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.sttl.formbuilder.dto.internal.FormRuleDTO;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -26,6 +27,7 @@ public class FormSubmissionService {
 
     private final FormVersionRepository versionRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final RuleEngineService ruleEngineService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // Spring Boot automatically provides this
@@ -39,6 +41,10 @@ public class FormSubmissionService {
         if (values == null || values.isEmpty()) {
             throw new RuntimeException("Submission cannot be empty");
         }
+
+        // --- Rule Engine Pre-save Validation ---
+        ruleEngineService.validateSubmission(version.getFields(), values);
+        // ---------------------------------------
 
         String tableName = version.getTableName();
 
@@ -62,6 +68,26 @@ public class FormSubmissionService {
             String label = field.getFieldLabel();
 
             if (field.getRequired() == null || !field.getRequired()) continue;
+
+            // --- Rule Engine check: Hidden fields are not required ---
+            if (field.getConditions() != null && !field.getConditions().trim().isEmpty()) {
+                try {
+                    FormRuleDTO conds = objectMapper.readValue(field.getConditions(), FormRuleDTO.class);
+                    // Check action. If action is hide, and rule evaluates to true, field is hidden.
+                    boolean isActive = true;
+                    if(conds != null) {
+                        boolean rulePasses = ruleEngineService.evaluateRule(conds, values);
+                        if("hide".equalsIgnoreCase(conds.getAction()) && rulePasses) isActive = false;
+                        else if("hide".equalsIgnoreCase(conds.getAction()) && !rulePasses) isActive = true; // explicitly making visible
+                        else if("show".equalsIgnoreCase(conds.getAction()) && !rulePasses) isActive = false;
+                    }
+
+                    if(!isActive) continue; // Skip required check for hidden field
+                } catch (Exception e) {
+                   System.err.println("Condition parsing failed for field " + key);
+                }
+            }
+            // -------------------------------------------------------------
 
             boolean isEmpty = false;
             if (val == null)
@@ -98,6 +124,21 @@ public class FormSubmissionService {
             if (errors.containsKey(key)) continue;
             if (val == null) continue;
             if (val instanceof String s && s.trim().isEmpty()) continue;
+
+            // --- Rule Engine skip validation on hidden fields ---
+            boolean skipValidation = false;
+            if (field.getConditions() != null && !field.getConditions().trim().isEmpty()) {
+                try {
+                    FormRuleDTO conds = objectMapper.readValue(field.getConditions(), FormRuleDTO.class);
+                    if(conds != null) {
+                        boolean rulePasses = ruleEngineService.evaluateRule(conds, values);
+                        if("hide".equalsIgnoreCase(conds.getAction()) && rulePasses) skipValidation = true;
+                        if("show".equalsIgnoreCase(conds.getAction()) && !rulePasses) skipValidation = true;
+                    }
+                } catch (Exception e) {}
+            }
+            if(skipValidation) continue;
+            // ------------------------------------------------
 
             switch (fieldType.toUpperCase()) {
 
@@ -328,6 +369,10 @@ public class FormSubmissionService {
         System.out.println("==================");
 
         jdbcTemplate.update(sql, argumentsList.toArray());
+
+        // --- Rule Engine Post-save Workflow ---
+        ruleEngineService.executePostSubmissionWorkflows(version.getFields(), values);
+        // --------------------------------------
     }
 
     @Transactional(readOnly = true)

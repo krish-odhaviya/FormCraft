@@ -57,6 +57,7 @@ const CONDITION_ACTIONS = [
   { value: "enable",    label: "Enable" },
   { value: "disable",   label: "Disable" },
   { value: "calculate", label: "Calculate (auto-fill)" },
+  { value: "noop",      label: "Always Show (Evaluate Business Rules Only)" },
 ];
 
 export default function BuilderPage() {
@@ -73,6 +74,7 @@ export default function BuilderPage() {
   const [localFields, setLocalFields]   = useState([]);
   const [activeFieldId, setActiveFieldId] = useState(null);
   const [publishedForms, setPublishedForms] = useState([]);
+  const [activeTab, setActiveTab]       = useState('settings');
 
   // ── Fetch published forms for LOOKUP_DROPDOWN ─────────────────────────────
   useEffect(() => {
@@ -101,9 +103,12 @@ export default function BuilderPage() {
 
   // ── Conditions helpers ────────────────────────────────────────────────────
   const parseConditions = (field) => {
-    if (!field?.conditions) return { action: "show", logic: "AND", rules: [] };
-    try { return JSON.parse(field.conditions); }
-    catch { return { action: "show", logic: "AND", rules: [] }; }
+    if (!field?.conditions) return { action: "show", logic: "AND", rules: [], actions: [] };
+    try { 
+      const parsed = JSON.parse(field.conditions); 
+      return { ...parsed, actions: parsed.actions || [] };
+    }
+    catch { return { action: "show", logic: "AND", rules: [], actions: [] }; }
   };
 
   const saveConditions = (fieldId, condObj) => {
@@ -600,10 +605,30 @@ export default function BuilderPage() {
 
       {/* ── RIGHT SIDEBAR ── */}
       <aside className="w-[340px] bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 shadow-xl shadow-slate-200/50">
-        <div className="p-5 border-b border-slate-100 bg-slate-50/50">
-          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-            <Settings2 size={16} /> Field Settings
-          </h2>
+        <div className="border-b border-slate-100 bg-slate-50/50">
+          <div className="p-5 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <Settings2 size={16} /> Field Settings
+            </h2>
+          </div>
+          {activeField && (
+            <div className="flex border-b border-slate-200 px-4">
+              <button 
+                onClick={() => setActiveTab('settings')}
+                className={`pb-2 px-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'settings' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+              >
+                Settings
+              </button>
+              {(activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL") && (
+                <button 
+                  onClick={() => setActiveTab('rules')}
+                  className={`pb-2 px-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'rules' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                >
+                  Rules
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
@@ -617,10 +642,12 @@ export default function BuilderPage() {
           ) : (
             <div className="space-y-6">
 
-              {/* Field type badge */}
-              <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-md border border-indigo-100 w-fit">
-                {activeField.fieldType.replace(/_/g, " ")}
-              </div>
+              {activeTab === 'settings' ? (
+                <>
+                  {/* Field type badge */}
+                  <div className="flex items-center gap-2 text-xs font-bold tracking-wider text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-md border border-indigo-100 w-fit">
+                    {activeField.fieldType.replace(/_/g, " ")}
+                  </div>
 
               {/* Question title */}
               <div className="space-y-2">
@@ -962,13 +989,17 @@ export default function BuilderPage() {
                   </div>
                 </div>
               )}
-
-              {/* ── Conditional Logic ── */}
-              {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
-                <div className="pt-4 border-t border-slate-100">
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
-                    <GitBranch size={16} className="text-indigo-600" /> Conditional Logic
-                  </h3>
+                </>
+              ) : (
+                // ── RULES TAB ──
+              <div className="space-y-6">
+                
+                {/* ── Conditional Logic ── */}
+                {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 mb-4">
+                      <GitBranch size={16} className="text-indigo-600" /> Conditional Logic
+                    </h3>
 
                   {(() => {
                     const cond = parseConditions(activeField);
@@ -1076,6 +1107,7 @@ export default function BuilderPage() {
                                     className="flex-1 bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs min-w-0"
                                   >
                                     <option value="">Select field...</option>
+                                    <option value={activeField.fieldKey || generateFieldKey(activeField.fieldLabel, localFields.indexOf(activeField)+1)}>This Field</option>
                                     {otherFields.map((f, fi) => (
                                       <option key={f.id} value={generateFieldKey(f.fieldLabel, localFields.indexOf(f) + 1)}>
                                         {f.fieldLabel}
@@ -1125,12 +1157,178 @@ export default function BuilderPage() {
                             )}
                           </>
                         )}
+                        
+                        {/* ── Custom Business Rule Actions ── */}
+                        <div className="pt-4 mt-4 border-t border-slate-100">
+                          <label className="block text-xs font-semibold text-slate-700 mb-2">If conditions match, execute:</label>
+                          <div className="space-y-3">
+                            {cond.actions.map((act, actIdx) => (
+                              <div key={actIdx} className="bg-slate-50 border border-slate-200 rounded-lg p-3 relative">
+                                <button onClick={() => {
+                                  updateCond({ actions: cond.actions.filter((_, i) => i !== actIdx) });
+                                }} className="absolute right-2 top-2 p-1 text-slate-400 hover:text-red-500 rounded transition-colors">
+                                  <X size={14} />
+                                </button>
+                                
+                                <select value={act.type || ""} onChange={(e) => {
+                                  const newActions = [...cond.actions];
+                                  newActions[actIdx] = { ...act, type: e.target.value };
+                                  updateCond({ actions: newActions });
+                                }} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs mb-2 pr-8">
+                                  <option value="">Select Action Type...</option>
+                                  <option value="VALIDATION_ERROR">Block Submission w/ Error</option>
+                                  <option value="REQUIRE">Require a Field</option>
+                                  <option value="MIN_LENGTH">Enforce Minimum Length</option>
+                                  <option value="MAX_LENGTH">Enforce Maximum Length</option>
+                                  <option value="REGEX_MATCH">Match Regex Pattern</option>
+                                  <option value="MATCH_FIELD">Must Match Another Field</option>
+                                </select>
+                                
+                                {act.type === "VALIDATION_ERROR" && (
+                                  <input type="text" value={act.message || ""} onChange={(e) => {
+                                      const newActions = [...cond.actions];
+                                      newActions[actIdx] = { ...act, message: e.target.value };
+                                      updateCond({ actions: newActions });
+                                  }} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs" placeholder="Custom error message..." />
+                                )}
+
+                                {act.type === "REQUIRE" && (
+                                  <div className="space-y-2">
+                                    <select value={act.targetField || ""} onChange={(e) => {
+                                        const newActions = [...cond.actions];
+                                        newActions[actIdx] = { ...act, targetField: e.target.value };
+                                        updateCond({ actions: newActions });
+                                    }} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs">
+                                      <option value="">Select field to require...</option>
+                                      <option value={activeField.fieldKey || generateFieldKey(activeField.fieldLabel, localFields.indexOf(activeField)+1)}>This Field</option>
+                                      {otherFields.map(f => (
+                                        <option key={f.id} value={generateFieldKey(f.fieldLabel, localFields.indexOf(f)+1)}>
+                                          {f.fieldLabel}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    
+                                    <input type="text" value={act.message || ""} onChange={(e) => {
+                                        const newActions = [...cond.actions];
+                                        newActions[actIdx] = { ...act, message: e.target.value };
+                                        updateCond({ actions: newActions });
+                                    }} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs" placeholder="Optional custom required message..." />
+                                  </div>
+                                )}
+
+                                {(act.type === "MIN_LENGTH" || act.type === "MAX_LENGTH") && (
+                                  <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                      <select value={act.targetField || ""} onChange={(e) => {
+                                          const newActions = [...cond.actions];
+                                          newActions[actIdx] = { ...act, targetField: e.target.value };
+                                          updateCond({ actions: newActions });
+                                      }} className="flex-1 bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs">
+                                        <option value="">Select field...</option>
+                                        <option value={activeField.fieldKey || generateFieldKey(activeField.fieldLabel, localFields.indexOf(activeField)+1)}>This Field</option>
+                                        {otherFields.map(f => (
+                                          <option key={f.id} value={generateFieldKey(f.fieldLabel, localFields.indexOf(f)+1)}>
+                                            {f.fieldLabel}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <input type="number" min="1" value={act.value || ""} onChange={(e) => {
+                                          const newActions = [...cond.actions];
+                                          newActions[actIdx] = { ...act, value: e.target.value };
+                                          updateCond({ actions: newActions });
+                                      }} className="w-20 bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs" placeholder="Length" />
+                                    </div>
+                                    <input type="text" value={act.message || ""} onChange={(e) => {
+                                        const newActions = [...cond.actions];
+                                        newActions[actIdx] = { ...act, message: e.target.value };
+                                        updateCond({ actions: newActions });
+                                    }} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs" placeholder="Optional custom length message..." />
+                                  </div>
+                                )}
+
+                                {act.type === "REGEX_MATCH" && (
+                                  <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                      <select value={act.targetField || ""} onChange={(e) => {
+                                          const newActions = [...cond.actions];
+                                          newActions[actIdx] = { ...act, targetField: e.target.value };
+                                          updateCond({ actions: newActions });
+                                      }} className="flex-1 bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs">
+                                        <option value="">Select field...</option>
+                                        <option value={activeField.fieldKey || generateFieldKey(activeField.fieldLabel, localFields.indexOf(activeField)+1)}>This Field</option>
+                                        {otherFields.map(f => (
+                                          <option key={f.id} value={generateFieldKey(f.fieldLabel, localFields.indexOf(f)+1)}>
+                                            {f.fieldLabel}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <input type="text" value={act.value || ""} onChange={(e) => {
+                                          const newActions = [...cond.actions];
+                                          newActions[actIdx] = { ...act, value: e.target.value };
+                                          updateCond({ actions: newActions });
+                                      }} className="flex-1 bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs font-mono" placeholder="Regex (e.g. ^[0-9]{5}$)" />
+                                    </div>
+                                    <input type="text" value={act.message || ""} onChange={(e) => {
+                                        const newActions = [...cond.actions];
+                                        newActions[actIdx] = { ...act, message: e.target.value };
+                                        updateCond({ actions: newActions });
+                                    }} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs" placeholder="Optional custom regex message..." />
+                                  </div>
+                                )}
+
+                                {act.type === "MATCH_FIELD" && (
+                                  <div className="space-y-2">
+                                    <div className="flex gap-2 items-center">
+                                      <select value={act.targetField || ""} onChange={(e) => {
+                                          const newActions = [...cond.actions];
+                                          newActions[actIdx] = { ...act, targetField: e.target.value };
+                                          updateCond({ actions: newActions });
+                                      }} className="flex-1 bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs">
+                                        <option value="">Select field...</option>
+                                        <option value={activeField.fieldKey || generateFieldKey(activeField.fieldLabel, localFields.indexOf(activeField)+1)}>This Field</option>
+                                        {otherFields.map(f => (
+                                          <option key={f.id} value={generateFieldKey(f.fieldLabel, localFields.indexOf(f)+1)}>
+                                            {f.fieldLabel}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <span className="text-xs text-slate-500 font-medium whitespace-nowrap">must match</span>
+                                      <select value={act.value || ""} onChange={(e) => {
+                                          const newActions = [...cond.actions];
+                                          newActions[actIdx] = { ...act, value: e.target.value };
+                                          updateCond({ actions: newActions });
+                                      }} className="flex-1 bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs">
+                                        <option value="">Select field...</option>
+                                        <option value={activeField.fieldKey || generateFieldKey(activeField.fieldLabel, localFields.indexOf(activeField)+1)}>This Field</option>
+                                        {otherFields.map(f => (
+                                          <option key={f.id} value={generateFieldKey(f.fieldLabel, localFields.indexOf(f)+1)}>
+                                            {f.fieldLabel}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <input type="text" value={act.message || ""} onChange={(e) => {
+                                        const newActions = [...cond.actions];
+                                        newActions[actIdx] = { ...act, message: e.target.value };
+                                        updateCond({ actions: newActions });
+                                    }} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-xs" placeholder="Optional custom match message..." />
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            <button onClick={() => updateCond({ actions: [...cond.actions, { type: "", message: "", targetField: "" }] })}
+                              className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 px-2 py-1 rounded hover:bg-emerald-50 transition-colors border border-emerald-100 bg-white">
+                              <Plus size={14} /> Add Business Action
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     );
                   })()}
                 </div>
               )}
-
+              </div>
+            )}
             </div>
           )}
         </div>
