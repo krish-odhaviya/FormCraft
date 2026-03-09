@@ -172,9 +172,30 @@ function DashboardContent() {
                 className="group bg-white border border-slate-200/70 rounded-[32px] p-8 hover:border-indigo-500/50 transition-all duration-300 flex flex-col hover:shadow-2xl relative overflow-hidden"
               >
                 <div className="relative z-10 flex-1">
-                  <div className="p-2.5 bg-slate-50 rounded-xl text-slate-400 inline-block mb-6 group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors">
-                    <Settings2 size={18} />
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="p-2.5 bg-slate-50 rounded-xl text-slate-400 inline-block group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors">
+                      <Settings2 size={18} />
+                    </div>
+                    
+                    <div className="flex gap-1.5 flex-wrap justify-end max-w-[60%]">
+                      {form.versions?.some(v => v.status === "PUBLISHED") && (
+                        <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-emerald-50 text-emerald-600 rounded-md border border-emerald-100/50">
+                          Live
+                        </span>
+                      )}
+                      {form.versions?.some(v => v.status === "DRAFT") && (
+                        <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-amber-50 text-amber-600 rounded-md border border-amber-100/50">
+                          Draft
+                        </span>
+                      )}
+                      {(!form.versions || form.versions.length === 0) && (
+                        <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-slate-50 text-slate-500 rounded-md border border-slate-200/50">
+                          New
+                        </span>
+                      )}
+                    </div>
                   </div>
+
                   <h3 className="font-bold text-slate-900 text-xl mb-3 truncate group-hover:text-indigo-600 transition-colors">
                     {form.name}
                   </h3>

@@ -160,7 +160,7 @@ export default function DynamicFormPage() {
         const res = await api.getForm(formId);
         setFormDetails(res.data);
 
-        const publishedVersion = res.data.versions[0];
+        const publishedVersion = res.data.versions?.find((v) => v.status === "PUBLISHED");
         if (!publishedVersion) { setMessage("not_published"); setLoading(false); return; }
 
         setPublishedVersionId(publishedVersion.id);
@@ -438,7 +438,7 @@ export default function DynamicFormPage() {
                 })}
               </div>
 
-              {formDetails.versions[0].status === "PUBLISHED" && (
+              {publishedVersionId && (
                 <div className="pt-6 mt-8 border-t border-slate-100 flex justify-end">
                   <button type="submit" disabled={submitting || message === "success"}
                     className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white px-8 py-3 rounded-xl text-sm font-medium shadow-sm transition-all">

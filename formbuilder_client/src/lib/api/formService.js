@@ -24,6 +24,8 @@ export const api = {
   // ── Forms ─────────────────────────────────────────────────────────────────
   getAllForms: () => API.get("/forms"),
   getAllPublishedForms: () => API.get("/forms/published-list"),
+  getFormVersions: (formId) => API.get(`/forms/${formId}/versions`),
+  createNewVersion: (formId) => API.post(`/forms/${formId}/versions/new`),
   getSubmissions: (formId) => API.get(`/forms/${formId}/submissions`),
   deleteSubmission: (formId, submissionId) =>
     API.delete(`/forms/${formId}/submissions/${submissionId}`),

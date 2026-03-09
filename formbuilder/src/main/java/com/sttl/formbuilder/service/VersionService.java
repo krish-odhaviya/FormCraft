@@ -21,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
+
 @Service
 @RequiredArgsConstructor
 public class VersionService {
@@ -43,6 +44,83 @@ public class VersionService {
         version.setStatus(FormStatusEnum.DRAFT);
 
         return versionRepository.save(version);
+    }
+
+    /**
+     * Creates a new DRAFT version by deep-copying all fields from the
+     * currently PUBLISHED version of the form.
+     * Throws if a DRAFT already exists (only one draft allowed at a time).
+     */
+    @Transactional
+    public FormVersion createNewVersionFromPublished(Long formId) {
+        // Guard: no two drafts at once
+        versionRepository.findByFormIdAndStatus(formId, FormStatusEnum.DRAFT)
+                .ifPresent(d -> {
+                    throw new RuntimeException(
+                            "A draft (v" + d.getVersionNumber() + ") already exists — finish or discard it first");
+                });
+
+        // Get the currently published version to copy from
+        FormVersion published = versionRepository
+                .findByFormIdAndStatus(formId, FormStatusEnum.PUBLISHED)
+                .orElseThrow(() -> new RuntimeException("No published version to branch from"));
+
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
+
+        int nextVersionNumber = versionRepository.countByFormId(formId) + 1;
+
+        FormVersion newDraft = new FormVersion();
+        newDraft.setForm(form);
+        newDraft.setVersionNumber(nextVersionNumber);
+        newDraft.setStatus(FormStatusEnum.DRAFT);
+        newDraft = versionRepository.save(newDraft);
+
+        // Deep-copy every field from the published version
+        List<FormField> sourceFields = fieldRepository.findByVersionIdOrderByFieldOrder(published.getId());
+        for (FormField src : sourceFields) {
+            FormField copy = new FormField();
+            copy.setVersion(newDraft);
+            copy.setFieldKey(src.getFieldKey());
+            copy.setFieldLabel(src.getFieldLabel());
+            copy.setFieldType(src.getFieldType());
+            copy.setRequired(src.getRequired());
+            copy.setFieldOrder(src.getFieldOrder());
+            copy.setConditions(src.getConditions());
+
+            // Options
+            if (src.getOptions() != null) copy.getOptions().addAll(src.getOptions());
+            if (src.getAcceptedFileTypes() != null) copy.getAcceptedFileTypes().addAll(src.getAcceptedFileTypes());
+            if (src.getGridRows() != null) copy.getGridRows().addAll(src.getGridRows());
+            if (src.getGridColumns() != null) copy.getGridColumns().addAll(src.getGridColumns());
+
+            // UI config
+            copy.setPlaceholder(src.getPlaceholder());
+            copy.setHelpText(src.getHelpText());
+            copy.setDefaultValue(src.getDefaultValue());
+            copy.setReadOnly(src.getReadOnly());
+            copy.setMaxStars(src.getMaxStars());
+            copy.setScaleMin(src.getScaleMin());
+            copy.setScaleMax(src.getScaleMax());
+            copy.setLowLabel(src.getLowLabel());
+            copy.setHighLabel(src.getHighLabel());
+            copy.setMaxFileSizeMb(src.getMaxFileSizeMb());
+            copy.setSourceTable(src.getSourceTable());
+            copy.setSourceColumn(src.getSourceColumn());
+            copy.setSourceDisplayColumn(src.getSourceDisplayColumn());
+
+            // Validation
+            copy.setMinLength(src.getMinLength());
+            copy.setMaxLength(src.getMaxLength());
+            copy.setMinValue(src.getMinValue());
+            copy.setMaxValue(src.getMaxValue());
+            copy.setPattern(src.getPattern());
+            copy.setValidationMessage(src.getValidationMessage());
+
+            newDraft.addField(copy);
+        }
+
+        return versionRepository.save(newDraft);
     }
 
     public FormField addField(Long versionId, AddFieldRequest request) {

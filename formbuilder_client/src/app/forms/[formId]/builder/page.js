@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,7 +9,9 @@ import {
   Trash2, Rocket, Save, Plus, Settings2, ClipboardList,
   ArrowLeft, LayoutTemplate, X, ShieldCheck, MonitorPlay,
   Lock, Star, SlidersHorizontal, LayoutGrid, Grid3x3, Upload,
-  Link2, Heading1, AlignLeft as AlignLeftIcon, GitBranch
+  Link2, Heading1, AlignLeft as AlignLeftIcon, GitBranch,
+  History, CheckCircle2, Archive, FilePen, ChevronDown as ChevronDownIcon,
+  Loader2, ExternalLink
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
@@ -68,13 +70,16 @@ export default function BuilderPage() {
   const { getForm, setFormFromServer, updateVersion } = useForms();
   const form = getForm(formId);
 
-  const [loading, setLoading]           = useState(true);
-  const [publishing, setPublishing]     = useState(false);
-  const [saving, setSaving]             = useState(false);
-  const [localFields, setLocalFields]   = useState([]);
-  const [activeFieldId, setActiveFieldId] = useState(null);
+  const [loading, setLoading]               = useState(true);
+  const [publishing, setPublishing]         = useState(false);
+  const [saving, setSaving]                 = useState(false);
+  const [localFields, setLocalFields]       = useState([]);
+  const [activeFieldId, setActiveFieldId]   = useState(null);
   const [publishedForms, setPublishedForms] = useState([]);
-  const [activeTab, setActiveTab]       = useState('settings');
+  const [activeTab, setActiveTab]           = useState('settings');
+  const [versions, setVersions]             = useState([]);
+  const [creatingVersion, setCreatingVersion] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   // ── Fetch published forms for LOOKUP_DROPDOWN ─────────────────────────────
   useEffect(() => {
@@ -83,14 +88,18 @@ export default function BuilderPage() {
       .catch(console.error);
   }, []);
 
-  // ── Fetch form ────────────────────────────────────────────────────────────
+  // ── Fetch form + version history ──────────────────────────────────────────
   useEffect(() => {
     const fetchForm = async () => {
       try {
-        const response = await api.getForm(formId);
-        setFormFromServer(response.data);
-        const draft = response.data.versions?.find((v) => v.status === "DRAFT");
+        const [formRes, versionsRes] = await Promise.all([
+          api.getForm(formId),
+          api.getFormVersions(formId),
+        ]);
+        setFormFromServer(formRes.data);
+        const draft = formRes.data.versions?.find((v) => v.status === "DRAFT");
         setLocalFields(draft?.fields || []);
+        setVersions(versionsRes?.data || []);
       } catch (err) {
         console.error("Failed to fetch form:", err);
       } finally {
@@ -292,24 +301,145 @@ export default function BuilderPage() {
     );
   }
 
+  // ── "Form is Published" screen — create new version or view history ────────
   if (!draft && publishedVersion) {
+    const statusColor = (s) =>
+      s === 'PUBLISHED' ? '#16a34a' :
+      s === 'DRAFT'     ? '#d97706' : '#64748b';
+    const statusBg = (s) =>
+      s === 'PUBLISHED' ? '#f0fdf4' :
+      s === 'DRAFT'     ? '#fffbeb' : '#f8fafc';
+    const StatusIcon = ({ s }) =>
+      s === 'PUBLISHED' ? <CheckCircle2 size={12} /> :
+      s === 'DRAFT'     ? <FilePen size={12} /> :
+                          <Archive size={12} />;
+
+    const handleCreateNewVersion = async () => {
+      setCreatingVersion(true);
+      try {
+        await api.createNewVersion(formId);
+        // Version created — reload opens the builder with the new draft
+        window.location.reload();
+      } catch (err) {
+        alert(err?.response?.data?.message || "Failed to create new version");
+        setCreatingVersion(false);
+      }
+    };
+
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-        <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Lock className="text-indigo-600" size={32} />
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 max-w-lg w-full overflow-hidden">
+
+          {/* Header */}
+          <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-8 py-8 text-white">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <CheckCircle2 size={20} />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold">Form is Live</h1>
+                <p className="text-indigo-200 text-sm">{form?.name}</p>
+              </div>
+            </div>
+            <p className="text-indigo-100 text-sm leading-relaxed">
+              This form is collecting responses. Create a new version to make edits
+              without interrupting existing submissions.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-3">Form is Published</h1>
-          <p className="text-slate-500 mb-8 leading-relaxed">
-            This form is currently live and collecting responses. Its structure cannot be modified to protect data integrity.
-          </p>
-          <div className="space-y-3">
-            <Link href={`/forms/${formId}/submissions`} className="flex items-center justify-center w-full gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-medium transition-colors">
+
+          {/* Actions */}
+          <div className="p-6 space-y-3">
+            <button
+              onClick={handleCreateNewVersion}
+              disabled={creatingVersion}
+              className="flex items-center justify-center w-full gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-3.5 rounded-xl font-semibold transition-colors"
+            >
+              {creatingVersion
+                ? <><Loader2 size={18} className="animate-spin" /> Creating new version...</>
+                : <><GitBranch size={18} /> Create New Version (v{versions.length + 1})</>
+              }
+            </button>
+
+            <Link
+              href={`/forms/${formId}/submissions`}
+              className="flex items-center justify-center w-full gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-xl font-medium transition-colors"
+            >
               <ClipboardList size={18} /> View Submissions
             </Link>
-            <Link href="/" className="flex items-center justify-center w-full gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-xl font-medium transition-colors">
-              <ArrowLeft size={18} /> Return to Dashboard
+
+            <Link
+              href={`/forms/${formId}/view`}
+              target="_blank"
+              className="flex items-center justify-center w-full gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-5 py-3 rounded-xl font-medium transition-colors"
+            >
+              <ExternalLink size={18} /> View Live Form
             </Link>
+
+            <Link
+              href="/"
+              className="flex items-center justify-center w-full gap-2 text-slate-400 hover:text-slate-600 px-5 py-2 rounded-xl text-sm transition-colors"
+            >
+              <ArrowLeft size={16} /> Return to Dashboard
+            </Link>
+          </div>
+
+          {/* Version History */}
+          <div className="border-t border-slate-100">
+            <button
+              onClick={() => setShowVersionHistory(v => !v)}
+              className="w-full flex items-center justify-between px-6 py-4 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <History size={16} /> Version History ({versions.length})
+              </span>
+              <ChevronDownIcon
+                size={16}
+                className={`transition-transform ${showVersionHistory ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {showVersionHistory && (
+              <div className="px-6 pb-6 space-y-2">
+                {versions.slice().reverse().map((v) => (
+                  <div
+                    key={v.id}
+                    className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
+                        style={{ background: statusBg(v.status), color: statusColor(v.status) }}
+                      >
+                        v{v.versionNumber}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"
+                            style={{ background: statusBg(v.status), color: statusColor(v.status) }}
+                          >
+                            <StatusIcon s={v.status} />
+                            {v.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {v.fieldCount} field{v.fieldCount !== 1 ? 's' : ''}
+                          {v.publishedAt && ` · Published ${new Date(v.publishedAt).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                    </div>
+                    {v.status === 'PUBLISHED' && (
+                      <Link
+                        href={`/forms/${formId}/submissions`}
+                        className="text-xs text-indigo-600 hover:underline font-medium"
+                      >
+                        Submissions
+                      </Link>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -518,7 +648,14 @@ export default function BuilderPage() {
           <div className="flex items-center gap-3">
             <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><LayoutTemplate size={20} /></div>
             <div>
-              <h1 className="text-base font-bold text-slate-900 leading-tight line-clamp-1">{form.name}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-bold text-slate-900 leading-tight line-clamp-1">{form.name}</h1>
+                {draft && (
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                    v{draft.versionNumber} DRAFT
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-500 font-medium">Builder Mode</p>
             </div>
           </div>

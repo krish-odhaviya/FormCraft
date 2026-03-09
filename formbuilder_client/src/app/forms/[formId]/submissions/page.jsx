@@ -47,7 +47,7 @@ export default function SubmissionsPage() {
         setError("Form is not published yet.");
         return;
       }
-      setData(res.data);
+      setData(payload);
     } catch (err) {
       console.error(err.response?.data?.errors[0]?.message);
       setError(

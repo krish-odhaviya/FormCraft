@@ -17,44 +17,39 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class SchemaService {
 
     private final JdbcTemplate jdbcTemplate;
     private final FormVersionRepository versionRepository;
     private final FormFieldRepository fieldRepository;
 
-
-    public SchemaService(JdbcTemplate jdbcTemplate,
-                         FormVersionRepository versionRepository,
-                         FormFieldRepository fieldRepository) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.versionRepository = versionRepository;
-        this.fieldRepository = fieldRepository;
-    }
-
     @Transactional
     public void publishVersion(Long versionId) {
         try {
-            System.out.println("Working Inner");
-
             FormVersion version = versionRepository.findById(versionId)
                     .orElseThrow(() -> new RuntimeException("Version not found"));
 
             if (version.getStatus() != FormStatusEnum.DRAFT) {
-                throw new RuntimeException("Already published");
+                throw new RuntimeException("Only a DRAFT version can be published");
             }
 
-            List<FormField> fields =
-                    fieldRepository.findByVersionIdOrderByFieldOrder(versionId);
-
+            List<FormField> fields = fieldRepository.findByVersionIdOrderByFieldOrder(versionId);
             if (fields.isEmpty()) {
-                throw new RuntimeException("No fields defined");
+                throw new RuntimeException("No fields defined — add at least one field before publishing");
             }
 
-            String tableName = "form_" +
-                    version.getForm().getId() +
-                    "_v" + version.getVersionNumber() +
-                    "_submissions";
+            Long formId = version.getForm().getId();
+
+            // ── Archive the currently PUBLISHED version (if any) ────────────────
+            versionRepository.findByFormIdAndStatus(formId, FormStatusEnum.PUBLISHED)
+                    .ifPresent(existingPublished -> {
+                        existingPublished.setStatus(FormStatusEnum.ARCHIVED);
+                        versionRepository.save(existingPublished);
+                    });
+
+            // ── Build & execute the DDL table for this version ──────────────────
+            String tableName = "form_" + formId + "_v" + version.getVersionNumber() + "_submissions";
 
             StringBuilder sql = new StringBuilder();
             sql.append("CREATE TABLE ").append(tableName).append(" (")
@@ -74,28 +69,26 @@ public class SchemaService {
             }
             sql.append(")");
 
-            // ✅ Print the SQL so you can see exactly what's being executed
             System.out.println("=== GENERATED SQL ===");
-            System.out.println(sql.toString());
+            System.out.println(sql);
             System.out.println("=====================");
 
             jdbcTemplate.execute(sql.toString());
 
+            // ── Mark this version as PUBLISHED ──────────────────────────────────
             version.setStatus(FormStatusEnum.PUBLISHED);
             version.setTableName(tableName);
             version.setPublishedAt(LocalDateTime.now());
-
             versionRepository.save(version);
 
-            System.out.println("Published successfully!");
+            System.out.println("Published successfully — v" + version.getVersionNumber());
 
         } catch (Exception e) {
-            // ✅ This will print the REAL error
             System.out.println("=== PUBLISH FAILED ===");
             System.out.println("Error: " + e.getMessage());
             e.printStackTrace();
             System.out.println("======================");
-            throw e; // re-throw so the 500 still returns to frontend
+            throw e;
         }
     }
-}
+}
