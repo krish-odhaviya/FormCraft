@@ -265,7 +265,7 @@ export default function BuilderPage() {
     if (localFields.length === 0) return alert("Add at least one field before publishing");
     setPublishing(true);
     try {
-      await api.publishVersion(formId);
+      await api.publishVersion(draft.id);
       updateVersion(form.id, draft.id, { status: "PUBLISHED" });
       router.push("/");
     } catch {
@@ -918,40 +918,38 @@ export default function BuilderPage() {
                       />
                     </div>
 
-                    {/* Default Value — only for typed input fields */}
-                    {["TEXT", "TEXTAREA", "EMAIL", "INTEGER", "DATE", "TIME"].includes(activeField.fieldType) && (
+                    {/* Default Value */}
+                    {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
+                      !GRID_TYPES.includes(activeField.fieldType) &&
+                      activeField.fieldType !== "BOOLEAN" &&
+                      activeField.fieldType !== "LINEAR_SCALE" &&
+                      activeField.fieldType !== "FILE_UPLOAD" &&
+                      activeField.fieldType !== "LOOKUP_DROPDOWN" && (
                       <div>
                         <label className="block text-xs font-medium text-slate-500 mb-1">Default Value</label>
                         <input
-                          type={
-                            activeField.fieldType === "INTEGER" ? "number"
-                            : activeField.fieldType === "DATE" ? "date"
-                            : activeField.fieldType === "TIME" ? "time"
-                            : "text"
-                          }
+                          type={activeField.fieldType === "INTEGER" ? "number" : activeField.fieldType === "DATE" ? "date" : activeField.fieldType === "TIME" ? "time" : "text"}
                           value={activeField.uiConfig?.defaultValue || ""}
                           onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "defaultValue", e.target.value)}
                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm"
                           placeholder="Pre-fill this field with a value..."
                         />
-                        <p className="text-xs text-slate-400 mt-1">Pre-filled when form loads. Users can edit unless Read-Only is on.</p>
+                        <p className="text-xs text-slate-400 mt-1">This value will be pre-filled when the form loads. Users can change it unless Read-Only is enabled.</p>
                       </div>
                     )}
 
-                    {/* Read-Only — only for fields the user can type in or select */}
-                    {["TEXT", "TEXTAREA", "EMAIL", "INTEGER", "DATE", "TIME", "DROPDOWN", "RADIO", "BOOLEAN"].includes(activeField.fieldType) && (
-                      <label className="flex items-center justify-between p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-slate-800">Read-Only</span>
-                          <span className="text-xs text-slate-500 mt-0.5">User can see but not edit this field</span>
-                        </div>
-                        <input type="checkbox"
-                          checked={activeField.uiConfig?.readOnly || false}
-                          onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "readOnly", e.target.checked)}
-                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                        />
-                      </label>
-                    )}
+                    {/* Read-Only Toggle */}
+                    <label className="flex items-center justify-between p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-semibold text-slate-800">Read-Only</span>
+                        <span className="text-xs text-slate-500 mt-0.5">User can see but not edit this field</span>
+                      </div>
+                      <input type="checkbox"
+                        checked={activeField.uiConfig?.readOnly || false}
+                        onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "readOnly", e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                      />
+                    </label>
                   </div>
                 </div>
               )}

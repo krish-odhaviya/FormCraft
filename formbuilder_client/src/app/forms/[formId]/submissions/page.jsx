@@ -7,7 +7,8 @@ import {
   ArrowLeft, Loader2, Database, Download,
   FileSpreadsheet, Trash2, Star, SlidersHorizontal,
   LayoutGrid, Grid3x3, Upload, CheckSquare,
-  Link2
+  Link2,
+  Form
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 
@@ -34,7 +35,7 @@ export default function SubmissionsPage() {
       if (!isPublished) {
         setError("This form has not been published yet. Publish it first to view submissions.");
         setLoading(false);
-        return; 
+        return;
       }
 
 
@@ -324,6 +325,14 @@ export default function SubmissionsPage() {
               Showing {data.rows.length} total submission{data.rows.length !== 1 && "s"}.
             </p>
           </div>
+
+            <Link
+              className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm"
+              href={`/forms/${formId}/view`}>
+              <Form size={16} className="text-green-600" /> Fill form
+            </Link>
+
+ 
 
           <button className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm">
             <FileSpreadsheet size={16} className="text-green-600" /> Export CSV
