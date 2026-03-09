@@ -20,11 +20,14 @@ public class Form {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 150)
+    @Column(nullable = false, length = 150)
     private String name;
 
     private String description;
 
+    /** The username of the admin who created this form (tenant key). */
+    @Column(nullable = false, updatable = false)
+    private String createdByUsername;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
@@ -32,4 +35,4 @@ public class Form {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-}
+}

@@ -2,31 +2,37 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { 
-  Plus, 
-  FileText, 
-  PenLine, 
-  ExternalLink, 
+import { useRouter } from "next/navigation";
+import {
+  Plus,
+  PenLine,
+  ExternalLink,
   Inbox,
   BarChart2,
-  Settings2
+  Settings2,
+  LogOut,
+  LayoutDashboard,
+  Search
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
+import { useAuth } from "@/context/AuthContext";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
-export default function DashboardPage() {
-  const [forms, setForms] = useState([]); 
+function DashboardContent() {
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const fetchForms = async () => {
       try {
         const response = await api.getAllForms();
-        setForms(response?.data || []); 
-
-        console.log(response?.data)
+        setForms(response?.data || []);
       } catch (err) {
         console.error("Failed to fetch forms:", err);
-        setForms([]); 
+        setForms([]);
       } finally {
         setLoading(false);
       }
@@ -34,109 +40,188 @@ export default function DashboardPage() {
     fetchForms();
   }, []);
 
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/login");
+  };
+
+  const filteredForms = forms.filter((f) =>
+    f.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
-    <div className="min-h-screen bg-[#FDFDFD]">
-      {/* Utility Navigation Bar */}
-      <div className="bg-white border-b border-slate-100 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <h1 className="text-lg font-bold tracking-tight text-slate-900">FormCraft</h1>
-            <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-500">
-              <span className="text-indigo-600 border-b-2 border-indigo-600 py-5">Forms</span>
-              <span className="hover:text-slate-900 cursor-not-allowed">Analytics</span>
-              <span className="hover:text-slate-900 cursor-not-allowed">Settings</span>
+    <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
+      {/* Navigation Bar */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-10">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                <LayoutDashboard size={20} className="text-white" />
+              </div>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">FormCraft</h1>
+            </div>
+
+            <nav className="hidden md:flex items-center gap-1">
+              <span className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-semibold">
+                Dashboard
+              </span>
+              <button className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors">
+                Templates
+              </button>
             </nav>
           </div>
-          <Link 
-            href="/forms/new"
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm shadow-indigo-200"
-          >
-            <Plus size={16} strokeWidth={3} />
-            New Form
-          </Link>
+
+          <div className="flex items-center gap-4">
+            {user && (
+              <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm">
+                <div className="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 text-[10px] font-bold">
+                  {user.username?.charAt(0).toUpperCase() || "U"}
+                </div>
+                <span className="text-sm font-semibold text-slate-700 pr-1">
+                  {user.username}
+                </span>
+              </div>
+            )}
+
+            <button
+              onClick={handleLogout}
+              className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+              title="Sign Out"
+            >
+              <LogOut size={20} />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-10">
+      <main className="max-w-7xl mx-auto px-6 py-12">
         {/* Header Section */}
-        <div className="mb-10">
-          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Your Forms</h2>
-          <p className="text-slate-500 mt-2">Manage your data collection and view live results.</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+          <div>
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-2">
+              Your Workspace
+            </h2>
+            <p className="text-slate-500 text-lg">
+              Create, manage, and analyze your forms in one place.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={18}
+              />
+              <input
+                type="text"
+                placeholder="Search forms..."
+                className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all w-64"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            {/* FIX: Explicit text-white and flex-center */}
+            <Link
+              href="/forms/new"
+              className="flex items-center justify-center gap-2 bg-[#0F172A] hover:bg-slate-800 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-xl shadow-slate-200 active:scale-95 whitespace-nowrap"
+            >
+              <Plus size={18} strokeWidth={3} className="text-white" />
+              <span>Create New</span>
+            </Link>
+          </div>
         </div>
 
         {loading ? (
-          /* Sleek Skeleton */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          /* Loading State */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[1, 2, 3].map((n) => (
-              <div key={n} className="bg-white border border-slate-200 rounded-xl p-6 h-56 animate-pulse">
-                <div className="h-4 bg-slate-100 rounded w-1/2 mb-4"></div>
-                <div className="h-3 bg-slate-50 rounded w-full mb-2"></div>
-                <div className="h-3 bg-slate-50 rounded w-2/3"></div>
+              <div
+                key={n}
+                className="bg-white border border-slate-100 rounded-[32px] p-8 h-64 animate-pulse shadow-sm"
+              >
+                <div className="h-6 bg-slate-100 rounded-full w-1/2 mb-6"></div>
+                <div className="space-y-3">
+                  <div className="h-3 bg-slate-50 rounded-full w-full"></div>
+                  <div className="h-3 bg-slate-50 rounded-full w-5/6"></div>
+                </div>
               </div>
             ))}
           </div>
-        ) : forms.length === 0 ? (
+        ) : filteredForms.length === 0 ? (
           /* Empty State */
-          <div className="flex flex-col items-center justify-center py-20 bg-slate-50/50 border-2 border-dashed border-slate-200 rounded-3xl">
-            <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4 border border-slate-100">
-              <Inbox size={28} className="text-slate-300" />
+          <div className="flex flex-col items-center justify-center py-24 bg-white border border-slate-200/60 rounded-[40px] shadow-sm">
+            <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mb-6">
+              <Inbox size={32} className="text-indigo-300" />
             </div>
-            <p className="text-slate-900 font-semibold text-lg">No forms found</p>
-            <p className="text-slate-500 text-sm mb-6">Get started by building your first questionnaire.</p>
-            <Link href="/forms/new" className="text-indigo-600 font-bold hover:underline">Create a form &rarr;</Link>
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">
+              No forms found
+            </h3>
+            <p className="text-slate-500 mb-8 text-center max-w-xs">
+              {searchQuery
+                ? "No matches found for your search."
+                : "Get started by building your first questionnaire."}
+            </p>
           </div>
         ) : (
           /* Form Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {forms.map((form) => (
-              <div 
-                key={form.id} 
-                className="group bg-white border border-slate-200 rounded-2xl p-6 hover:border-indigo-500 transition-all duration-300 flex flex-col hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {filteredForms.map((form) => (
+              <div
+                key={form.id}
+                className="group bg-white border border-slate-200/70 rounded-[32px] p-8 hover:border-indigo-500/50 transition-all duration-300 flex flex-col hover:shadow-2xl relative overflow-hidden"
               >
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-4">
-                    <Settings2 size={16} className="text-slate-300 hover:text-slate-600 cursor-pointer" />
+                <div className="relative z-10 flex-1">
+                  <div className="p-2.5 bg-slate-50 rounded-xl text-slate-400 inline-block mb-6 group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-colors">
+                    <Settings2 size={18} />
                   </div>
-                  
-                  <h3 className="font-bold text-slate-900 text-lg mb-2 truncate">
+                  <h3 className="font-bold text-slate-900 text-xl mb-3 truncate group-hover:text-indigo-600 transition-colors">
                     {form.name}
                   </h3>
-                  <p className="text-slate-500 text-sm leading-relaxed line-clamp-2">
-                    {form.description || "No description provided."}
+                  <p className="text-slate-500 text-sm leading-relaxed line-clamp-2 mb-6">
+                    {form.description || "No description provided for this form."}
                   </p>
                 </div>
-                
-                {/* Actions Panel */}
-                <div className="mt-8 flex items-center gap-2">
-                  <Link 
+
+                <div className="relative z-10 mt-4 flex items-center gap-3">
+                  {/* FIX: Explicit text-white and padding */}
+                  <Link
                     href={`/forms/${form.id}/builder`}
-                    className="flex-[2] flex items-center justify-center gap-2 text-slate-900 bg-white py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-600 hover:text-white transition-colors"
+                    className="flex-[2] flex items-center justify-center gap-2 bg-[#0F172A] text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-indigo-600 transition-all shadow-md active:scale-95"
                   >
-                    <PenLine size={14} />
-                    Edit
+                    <PenLine size={16} className="text-white" />
+                    <span>Edit</span>
                   </Link>
 
-                  <Link 
+                  <Link
                     href={`/forms/${form.id}/submissions`}
-                    className="flex-1 flex items-center justify-center bg-slate-50 text-slate-600 py-2.5 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                    title="View Submissions"
+                    className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-100"
+                    title="Analytics"
                   >
-                    <BarChart2 size={18} />
+                    <BarChart2 size={20} />
                   </Link>
 
-                  <Link 
+                  <Link
                     href={`/forms/${form.id}/view`}
-                    className="flex-1 flex items-center justify-center bg-slate-50 text-slate-600 py-2.5 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                    title="Live Link"
+                    className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-100"
+                    title="Live View"
                   >
-                    <ExternalLink size={18} />
+                    <ExternalLink size={20} />
                   </Link>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <AuthGuard>
+      <DashboardContent />
+    </AuthGuard>
   );
 }

@@ -33,27 +33,41 @@ public class FormService {
         this.formFieldRepository = formFieldRepository;
     }
 
-    public List<Form> getAllForms() {
-        return formRepository.findAll();
+    /** Returns only forms owned by the current user. */
+    public List<Form> getAllForms(String currentUsername) {
+        return formRepository.findByCreatedByUsername(currentUsername);
     }
 
-    public Form createForm(String name, String description) {
+    /** Creates a form tagged with the current user as owner. */
+    public Form createForm(String name, String description, String currentUsername) {
 
-        if (formRepository.existsByName(name)) {
-            throw new RuntimeException("Form name already exists");
+        if (formRepository.existsByNameAndCreatedByUsername(name, currentUsername)) {
+            throw new RuntimeException("You already have a form with that name");
         }
 
         Form form = new Form();
         form.setName(name);
         form.setDescription(description);
+        form.setCreatedByUsername(currentUsername);
 
         return formRepository.save(form);
     }
 
-    public FormDetailsResponse getFormWithStructure(Long formId) {
-        // 1. Fetch the main Form
-        Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
+    /**
+     * Fetches a form's full structure.
+     * Pass currentUsername=null for public access (form fill),
+     * or a real username to enforce ownership.
+     */
+    public FormDetailsResponse getFormWithStructure(Long formId, String currentUsername) {
+        // 1. Fetch the main Form — scoped to owner OR open read for public form-fill
+        Form form;
+        if (currentUsername != null) {
+            form = formRepository.findByIdAndCreatedByUsername(formId, currentUsername)
+                    .orElseThrow(() -> new RuntimeException("Form not found or access denied"));
+        } else {
+            form = formRepository.findById(formId)
+                    .orElseThrow(() -> new RuntimeException("Form not found"));
+        }
 
         // 2. Fetch all versions
         List<FormVersion> versions = formVersionRepository

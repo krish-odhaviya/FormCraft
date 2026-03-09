@@ -1,0 +1,165 @@
+package com.sttl.formbuilder.controller;
+
+import com.sttl.formbuilder.common.ApiResponse;
+import com.sttl.formbuilder.common.ApiResponseUtil;
+import com.sttl.formbuilder.dto.RegisterUserRequest;
+import com.sttl.formbuilder.dto.UserResponseDto;
+import com.sttl.formbuilder.entity.User;
+import com.sttl.formbuilder.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
+public class AuthController {
+
+    private final AuthenticationManager authenticationManager;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+
+    /**
+     * POST /api/auth/login
+     * Body: { "username": "admin", "password": "admin123" }
+     */
+    @PostMapping("/login")
+    public ResponseEntity<?> login(
+            @RequestBody Map<String, String> body,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+
+        String username = body.get("username");
+        String password = body.get("password");
+
+        if (username == null || username.isBlank() || password == null || password.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Username and password are required"
+            ));
+        }
+
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(username, password)
+            );
+
+            // Store auth in security context and bind to HTTP session
+            SecurityContext context = SecurityContextHolder.createEmptyContext();
+            context.setAuthentication(authentication);
+            SecurityContextHolder.setContext(context);
+
+            HttpSession session = request.getSession(true);
+            session.setAttribute(
+                    HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                    context
+            );
+
+            Map<String, Object> userData = buildUserData(authentication);
+            return ApiResponseUtil.success(userData, "Login successful", request);
+
+        } catch (BadCredentialsException ex) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false,
+                    "message", "Invalid username or password"
+            ));
+        }
+    }
+
+    /**
+     * POST /api/auth/logout
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        SecurityContextHolder.clearContext();
+        return ResponseEntity.ok(Map.of("success", true, "message", "Logged out successfully"));
+    }
+
+    /**
+     * GET /api/auth/me  — returns currently logged-in user info (or 401)
+     */
+    @GetMapping("/me")
+    public ResponseEntity<?> me(
+            @AuthenticationPrincipal UserDetails userDetails,
+            HttpServletRequest request) {
+
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false,
+                    "message", "Not authenticated"
+            ));
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Map<String, Object> userData = buildUserData(auth);
+        return ApiResponseUtil.success(userData, "Authenticated", request);
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * POST /api/auth/register  (PUBLIC — no session required)
+     * Anyone can create an account. Each account gets ROLE_ADMIN so they can
+     * immediately build and manage their own forms.
+     */
+    @PostMapping("/register")
+    public ResponseEntity<?> register(
+            @Valid @RequestBody RegisterUserRequest body,
+            HttpServletRequest request) {
+
+        String username = body.getUsername().trim();
+
+        if (userRepository.existsByUsername(username)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "success", false,
+                    "message", "Username '" + username + "' is already taken"
+            ));
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(body.getPassword()));
+        user.setRole("ROLE_ADMIN");
+        user.setEnabled(true);
+        userRepository.save(user);
+
+        UserResponseDto dto = new UserResponseDto(
+                user.getId(), user.getUsername(), user.getRole(), user.isEnabled());
+
+        return ApiResponseUtil.success(dto, "Account created successfully", request);
+    }
+
+    private Map<String, Object> buildUserData(Authentication authentication) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("username", authentication.getName());
+        data.put("roles", authentication.getAuthorities()
+                .stream()
+                .map(GrantedAuthority::getAuthority)
+                .toList());
+        return data;
+    }
+}

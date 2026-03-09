@@ -78,9 +78,8 @@ export default function BuilderPage() {
 
   // ── Fetch published forms for LOOKUP_DROPDOWN ─────────────────────────────
   useEffect(() => {
-    fetch("http://localhost:9090/api/forms/published-list")
-      .then((r) => r.json())
-      .then((res) => setPublishedForms(res.data || []))
+    api.getAllPublishedForms()
+      .then((res) => setPublishedForms(res?.data || []))
       .catch(console.error);
   }, []);
 

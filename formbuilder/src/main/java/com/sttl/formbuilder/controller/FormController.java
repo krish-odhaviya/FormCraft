@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import com.sttl.formbuilder.dto.FormDetailsResponse;
@@ -51,83 +53,59 @@ public class FormController {
     private final VersionService versionService;
     private final FormSubmissionService formSubmissionService;
     private final FormVersionRepository versionRepository;
-
     private final JdbcTemplate jdbcTemplate;
 
-
+    // ── GET /api/forms — only returns forms owned by the logged-in user ───────
     @GetMapping
     public ResponseEntity<ApiResponse<List<Form>>> getAllForms(
+            @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        List<Form> forms = formService.getAllForms();
-
-        return ApiResponseUtil.success(
-                forms,
-                "Forms fetched successfully",
-                request
-        );
+        List<Form> forms = formService.getAllForms(currentUser.getUsername());
+        return ApiResponseUtil.success(forms, "Forms fetched successfully", request);
     }
 
+    // ── GET /api/forms/{formId} — ownership enforced ──────────────────────────
     @GetMapping("/{formId}")
     public ResponseEntity<ApiResponse<FormDetailsResponse>> getForm(
             @PathVariable Long formId,
+            @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        System.out.println("getForm called");
-
-        FormDetailsResponse response =
-                formService.getFormWithStructure(formId);
-
-        return ApiResponseUtil.success(
-                response,
-                "Form fetched successfully",
-                request
-        );
+        // currentUser is null for the public /view endpoint (handled by SecurityConfig)
+        String username = currentUser != null ? currentUser.getUsername() : null;
+        FormDetailsResponse response = formService.getFormWithStructure(formId, username);
+        return ApiResponseUtil.success(response, "Form fetched successfully", request);
     }
 
+    // ── POST /api/forms — create form for logged-in user ─────────────────────
     @PostMapping
     public ResponseEntity<ApiResponse<Form>> createForm(
             @Valid @RequestBody CreateFormRequest requestBody,
+            @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
-
-        System.out.println("createFrom called");
 
         Form form = formService.createForm(
                 requestBody.getName(),
-                requestBody.getDescription()
+                requestBody.getDescription(),
+                currentUser.getUsername()
         );
-
-        return ApiResponseUtil.success(
-                form,
-                "Form created successfully",
-                request
-        );
+        return ApiResponseUtil.success(form, "Form created successfully", request);
     }
 
+    // ── POST /api/forms/{formId}/versions ─────────────────────────────────────
     @PostMapping("/{formId}/versions")
     public ResponseEntity<ApiResponse<FormVersion>> createDraftVersion(
             @PathVariable Long formId,
             HttpServletRequest request) {
 
-        System.out.println("createDraftVersion called");
-
-        FormVersion version =
-                versionService.createDraftVersion(formId);
-
-        return ApiResponseUtil.success(
-                version,
-                "Draft version created successfully",
-                request
-        );
+        FormVersion version = versionService.createDraftVersion(formId);
+        return ApiResponseUtil.success(version, "Draft version created successfully", request);
     }
 
-
-
-
-
+    // ── GET /api/forms/published-list (public) ────────────────────────────────
     @GetMapping("/published-list")
     public ResponseEntity<?> getPublishedForms(HttpServletRequest request) {
-
         List<FormVersion> publishedVersions = versionRepository.findAllByStatus(FormStatusEnum.PUBLISHED);
 
         List<Map<String, Object>> result = publishedVersions.stream()
@@ -135,26 +113,15 @@ public class FormController {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("formId", v.getForm().getId());
                     m.put("formName", v.getForm().getName());
-
-                    // ✅ Fix: strip "_submissions" suffix — store only base table name
-                    String rawTable = v.getTableName(); // e.g. "form_1_v1_submissions"
-                                    // e.g. "form_1_v1"
                     m.put("tableName", v.getTableName());
-
                     List<Map<String, String>> fieldOptions = v.getFields().stream()
                             .map(f -> Map.of("key", f.getFieldKey(), "label", f.getFieldLabel()))
                             .collect(Collectors.toList());
                     m.put("fields", fieldOptions);
-
                     return m;
                 })
                 .collect(Collectors.toList());
 
         return ApiResponseUtil.success(result, "Published forms", request);
     }
-
-
-
-
-
 }
