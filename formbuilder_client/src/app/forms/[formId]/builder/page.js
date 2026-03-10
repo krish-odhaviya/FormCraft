@@ -660,8 +660,8 @@ export default function BuilderPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link href={`/forms/${formId}/view`} className="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors">
-              <ClipboardList size={18} /> View form
+            <Link href={`/forms/${formId}/view?preview=true`} target="_blank" className="hidden sm:flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors">
+              <ClipboardList size={18} /> Preview Form
             </Link>
             <div className="w-px h-6 bg-slate-200 mx-1"></div>
             <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
@@ -1349,6 +1349,8 @@ export default function BuilderPage() {
                                   <option value="REQUIRE">Require a Field</option>
                                   <option value="MIN_LENGTH">Enforce Minimum Length</option>
                                   <option value="MAX_LENGTH">Enforce Maximum Length</option>
+                                  <option value="MIN_VALUE">Enforce Minimum Value</option>
+                                  <option value="MAX_VALUE">Enforce Maximum Value</option>
                                   <option value="REGEX_MATCH">Match Regex Pattern</option>
                                   <option value="MATCH_FIELD">Must Match Another Field</option>
                                 </select>
@@ -1385,7 +1387,7 @@ export default function BuilderPage() {
                                   </div>
                                 )}
 
-                                {(act.type === "MIN_LENGTH" || act.type === "MAX_LENGTH") && (
+                                {["MIN_LENGTH", "MAX_LENGTH", "MIN_VALUE", "MAX_VALUE"].includes(act.type) && (
                                   <div className="space-y-2">
                                     <div className="flex gap-2">
                                       <select value={act.targetField || ""} onChange={(e) => {

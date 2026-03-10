@@ -29,6 +29,8 @@ export const api = {
   getSubmissions: (formId) => API.get(`/forms/${formId}/submissions`),
   deleteSubmission: (formId, submissionId) =>
     API.delete(`/forms/${formId}/submissions/${submissionId}`),
+  deleteSubmissionsBulk: (formId, submissionIds) =>
+    API.post(`/forms/${formId}/submissions/bulk-delete`, submissionIds),
   getForm: (formId) => API.get(`/forms/${formId}`),
   createForm: (name, description) =>
     API.post("/forms", { name, description }),

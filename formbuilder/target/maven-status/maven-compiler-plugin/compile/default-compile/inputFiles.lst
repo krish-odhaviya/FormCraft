@@ -3,8 +3,10 @@ C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilde
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\common\ApiResponse.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\common\ApiResponseUtil.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\config\CorsConfig.java
+C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\config\DataInitializer.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\config\SecurityConfig.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\config\WebConfig.java
+C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\controller\AuthController.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\controller\FileController.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\controller\FormController.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\controller\FormSubmissionController.java
@@ -17,13 +19,17 @@ C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilde
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\internal\FormRuleDTO.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\internal\RuleActionDTO.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\internal\RuleConditionDTO.java
+C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\PagedSubmissionsResponse.java
+C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\RegisterUserRequest.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\ReorderFieldsRequest.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\SubmissionsResponse.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\SubmitFormRequest.java
+C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\UserResponseDto.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\dto\VersionDto.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\entity\Form.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\entity\FormField.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\entity\FormVersion.java
+C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\entity\User.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\Enums\FormStatusEnum.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\exception\BusinessException.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\exception\GlobalExceptionHandler.java
@@ -32,6 +38,8 @@ C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilde
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\repository\FormFieldRepository.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\repository\FormRepository.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\repository\FormVersionRepository.java
+C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\repository\UserRepository.java
+C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\security\CustomUserDetailsService.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\service\FormService.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\service\FormSubmissionService.java
 C:\Users\stadmin\Desktop\FormCraft\formbuilder\src\main\java\com\sttl\formbuilder\service\RuleEngineService.java

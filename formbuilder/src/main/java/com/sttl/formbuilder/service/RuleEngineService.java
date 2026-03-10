@@ -13,26 +13,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * RuleEngineService — Server-Side Logic Rule Evaluation Engine
- *
- * What it does:
- * Evaluates the IF→THEN logic rules attached to a form version when a submission
- * is received.
- */
 @Service
 public class RuleEngineService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /**
-     * Reuses condition logic from the client to enforce conditional validation.
-     * Evaluates a single {@link FormRuleDTO} representing a field's condition.
-     *
-     * @param cond The condition rules.
-     * @param formValues   The full map of submitted {columnName: value} pairs.
-     * @return truthiness of the condition passing.
-     */
+
     public boolean evaluateRule(FormRuleDTO cond, Map<String, Object> formValues) {
         if (cond == null || cond.getRules() == null || cond.getRules().isEmpty()) {
             return true;
@@ -60,13 +46,7 @@ public class RuleEngineService {
         return passed;
     }
 
-    /**
-     * Determines whether a field should be shown/enabled (and therefore validated)
-     * based on its conditions and the provided form values.
-     * @param cond The conditional logic object for the field (action, logic, rules)
-     * @param formValues The form values to evaluate against
-     * @return true if the field should be considered active (visible/enabled), false if inactive (hidden/disabled)
-     */
+
      public boolean isFieldActive(FormRuleDTO cond, Map<String, Object> formValues) {
         if (cond == null || cond.getRules() == null || cond.getRules().isEmpty()) {
             return true; // No conditions = active
@@ -189,6 +169,34 @@ public class RuleEngineService {
                                         ? action.getMessage() 
                                         : "'" + action.getTargetField() + "' cannot exceed " + maxLen + " characters.";
                                 errors.put(action.getTargetField(), msg);
+                            }
+                        } catch (NumberFormatException ignored) {}
+                    } else if ("MIN_VALUE".equalsIgnoreCase(action.getType())) {
+                        Object targetValue = answers.get(action.getTargetField());
+                        try {
+                            double minVal = Double.parseDouble(action.getValue());
+                            if (targetValue != null && targetValue.toString().trim().length() > 0) {
+                                double actualVal = Double.parseDouble(targetValue.toString());
+                                if (actualVal < minVal) {
+                                    String msg = action.getMessage() != null && !action.getMessage().trim().isEmpty() 
+                                            ? action.getMessage() 
+                                            : "'" + action.getTargetField() + "' must be at least " + minVal + ".";
+                                    errors.put(action.getTargetField(), msg);
+                                }
+                            }
+                        } catch (NumberFormatException ignored) {}
+                    } else if ("MAX_VALUE".equalsIgnoreCase(action.getType())) {
+                        Object targetValue = answers.get(action.getTargetField());
+                        try {
+                            double maxVal = Double.parseDouble(action.getValue());
+                            if (targetValue != null && targetValue.toString().trim().length() > 0) {
+                                double actualVal = Double.parseDouble(targetValue.toString());
+                                if (actualVal > maxVal) {
+                                    String msg = action.getMessage() != null && !action.getMessage().trim().isEmpty() 
+                                            ? action.getMessage() 
+                                            : "'" + action.getTargetField() + "' cannot exceed " + maxVal + ".";
+                                    errors.put(action.getTargetField(), msg);
+                                }
                             }
                         } catch (NumberFormatException ignored) {}
                     } else if ("REGEX_MATCH".equalsIgnoreCase(action.getType())) {

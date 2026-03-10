@@ -124,10 +124,10 @@ function DashboardContent() {
             {/* FIX: Explicit text-white and flex-center */}
             <Link
               href="/forms/new"
-              className="flex items-center justify-center gap-2 bg-[#0F172A] hover:bg-slate-800 text-white px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-xl shadow-slate-200 active:scale-95 whitespace-nowrap"
+              className="flex items-center justify-center gap-2 bg-[#0F172A] text-white hover:bg-slate-800  px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-xl shadow-slate-200 active:scale-95 whitespace-nowrap"
             >
               <Plus size={18} strokeWidth={3} className="text-white" />
-              <span>Create New</span>
+              <span className="text-white">Create New</span>
             </Link>
           </div>
         </div>
@@ -211,7 +211,7 @@ function DashboardContent() {
                     className="flex-[2] flex items-center justify-center gap-2 bg-[#0F172A] text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-indigo-600 transition-all shadow-md active:scale-95"
                   >
                     <PenLine size={16} className="text-white" />
-                    <span>Edit</span>
+                    <span className="text-white">Edit</span>
                   </Link>
 
                   <Link

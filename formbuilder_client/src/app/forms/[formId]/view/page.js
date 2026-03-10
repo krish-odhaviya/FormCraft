@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useMemo, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api/formService";
 import {
   Loader2, Send, CheckCircle2, AlertCircle,
@@ -58,8 +58,10 @@ function evaluateFormula(formula, formValues) {
   } catch { return ""; }
 }
 
-export default function DynamicFormPage() {
+function FormPageContent() {
   const { formId } = useParams();
+  const searchParams = useSearchParams();
+  const isPreview = searchParams.get("preview") === "true";
   const router = useRouter();
 
   const [fields, setFields] = useState([]);
@@ -160,11 +162,17 @@ export default function DynamicFormPage() {
         const res = await api.getForm(formId);
         setFormDetails(res.data);
 
-        const publishedVersion = res.data.versions?.find((v) => v.status === "PUBLISHED");
-        if (!publishedVersion) { setMessage("not_published"); setLoading(false); return; }
+        let targetVersion;
+        if (isPreview) {
+          targetVersion = res.data.versions?.find((v) => v.status === "DRAFT") || res.data.versions?.find((v) => v.status === "PUBLISHED");
+        } else {
+          targetVersion = res.data.versions?.find((v) => v.status === "PUBLISHED");
+        }
 
-        setPublishedVersionId(publishedVersion.id);
-        const fieldsData = publishedVersion.fields || [];
+        if (!targetVersion) { setMessage("not_published"); setLoading(false); return; }
+
+        setPublishedVersionId(targetVersion.id);
+        const fieldsData = targetVersion.fields || [];
         setFields(fieldsData);
 
         const initialValues = {};
@@ -209,6 +217,10 @@ export default function DynamicFormPage() {
   // ── Submit — only visible fields ──────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isPreview) {
+      alert("This is a preview mode. Submissions are disabled.");
+      return;
+    }
     setSubmitting(true);
     setMessage("");
     setFieldErrors({});
@@ -323,6 +335,34 @@ export default function DynamicFormPage() {
                   : `'${target}' cannot exceed ${maxLen} characters.`;
               }
             }
+          } else if (action.type === "MIN_VALUE") {
+            const target = action.targetField;
+            const minVal = parseFloat(action.value);
+            if (target && !isNaN(minVal)) {
+              const targetVal = visibleValues[target];
+              if (targetVal !== undefined && targetVal !== null && String(targetVal).trim() !== "") {
+                const numVal = parseFloat(targetVal);
+                if (!isNaN(numVal) && numVal < minVal) {
+                  customErrors[target] = action.message && action.message.trim() !== ""
+                    ? action.message
+                    : `'${target}' must be at least ${minVal}.`;
+                }
+              }
+            }
+          } else if (action.type === "MAX_VALUE") {
+            const target = action.targetField;
+            const maxVal = parseFloat(action.value);
+            if (target && !isNaN(maxVal)) {
+              const targetVal = visibleValues[target];
+              if (targetVal !== undefined && targetVal !== null && String(targetVal).trim() !== "") {
+                const numVal = parseFloat(targetVal);
+                if (!isNaN(numVal) && numVal > maxVal) {
+                  customErrors[target] = action.message && action.message.trim() !== ""
+                    ? action.message
+                    : `'${target}' cannot exceed ${maxVal}.`;
+                }
+              }
+            }
           }
         });
       }
@@ -384,6 +424,11 @@ export default function DynamicFormPage() {
       <div className="w-full max-w-3xl space-y-6">
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 border-t-4 border-t-indigo-600 p-8 sm:p-10">
+          {isPreview && (
+            <div className="mb-6 bg-amber-50 text-amber-800 border border-amber-200 px-4 py-3 rounded-xl text-sm font-medium flex items-center justify-center">
+              Preview Mode - This is a preview of the latest form version. Submissions cannot be saved.
+            </div>
+          )}
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{formDetails.name || "Untitled Form"}</h1>
           {formDetails.description && <p className="text-slate-600 mt-3 leading-relaxed">{formDetails.description}</p>}
         </div>
@@ -439,11 +484,20 @@ export default function DynamicFormPage() {
               </div>
 
               {publishedVersionId && (
-                <div className="pt-6 mt-8 border-t border-slate-100 flex justify-end">
-                  <button type="submit" disabled={submitting || message === "success"}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white px-8 py-3 rounded-xl text-sm font-medium shadow-sm transition-all">
+                <div className="pt-6 mt-8 border-t border-slate-100 flex justify-end gap-3">
+                  {isPreview && (
+                    <button type="button" onClick={() => router.push(`/forms/${formId}/builder`)} className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm">
+                      Close Preview
+                    </button>
+                  )}
+                  <button type="submit" disabled={submitting || message === "success" || isPreview}
+                    className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-medium shadow-sm transition-all ${
+                      isPreview 
+                        ? "bg-slate-200 text-slate-500 cursor-not-allowed" 
+                        : "bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white"
+                    }`}>
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                    {submitting ? "Submitting..." : "Submit Form"}
+                    {isPreview ? "Submit Disabled" : submitting ? "Submitting..." : "Submit Form"}
                   </button>
                 </div>
               )}
@@ -530,7 +584,10 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
             placeholder={placeholder} value={value || ""} disabled={isDisabled}
             readOnly={isReadOnly}
             onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)}
-            title={validation.validationMessage || ""} />
+            title={validation.validationMessage || ""}
+            minLength={validation.minLength}
+            maxLength={validation.maxLength}
+            pattern={validation.pattern} />
           <FieldError />
         </div>
       );
@@ -543,6 +600,8 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           <textarea className={`${inputClass} resize-y min-h-[100px]`} rows={4}
             placeholder={placeholder} value={value || ""} disabled={isDisabled}
             readOnly={isReadOnly}
+            minLength={validation.minLength}
+            maxLength={validation.maxLength}
             onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>
@@ -556,6 +615,8 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           <input type="number" className={inputClass} placeholder={placeholder}
             value={value || ""} disabled={isDisabled}
             readOnly={isReadOnly}
+            min={validation.min}
+            max={validation.max}
             onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>
@@ -877,4 +938,12 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
         </div>
       );
   }
+}
+
+export default function DynamicFormPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>}>
+      <FormPageContent />
+    </Suspense>
+  );
 }
