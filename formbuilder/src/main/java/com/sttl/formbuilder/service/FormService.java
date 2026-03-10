@@ -120,6 +120,7 @@ public class FormService {
                                 if (f.getMaxValue()          != null) validationMap.put("max",               f.getMaxValue());
                                 if (f.getPattern()           != null) validationMap.put("pattern",           f.getPattern());
                                 if (f.getValidationMessage() != null) validationMap.put("validationMessage", f.getValidationMessage());
+                                if (f.getIsUnique()          != null) validationMap.put("unique",            f.getIsUnique());
                                 // ✅ Grid rows and columns
                                 if (f.getGridRows() != null && !f.getGridRows().isEmpty())
                                     validationMap.put("rows", f.getGridRows());
@@ -133,6 +134,7 @@ public class FormService {
                                 if (f.getHelpText()     != null) uiMap.put("helpText",      f.getHelpText());
                                 if (f.getDefaultValue() != null) uiMap.put("defaultValue",  f.getDefaultValue());
                                 if (f.getReadOnly()     != null) uiMap.put("readOnly",      f.getReadOnly());
+                                if (f.getIsHidden()     != null) uiMap.put("hidden",        f.getIsHidden());
                                 // ✅ Star rating
                                 if (f.getMaxStars()     != null) uiMap.put("maxStars",      f.getMaxStars());
                                 // ✅ Linear scale

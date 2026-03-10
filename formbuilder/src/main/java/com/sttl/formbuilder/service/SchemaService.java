@@ -66,6 +66,9 @@ public class SchemaService {
                 if (Boolean.TRUE.equals(field.getRequired())) {
                     sql.append(" NOT NULL");
                 }
+                if (Boolean.TRUE.equals(field.getIsUnique())) {
+                    sql.append(" UNIQUE");
+                }
             }
             sql.append(")");
 

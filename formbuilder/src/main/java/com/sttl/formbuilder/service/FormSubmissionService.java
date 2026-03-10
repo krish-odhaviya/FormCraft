@@ -239,7 +239,18 @@ public class FormSubmissionService {
                 default -> { if (val instanceof String s && s.trim().isEmpty()) val = null; placeholdersList.add("?"); }
             }
             argumentsList.add(val);
+
+            FormField field = fieldMap.get(key);
+            if (field != null && Boolean.TRUE.equals(field.getIsUnique()) && val != null) {
+                String sqlCheck = "SELECT count(*) FROM " + tableName + " WHERE " + key + " = ?";
+                Integer count = jdbcTemplate.queryForObject(sqlCheck, Integer.class, val);
+                if (count != null && count > 0) {
+                    errors.put(key, "'" + field.getFieldLabel() + "' must be unique. This value already exists.");
+                }
+            }
         }
+
+        if (!errors.isEmpty()) throw new ValidationException(errors);
 
         if (columnsList.isEmpty()) throw new RuntimeException("No valid columns provided.");
 

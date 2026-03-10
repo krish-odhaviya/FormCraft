@@ -99,6 +99,7 @@ public class VersionService {
             copy.setHelpText(src.getHelpText());
             copy.setDefaultValue(src.getDefaultValue());
             copy.setReadOnly(src.getReadOnly());
+            copy.setIsHidden(src.getIsHidden());
             copy.setMaxStars(src.getMaxStars());
             copy.setScaleMin(src.getScaleMin());
             copy.setScaleMax(src.getScaleMax());
@@ -116,6 +117,7 @@ public class VersionService {
             copy.setMaxValue(src.getMaxValue());
             copy.setPattern(src.getPattern());
             copy.setValidationMessage(src.getValidationMessage());
+            copy.setIsUnique(src.getIsUnique());
 
             newDraft.addField(copy);
         }
@@ -204,6 +206,7 @@ public class VersionService {
                 field.setHelpText(req.getUiConfig().getHelpText());
                 field.setDefaultValue(req.getUiConfig().getDefaultValue());
                 field.setReadOnly(req.getUiConfig().getReadOnly());
+                field.setIsHidden(req.getUiConfig().getHidden());
 
                 if (req.getUiConfig().getAcceptedFileTypes() != null) {
                     field.getAcceptedFileTypes().addAll(req.getUiConfig().getAcceptedFileTypes());
@@ -218,6 +221,7 @@ public class VersionService {
                 field.setMaxValue(req.getValidation().getMax());
                 field.setPattern(req.getValidation().getPattern());               // ✅ was missing
                 field.setValidationMessage(req.getValidation().getValidationMessage()); // ✅ was missing
+                field.setIsUnique(req.getValidation().getUnique());
 
                 if (req.getValidation().getRows() != null) {
                     field.getGridRows().addAll(req.getValidation().getRows());

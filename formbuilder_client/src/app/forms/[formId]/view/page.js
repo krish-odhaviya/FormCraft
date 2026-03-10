@@ -472,6 +472,7 @@ function FormPageContent() {
                   const state = fieldStates[field.fieldKey] || { visible: true, disabled: false };
                   // ✅ Hidden fields render nothing
                   if (state.visible === false) return null;
+                  if (field.uiConfig?.hidden) return null;
 
                   const isCondRequired = conditionallyRequiredFields.has(field.fieldKey);
                   const isReadOnly = field.uiConfig?.readOnly === true;

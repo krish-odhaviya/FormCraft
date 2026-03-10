@@ -1086,6 +1086,19 @@ export default function BuilderPage() {
                         className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
                       />
                     </label>
+
+                    {/* Hidden Toggle */}
+                    <label className="flex items-center justify-between p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-semibold text-slate-800">Hidden Field</span>
+                        <span className="text-xs text-slate-500 mt-0.5">Field is hidden from the user but its default value is saved</span>
+                      </div>
+                      <input type="checkbox"
+                        checked={activeField.uiConfig?.hidden || false}
+                        onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "hidden", e.target.checked)}
+                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                      />
+                    </label>
                   </div>
                 </div>
               )}
@@ -1155,6 +1168,21 @@ export default function BuilderPage() {
                       !GRID_TYPES.includes(activeField.fieldType) && (
                         <p className="text-xs text-slate-400 italic">No additional validation rules available for this field type.</p>
                       )}
+
+                    {/* Unique Toggle */}
+                    {["TEXT", "EMAIL", "INTEGER", "DATE", "TIME"].includes(activeField.fieldType) && (
+                      <label className="flex items-center justify-between p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors mt-4">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-slate-800">Unique Field</span>
+                          <span className="text-xs text-slate-500 mt-0.5">Disallow duplicate answers across all submissions</span>
+                        </div>
+                        <input type="checkbox"
+                          checked={activeField.validation?.unique || false}
+                          onChange={(e) => updateNestedObject(activeField.id, "validation", "unique", e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </label>
+                    )}
                   </div>
                 </div>
               )}

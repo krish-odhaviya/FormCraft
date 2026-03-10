@@ -39,6 +39,7 @@ public class AddFieldRequest {
         private Double max;
         private String pattern;
         private String validationMessage;
+        private Boolean unique;
 
         // Grid field rows & columns
         private List<String> rows;
@@ -52,6 +53,7 @@ public class AddFieldRequest {
         private String helpText;
         private String defaultValue;
         private Boolean readOnly;
+        private Boolean hidden;
 
         // Star Rating
         private Integer maxStars;

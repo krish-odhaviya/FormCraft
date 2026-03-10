@@ -95,6 +95,7 @@ public class FormField {
     private String helpText;
     private String defaultValue;
     private Boolean readOnly;
+    private Boolean isHidden = false;
 
     // --- VALIDATION ---
     private Integer minLength;
@@ -103,6 +104,7 @@ public class FormField {
     private Double maxValue;
     private String pattern;
     private String validationMessage;
+    private Boolean isUnique = false;
 
 
 
