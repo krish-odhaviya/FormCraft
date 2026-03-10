@@ -54,6 +54,9 @@ public class FormSubmissionService {
         Map<String, FormField> fieldMap = new HashMap<>();
 
         for (FormField f : version.getFields()) {
+            if (List.of("SECTION", "LABEL", "PAGE_BREAK").contains(f.getFieldType())) {
+                continue;
+            }
             fieldTypes.put(f.getFieldKey(), f.getFieldType());
             fieldMap.put(f.getFieldKey(), f);
         }
@@ -270,7 +273,8 @@ public class FormSubmissionService {
     private List<FieldDto> buildColumnDtos(FormVersion version) {
         return version.getFields().stream()
                 .filter(f -> !"SECTION".equalsIgnoreCase(f.getFieldType())
-                        && !"LABEL".equalsIgnoreCase(f.getFieldType()))
+                        && !"LABEL".equalsIgnoreCase(f.getFieldType())
+                        && !"PAGE_BREAK".equalsIgnoreCase(f.getFieldType()))
                 .map(f -> {
                     FieldDto dto = new FieldDto();
                     dto.setFieldKey(f.getFieldKey());
@@ -320,7 +324,9 @@ public class FormSubmissionService {
         StringBuilder joins  = new StringBuilder();
 
         for (FormField f : version.getFields()) {
-            if ("SECTION".equalsIgnoreCase(f.getFieldType()) || "LABEL".equalsIgnoreCase(f.getFieldType())) continue;
+            if ("SECTION".equalsIgnoreCase(f.getFieldType()) 
+                || "LABEL".equalsIgnoreCase(f.getFieldType()) 
+                || "PAGE_BREAK".equalsIgnoreCase(f.getFieldType())) continue;
 
             if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
                     && f.getSourceTable() != null && f.getSourceColumn() != null) {
@@ -332,6 +338,8 @@ public class FormSubmissionService {
                 joins.append(" LEFT JOIN ").append(f.getSourceTable()).append(" ").append(alias)
                         .append(" ON CAST(t.").append(f.getFieldKey()).append(" AS BIGINT) = ")
                         .append(alias).append(".").append(f.getSourceColumn());
+            } else if ("MC_GRID".equalsIgnoreCase(f.getFieldType()) || "TICK_BOX_GRID".equalsIgnoreCase(f.getFieldType())) {
+                select.append(", CAST(t.").append(f.getFieldKey()).append(" AS TEXT) AS ").append(f.getFieldKey());
             } else {
                 select.append(", t.").append(f.getFieldKey());
             }
@@ -366,6 +374,7 @@ public class FormSubmissionService {
         List<String> conditions = version.getFields().stream()
                 .filter(f -> !"SECTION".equalsIgnoreCase(f.getFieldType())
                         && !"LABEL".equalsIgnoreCase(f.getFieldType())
+                        && !"PAGE_BREAK".equalsIgnoreCase(f.getFieldType())
                         && !"MC_GRID".equalsIgnoreCase(f.getFieldType())
                         && !"TICK_BOX_GRID".equalsIgnoreCase(f.getFieldType())
                         && !"BOOLEAN".equalsIgnoreCase(f.getFieldType())

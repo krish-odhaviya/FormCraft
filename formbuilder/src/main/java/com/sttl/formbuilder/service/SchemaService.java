@@ -58,6 +58,9 @@ public class SchemaService {
                     .append("is_delete BOOLEAN DEFAULT false");
 
             for (FormField field : fields) {
+                if (List.of("SECTION", "LABEL", "PAGE_BREAK").contains(field.getFieldType())) {
+                    continue;
+                }
                 sql.append(", ")
                         .append(field.getFieldKey().toLowerCase())
                         .append(" ")

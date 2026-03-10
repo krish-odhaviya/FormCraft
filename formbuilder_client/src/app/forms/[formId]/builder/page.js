@@ -11,7 +11,7 @@ import {
   Lock, Star, SlidersHorizontal, LayoutGrid, Grid3x3, Upload,
   Link2, Heading1, AlignLeft as AlignLeftIcon, GitBranch,
   History, CheckCircle2, Archive, FilePen, ChevronDown as ChevronDownIcon,
-  Loader2, ExternalLink
+  Loader2, ExternalLink, BookOpen
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
@@ -36,6 +36,7 @@ const FIELD_TYPES = [
   { value: "LOOKUP_DROPDOWN",label: "Linked Dropdown",       icon: <Link2 size={18} /> },
   { value: "SECTION",        label: "Section Break",         icon: <Heading1 size={18} /> },
   { value: "LABEL",          label: "Label / Info",          icon: <AlignLeftIcon size={18} /> },
+  { value: "PAGE_BREAK",     label: "Page Break",            icon: <BookOpen size={18} /> },
 ];
 
 const OPTIONS_BASED_TYPES = ["RADIO", "CHECKBOX_GROUP", "DROPDOWN"];
@@ -596,6 +597,16 @@ export default function BuilderPage() {
             </div>
           );
         }
+
+        case "PAGE_BREAK":
+          return (
+            <div className="w-full relative flex items-center justify-center py-6">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t-[3px] border-dashed border-indigo-200"></div></div>
+              <div className="relative bg-white px-4 text-xs font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-2 rounded-full border border-indigo-100 shadow-sm py-1.5 object-center">
+                <BookOpen size={14} /> Page Break
+              </div>
+            </div>
+          );
 
         default:
           return <div className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400">{placeholder}</div>;

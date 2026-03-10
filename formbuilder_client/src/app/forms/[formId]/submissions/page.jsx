@@ -104,7 +104,7 @@ export default function SubmissionsPage() {
         { credentials: "include" }
       );
       const json = await res.json();
-      const payload = json.data;
+      const payload = json.data || {};
 
       setColumns(payload.columns || []);
       setRows(payload.rows || []);

@@ -73,6 +73,22 @@ function FormPageContent() {
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [lookupData, setLookupData] = useState({});
+  const [currentPage, setCurrentPage] = useState(0);
+
+  const formPages = useMemo(() => {
+    const pages = [];
+    let currentFields = [];
+    fields.forEach((field) => {
+      if (field.fieldType === "PAGE_BREAK") {
+        pages.push(currentFields);
+        currentFields = [];
+      } else {
+        currentFields.push(field);
+      }
+    });
+    pages.push(currentFields);
+    return pages;
+  }, [fields]);
 
   // ── Evaluate conditions reactively ────────────────────────────────────────
   const { fieldStates, conditionallyRequiredFields } = useMemo(() => {
@@ -214,13 +230,9 @@ function FormPageContent() {
     });
   };
 
-  // ── Submit — only visible fields ──────────────────────────────────────────
+  // ── Submit & Navigation Logic ─────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isPreview) {
-      alert("This is a preview mode. Submissions are disabled.");
-      return;
-    }
     setSubmitting(true);
     setMessage("");
     setFieldErrors({});
@@ -232,9 +244,11 @@ function FormPageContent() {
       if (state?.visible !== false) visibleValues[key] = formValues[key];
     });
 
-    // ── Evaluate FormRuleDTO actions on client side ────────────────────────
+    // ── Evaluate FormRuleDTO actions on client side (current page only) ───
     let customErrors = {};
-    fields.forEach((field) => {
+    const fieldsToValidate = formPages[currentPage] || [];
+    
+    fieldsToValidate.forEach((field) => {
       if (!field.conditions) return;
       let cond;
       try { cond = typeof field.conditions === "string" ? JSON.parse(field.conditions) : field.conditions; }
@@ -376,6 +390,21 @@ function FormPageContent() {
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+
+    if (currentPage < formPages.length - 1) {
+      setCurrentPage((prev) => prev + 1);
+      setSubmitting(false);
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    // FINAL SUBMISSION ACTION
+    if (isPreview) {
+      alert("This is a preview mode. Submissions are disabled.");
+      setSubmitting(false);
+      return;
+    }
+
     // ────────────────────────────────────────────────────────────────────────
 
     try {
@@ -467,8 +496,16 @@ function FormPageContent() {
             <div className="text-center py-10"><p className="text-slate-500">This form is currently empty.</p></div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-8">
+              {formPages.length > 1 && (
+                <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
+                  {formPages.map((_, idx) => (
+                    <div key={idx} className={`h-1.5 flex-1 rounded-full bg-indigo-600 transition-all ${idx <= currentPage ? 'opacity-100' : 'opacity-10'}`} />
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-8">
-                {fields.map((field) => {
+                {(formPages[currentPage] || []).map((field) => {
                   const state = fieldStates[field.fieldKey] || { visible: true, disabled: false };
                   // ✅ Hidden fields render nothing
                   if (state.visible === false) return null;
@@ -485,20 +522,31 @@ function FormPageContent() {
               </div>
 
               {publishedVersionId && (
-                <div className="pt-6 mt-8 border-t border-slate-100 flex justify-end gap-3">
-                  {isPreview && (
-                    <button type="button" onClick={() => router.push(`/forms/${formId}/builder`)} className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm">
-                      Close Preview
-                    </button>
-                  )}
-                  <button type="submit" disabled={submitting || message === "success" || isPreview}
+                <div className="pt-6 mt-8 border-t border-slate-100 flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    {currentPage > 0 ? (
+                      <button type="button" onClick={() => { setCurrentPage((p) => p - 1); if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                        className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm"
+                      >
+                        Previous
+                      </button>
+                    ) : (
+                      isPreview && (
+                        <button type="button" onClick={() => router.push(`/forms/${formId}/builder`)} className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm">
+                          Close Preview
+                        </button>
+                      )
+                    )}
+                  </div>
+
+                  <button type="submit" disabled={submitting || message === "success" || (isPreview && currentPage === formPages.length - 1)}
                     className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-medium shadow-sm transition-all ${
-                      isPreview 
+                      (isPreview && currentPage === formPages.length - 1) 
                         ? "bg-slate-200 text-slate-500 cursor-not-allowed" 
                         : "bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white"
                     }`}>
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                    {isPreview ? "Submit Disabled" : submitting ? "Submitting..." : "Submit Form"}
+                    {currentPage < formPages.length - 1 ? "Next Step" : (isPreview ? "Submit Disabled" : submitting ? "Submitting..." : "Submit Form")}
                   </button>
                 </div>
               )}
