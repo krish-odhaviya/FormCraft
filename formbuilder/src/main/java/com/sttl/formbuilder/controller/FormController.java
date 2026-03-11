@@ -6,8 +6,7 @@ import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.FormDetailsResponse;
 import com.sttl.formbuilder.dto.CreateFormRequest;
 import com.sttl.formbuilder.entity.Form;
-import com.sttl.formbuilder.entity.FormVersion;
-import com.sttl.formbuilder.repository.FormVersionRepository;
+import com.sttl.formbuilder.repository.FormRepository;
 import com.sttl.formbuilder.service.FormService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -28,7 +27,7 @@ import java.util.stream.Collectors;
 public class FormController {
 
     private final FormService formService;
-    private final FormVersionRepository versionRepository;
+    private final FormRepository formRepository;
 
     // ── GET /api/forms — only returns forms owned by the logged-in user ───────
     @GetMapping
@@ -45,18 +44,8 @@ public class FormController {
             map.put("description", form.getDescription());
             map.put("createdAt", form.getCreatedAt());
             map.put("updatedAt", form.getUpdatedAt());
+            map.put("status", form.getStatus().name());
             
-            // Fetch versions to calculate status badges on frontend
-            List<FormVersion> versions = versionRepository.findByFormIdOrderByVersionNumberAsc(form.getId());
-            List<Map<String, Object>> versionMaps = versions.stream().map(v -> {
-                Map<String, Object> vMap = new LinkedHashMap<>();
-                vMap.put("id", v.getId());
-                vMap.put("versionNumber", v.getVersionNumber());
-                vMap.put("status", v.getStatus().name());
-                return vMap;
-            }).collect(Collectors.toList());
-            
-            map.put("versions", versionMaps);
             return map;
         }).collect(Collectors.toList());
 
@@ -92,19 +81,30 @@ public class FormController {
     }
 
 
-    // ── GET /api/forms/published-list (public) ────────────────────────────────
+    // ── GET /api/forms/published-list ─────────────────────────────────────────
     @GetMapping("/published-list")
-    public ResponseEntity<?> getPublishedForms(HttpServletRequest request) {
-        List<FormVersion> publishedVersions = versionRepository.findAllByStatus(FormStatusEnum.PUBLISHED);
+    public ResponseEntity<?> getPublishedForms(
+            @RequestParam(required = false) Long excludeFormId,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
 
-        List<Map<String, Object>> result = publishedVersions.stream()
-                .map(v -> {
+        if (currentUser == null) {
+            return ApiResponseUtil.error("Unauthorized", null, org.springframework.http.HttpStatus.UNAUTHORIZED, request);
+        }
+
+        List<Form> publishedForms = formRepository.findAllByStatus(FormStatusEnum.PUBLISHED);
+
+        List<Map<String, Object>> result = publishedForms.stream()
+                .filter(f -> f.getCreatedByUsername().equals(currentUser.getUsername()))
+                .filter(f -> excludeFormId == null || !f.getId().equals(excludeFormId))
+                .map(f -> {
                     Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("formId", v.getForm().getId());
-                    m.put("formName", v.getForm().getName());
-                    m.put("tableName", v.getTableName());
-                    List<Map<String, String>> fieldOptions = v.getFields().stream()
-                            .map(f -> Map.of("key", f.getFieldKey(), "label", f.getFieldLabel()))
+                    m.put("formId", f.getId());
+                    m.put("formName", f.getName());
+                    m.put("tableName", f.getTableName());
+                    List<Map<String, String>> fieldOptions = f.getFields().stream()
+                            .filter(field -> !field.getIsDeleted())
+                            .map(field -> Map.of("key", field.getFieldKey(), "label", field.getFieldLabel()))
                             .collect(Collectors.toList());
                     m.put("fields", fieldOptions);
                     return m;
@@ -112,5 +112,23 @@ public class FormController {
                 .collect(Collectors.toList());
 
         return ApiResponseUtil.success(result, "Published forms", request);
+    }
+
+    @PostMapping("/{formId}/archive")
+    public ResponseEntity<?> archiveForm(
+            @PathVariable Long formId,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
+
+        if (currentUser == null) {
+            return ApiResponseUtil.error("Unauthorized", null, org.springframework.http.HttpStatus.UNAUTHORIZED, request);
+        }
+
+        try {
+            Form form = formService.archiveForm(formId, currentUser.getUsername());
+            return ApiResponseUtil.success(form, "Form archived successfully", request);
+        } catch (Exception e) {
+            return ApiResponseUtil.error(e.getMessage(), null, org.springframework.http.HttpStatus.BAD_REQUEST, request);
+        }
     }
 }

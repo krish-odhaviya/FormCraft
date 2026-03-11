@@ -13,6 +13,8 @@ public class AddFieldRequest {
     @NotBlank
     private String fieldKey;
 
+    private String parentId;
+
     @NotBlank
     private String fieldLabel;
 

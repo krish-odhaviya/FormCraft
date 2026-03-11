@@ -80,6 +80,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/forms/lookup").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/forms/submit").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/forms/*/evaluate").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
                         // ── Everything else requires a valid session ───────────────────────
                         .anyRequest().authenticated()

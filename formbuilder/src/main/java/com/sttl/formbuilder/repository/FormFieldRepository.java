@@ -7,14 +7,11 @@ import com.sttl.formbuilder.entity.FormField;
 
 public interface FormFieldRepository extends JpaRepository<FormField, Long> {
 
-    List<FormField> findByVersionIdOrderByFieldOrder(Long versionId);
+    List<FormField> findByFormIdAndIsDeletedFalseOrderByFieldOrder(Long formId);
 
-    boolean existsByVersionIdAndFieldKey(Long versionId, String fieldKey);
+    boolean existsByFormIdAndFieldKeyAndIsDeletedFalse(Long formId, String fieldKey);
 
+    void deleteByForm_Id(Long formId);
 
-    void deleteByVersion_Id(Long versionId);
-
-
-
-    void deleteAllByVersion_Id(Long versionId);
+    void deleteAllByForm_Id(Long formId);
 }

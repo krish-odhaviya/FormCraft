@@ -13,7 +13,7 @@ import java.util.List;
 @Table(
         name = "form_fields",
         uniqueConstraints = @UniqueConstraint(
-                columnNames = {"version_id", "field_key"}
+                columnNames = {"form_id", "field_key"}
         )
 )
 @Getter
@@ -25,11 +25,14 @@ public class FormField {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "version_id", nullable = false)
-    private FormVersion version;
+    @JoinColumn(name = "form_id", nullable = false)
+    private Form form;
 
     @Column(name = "field_key", nullable = false, length = 100)
     private String fieldKey;
+
+    @Column(name = "parent_id")
+    private String parentId;
 
     @Column(nullable = false, length = 150)
     private String fieldLabel;
@@ -110,6 +113,9 @@ public class FormField {
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private Boolean isDeleted = false;
 
     @PrePersist
     public void onCreate() {

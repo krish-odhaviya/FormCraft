@@ -40,7 +40,7 @@ export function FormsProvider({ children }) {
   const addForm = useCallback(
     (form) => {
       persistForms([
-        { ...form, versions: [], localCreatedAt: new Date().toISOString() },
+        { ...form, localCreatedAt: new Date().toISOString() },
         ...forms,
       ]);
     },
@@ -56,36 +56,7 @@ export function FormsProvider({ children }) {
     [forms, persistForms]
   );
 
-  const addVersionToForm = useCallback(
-    (formId, version) => {
-      persistForms(
-        forms.map((f) =>
-          f.id === formId
-            ? { ...f, versions: [...(f.versions || []), version] }
-            : f
-        )
-      );
-    },
-    [forms, persistForms]
-  );
 
-  const updateVersion = useCallback(
-    (formId, versionId, updates) => {
-      persistForms(
-        forms.map((f) =>
-          f.id === formId
-            ? {
-                ...f,
-                versions: (f.versions || []).map((v) =>
-                  v.id === versionId ? { ...v, ...updates } : v
-                ),
-              }
-            : f
-        )
-      );
-    },
-    [forms, persistForms]
-  );
 
   const getForm = useCallback(
     (formId) => forms.find((f) => f.id === Number(formId) || f.id === formId),
@@ -129,8 +100,7 @@ export function FormsProvider({ children }) {
         forms,
         addForm,
         updateForm,
-        addVersionToForm,
-        updateVersion,
+
         getForm,
         setFormFromServer,
         toasts,

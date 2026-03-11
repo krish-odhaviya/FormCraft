@@ -13,6 +13,7 @@ import java.util.Map;
 public class FieldDto {
     private Long id;
     private String fieldKey;
+    private String parentId;
     private String fieldLabel;
     private String fieldType;
     private Boolean required;

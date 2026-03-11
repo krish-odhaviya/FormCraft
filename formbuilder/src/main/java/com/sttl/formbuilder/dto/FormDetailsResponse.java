@@ -14,9 +14,9 @@ public class FormDetailsResponse {
     private String description;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private List<VersionDto> versions;
-
-
-
+    private String status;
+    private String tableName;
+    private LocalDateTime publishedAt;
+    private List<FieldDto> fields;
 
 }

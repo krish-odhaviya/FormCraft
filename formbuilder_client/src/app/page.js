@@ -12,7 +12,8 @@ import {
   Settings2,
   LogOut,
   LayoutDashboard,
-  Search
+  Search,
+  Archive
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
@@ -43,6 +44,19 @@ function DashboardContent() {
   const handleLogout = async () => {
     await logout();
     router.replace("/login");
+  };
+
+  const handleArchive = async (formId) => {
+    if (!window.confirm("Are you sure you want to archive this form? This will stop all new submissions.")) return;
+    try {
+      await api.archiveForm(formId);
+      setForms((prev) =>
+        prev.map((f) => (f.id === formId ? { ...f, status: "ARCHIVED" } : f))
+      );
+    } catch (err) {
+      console.error("Failed to archive form:", err);
+      alert("Failed to archive form.");
+    }
   };
 
   const filteredForms = forms.filter((f) =>
@@ -178,17 +192,22 @@ function DashboardContent() {
                     </div>
                     
                     <div className="flex gap-1.5 flex-wrap justify-end max-w-[60%]">
-                      {form.versions?.some(v => v.status === "PUBLISHED") && (
+                      {form.status === "PUBLISHED" && (
                         <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-emerald-50 text-emerald-600 rounded-md border border-emerald-100/50">
                           Live
                         </span>
                       )}
-                      {form.versions?.some(v => v.status === "DRAFT") && (
+                      {form.status === "DRAFT" && (
                         <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-amber-50 text-amber-600 rounded-md border border-amber-100/50">
                           Draft
                         </span>
                       )}
-                      {(!form.versions || form.versions.length === 0) && (
+                      {form.status === "ARCHIVED" && (
+                        <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-red-50 text-red-600 rounded-md border border-red-100/50">
+                          Archived
+                        </span>
+                      )}
+                      {!form.status && (
                         <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-slate-50 text-slate-500 rounded-md border border-slate-200/50">
                           New
                         </span>
@@ -206,13 +225,20 @@ function DashboardContent() {
 
                 <div className="relative z-10 mt-4 flex items-center gap-3">
                   {/* FIX: Explicit text-white and padding */}
-                  <Link
-                    href={`/forms/${form.id}/builder`}
-                    className="flex-[2] flex items-center justify-center gap-2 bg-[#0F172A] text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-indigo-600 transition-all shadow-md active:scale-95"
-                  >
-                    <PenLine size={16} className="text-white" />
-                    <span className="text-white">Edit</span>
-                  </Link>
+                  {form.status === "ARCHIVED" ? (
+                    <div className="flex-[2] flex items-center justify-center gap-2 bg-slate-100 text-slate-400 py-3.5 rounded-2xl text-sm font-bold cursor-not-allowed">
+                      <Archive size={16} />
+                      <span>Archived</span>
+                    </div>
+                  ) : (
+                    <Link
+                      href={`/forms/${form.id}/builder`}
+                      className="flex-[2] flex items-center justify-center gap-2 bg-[#0F172A] text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-indigo-600 transition-all shadow-md active:scale-95"
+                    >
+                      <PenLine size={16} className="text-white" />
+                      <span className="text-white">Edit</span>
+                    </Link>
+                  )}
 
                   <Link
                     href={`/forms/${form.id}/submissions`}
@@ -221,7 +247,6 @@ function DashboardContent() {
                   >
                     <BarChart2 size={20} />
                   </Link>
-
                   <Link
                     href={`/forms/${form.id}/view`}
                     className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-100"
@@ -229,6 +254,16 @@ function DashboardContent() {
                   >
                     <ExternalLink size={20} />
                   </Link>
+
+                  {form.status !== "ARCHIVED" && (
+                    <button
+                      onClick={() => handleArchive(form.id)}
+                      className="p-3.5 bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-slate-100"
+                      title="Archive Form"
+                    >
+                      <Archive size={20} />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

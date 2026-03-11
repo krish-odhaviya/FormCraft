@@ -14,7 +14,7 @@ import {
 
 export default function NewFormPage() {
   const router = useRouter();
-  const { addForm, addVersionToForm } = useForms();
+  const { addForm } = useForms();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -37,10 +37,6 @@ export default function NewFormPage() {
 
       const form = formResponse.data;
       addForm(form);
-
-      const versionResponse = await api.createDraftVersion(form.id);
-      const version = versionResponse.data;
-      addVersionToForm(form.id, { ...version, fields: [] });
 
       router.push(`/forms/${form.id}/builder`);
     } catch (err) {

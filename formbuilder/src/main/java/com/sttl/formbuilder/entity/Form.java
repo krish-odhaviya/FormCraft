@@ -1,5 +1,6 @@
 package com.sttl.formbuilder.entity;
 
+import com.sttl.formbuilder.Enums.FormStatusEnum;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -35,4 +36,31 @@ public class Form {
 
     @UpdateTimestamp
     private LocalDateTime updatedAt;
-}
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private FormStatusEnum status = FormStatusEnum.DRAFT;
+
+    @Column(unique = true)
+    private String tableName;
+
+    @OneToMany(
+            mappedBy = "form",
+            cascade = CascadeType.ALL
+    )
+    @org.hibernate.annotations.SQLRestriction("is_deleted = false")
+    @OrderBy("fieldOrder ASC")
+    private List<FormField> fields = new ArrayList<>();
+
+    private LocalDateTime publishedAt;
+
+    public void addField(FormField field) {
+        fields.add(field);
+        field.setForm(this);
+    }
+
+    public void removeField(FormField field) {
+        fields.remove(field);
+        field.setForm(null);
+    }
+}

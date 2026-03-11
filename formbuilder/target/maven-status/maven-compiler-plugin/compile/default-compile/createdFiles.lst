@@ -1,5 +1,6 @@
 com\sttl\formbuilder\dto\PagedSubmissionsResponse.class
 com\sttl\formbuilder\security\CustomUserDetailsService.class
+com\sttl\formbuilder\service\FormBuilderService.class
 com\sttl\formbuilder\common\ApiErrorDetail.class
 com\sttl\formbuilder\dto\ReorderFieldsRequest.class
 com\sttl\formbuilder\repository\FormFieldRepository.class
@@ -11,9 +12,7 @@ com\sttl\formbuilder\dto\internal\RuleActionDTO.class
 com\sttl\formbuilder\service\RuleEngineService.class
 com\sttl\formbuilder\common\ApiMeta.class
 com\sttl\formbuilder\dto\SubmitFormRequest.class
-com\sttl\formbuilder\entity\FormVersion.class
 com\sttl\formbuilder\entity\User.class
-com\sttl\formbuilder\repository\FormVersionRepository.class
 com\sttl\formbuilder\config\WebConfig.class
 com\sttl\formbuilder\entity\FormField.class
 com\sttl\formbuilder\common\ApiResponseUtil.class
@@ -27,6 +26,7 @@ com\sttl\formbuilder\service\SchemaService.class
 com\sttl\formbuilder\dto\RegisterUserRequest.class
 com\sttl\formbuilder\dto\AddFieldRequest$ValidationDto.class
 com\sttl\formbuilder\Enums\FormStatusEnum.class
+com\sttl\formbuilder\controller\FormBuilderController.class
 com\sttl\formbuilder\config\DataInitializer.class
 com\sttl\formbuilder\controller\FileController.class
 com\sttl\formbuilder\FormbuilderApplication.class
@@ -45,10 +45,8 @@ com\sttl\formbuilder\dto\VersionDto.class
 com\sttl\formbuilder\controller\LookupController.class
 com\sttl\formbuilder\service\FormSubmissionService.class
 com\sttl\formbuilder\repository\UserRepository.class
-com\sttl\formbuilder\service\VersionService.class
 com\sttl\formbuilder\controller\AuthController.class
 com\sttl\formbuilder\dto\FieldDto.class
-com\sttl\formbuilder\controller\VersionController.class
 com\sttl\formbuilder\dto\CreateFormRequest.class
 com\sttl\formbuilder\exception\BusinessException.class
 com\sttl\formbuilder\exception\GlobalExceptionHandler.class

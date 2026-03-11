@@ -91,9 +91,9 @@ export default function SubmissionsPage() {
     try {
       // Check form is published first
       const formRes = await api.getForm(formId);
-      const isPublished = formRes.data?.versions?.some(v => v.status === "PUBLISHED");
-      if (!isPublished) {
-        setError("This form has not been published yet.");
+      const status = formRes.data?.status;
+      if (status !== "PUBLISHED" && status !== "ARCHIVED") {
+        setError("This form is not in a state that allows viewing submissions.");
         return;
       }
 

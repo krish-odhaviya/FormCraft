@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api/formService";
 import {
   Loader2, Send, CheckCircle2, AlertCircle,
-  ChevronDown, Star, Upload
+  ChevronDown, Star, Upload, LayoutTemplate
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,7 +67,6 @@ function FormPageContent() {
   const [fields, setFields] = useState([]);
   const [formDetails, setFormDetails] = useState({});
   const [formValues, setFormValues] = useState({});
-  const [publishedVersionId, setPublishedVersionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -96,23 +95,27 @@ function FormPageContent() {
     const requiredSet = new Set();
 
     fields.forEach((field) => {
-      if (field.fieldType === "SECTION" || field.fieldType === "LABEL") {
-        states[field.fieldKey] = { visible: true, disabled: false };
-        return;
+      const parentId = field.parentId;
+      let ownState;
+      
+      if (field.fieldType === "SECTION" || field.fieldType === "LABEL" || field.fieldType === "GROUP") {
+        ownState = { visible: true, disabled: false };
       }
+      
       let cond;
       try { cond = field.conditions ? JSON.parse(field.conditions) : null; } catch { cond = null; }
 
       if (cond?.action === "calculate" && cond.formula) {
         const calcValue = evaluateFormula(cond.formula, formValues);
-        states[field.fieldKey] = { visible: true, disabled: true, calculatedValue: calcValue };
+        ownState = { visible: true, disabled: true, calculatedValue: calcValue };
       } else {
-        states[field.fieldKey] = evaluateConditions(field, formValues);
+        ownState = evaluateConditions(field, formValues);
       }
+      
+      states[field.fieldKey] = ownState;
 
-      // ── Detect active REQUIRE actions and mark target fields ──────────────
+      // ── Detect active REQUIRE actions ──
       if (cond?.actions?.length > 0 && cond?.rules?.length > 0) {
-        // Evaluate whether this rule's conditions are currently passing
         const ruleResults = (cond.rules || []).map((rule) => {
           if (!rule.fieldKey) return false;
           const rawVal = formValues[rule.fieldKey];
@@ -129,7 +132,6 @@ function FormPageContent() {
           }
         });
         const rulePassed = cond.logic === "OR" ? ruleResults.some(Boolean) : ruleResults.every(Boolean);
-
         if (rulePassed) {
           cond.actions.forEach((action) => {
             if (action?.type === "REQUIRE" && action.targetField) {
@@ -140,7 +142,22 @@ function FormPageContent() {
       }
     });
 
-    return { fieldStates: states, conditionallyRequiredFields: requiredSet };
+    // ── Cascade visibility from parents to children ──
+    const finalStates = { ...states };
+    fields.forEach(field => {
+      if (field.parentId) {
+        // Find parent by fieldKey instead of database ID for stability
+        const parentField = fields.find(f => f.fieldKey === field.parentId);
+        if (parentField) {
+          const parentState = states[parentField.fieldKey];
+          if (parentState && parentState.visible === false) {
+            finalStates[field.fieldKey] = { ...finalStates[field.fieldKey], visible: false };
+          }
+        }
+      }
+    });
+
+    return { fieldStates: finalStates, conditionallyRequiredFields: requiredSet };
   }, [fields, formValues]);
 
   // ── Auto-update calculated fields ─────────────────────────────────────────
@@ -178,17 +195,15 @@ function FormPageContent() {
         const res = await api.getForm(formId);
         setFormDetails(res.data);
 
-        let targetVersion;
-        if (isPreview) {
-          targetVersion = res.data.versions?.find((v) => v.status === "DRAFT") || res.data.versions?.find((v) => v.status === "PUBLISHED");
-        } else {
-          targetVersion = res.data.versions?.find((v) => v.status === "PUBLISHED");
+        if (!isPreview && res.data.status === "ARCHIVED") {
+          setMessage("archived"); setLoading(false); return;
         }
 
-        if (!targetVersion) { setMessage("not_published"); setLoading(false); return; }
-
-        setPublishedVersionId(targetVersion.id);
-        const fieldsData = targetVersion.fields || [];
+        if (!isPreview && res.data.status !== "PUBLISHED") { 
+          setMessage("not_published"); setLoading(false); return;
+        }
+        
+        const fieldsData = res.data.fields?.filter(f => !f.isDeleted) || [];
         setFields(fieldsData);
 
         const initialValues = {};
@@ -411,7 +426,7 @@ function FormPageContent() {
       const res = await fetch("http://localhost:9090/api/forms/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ versionId: publishedVersionId, values: visibleValues }),
+        body: JSON.stringify({ formId: formId, values: visibleValues }),
       });
 
       const data = await res.json();
@@ -464,6 +479,24 @@ function FormPageContent() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 sm:p-10">
 
+          {message === "archived" && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mb-6">
+                <AlertCircle size={32} className="text-red-500" />
+              </div>
+              <h1 className="text-2xl font-black text-slate-900 mb-3">Form Archived</h1>
+              <p className="text-slate-500 mb-8 max-w-xs">
+                This form has been archived by the administrator and is no longer accepting submissions.
+              </p>
+              <button
+                onClick={() => router.push("/")}
+                className="bg-slate-900 text-white px-8 py-3 rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all transition-all"
+              >
+                Return Home
+              </button>
+            </div>
+          )}
+
           {message === "success" && (
             <div className="mb-8 flex items-start gap-3 bg-green-50 border border-green-200 px-5 py-4 rounded-xl text-sm">
               <CheckCircle2 size={20} className="text-green-600 shrink-0 mt-0.5" />
@@ -505,9 +538,8 @@ function FormPageContent() {
               )}
 
               <div className="space-y-8">
-                {(formPages[currentPage] || []).map((field) => {
+                {(formPages[currentPage] || []).filter(f => !f.parentId).map((field) => {
                   const state = fieldStates[field.fieldKey] || { visible: true, disabled: false };
-                  // ✅ Hidden fields render nothing
                   if (state.visible === false) return null;
                   if (field.uiConfig?.hidden) return null;
 
@@ -515,13 +547,13 @@ function FormPageContent() {
                   const isReadOnly = field.uiConfig?.readOnly === true;
                   return (
                     <div key={field.fieldKey} id={`field_${field.fieldKey}`} className="transition-all duration-300">
-                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled, isCondRequired, isReadOnly)}
+                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled, isCondRequired, isReadOnly, fields, fieldStates, conditionallyRequiredFields, fieldErrors)}
                     </div>
                   );
                 })}
               </div>
 
-              {publishedVersionId && (
+              {fields.length > 0 && (
                 <div className="pt-6 mt-8 border-t border-slate-100 flex justify-between items-center">
                   <div className="flex items-center gap-3">
                     {currentPage > 0 ? (
@@ -558,10 +590,9 @@ function FormPageContent() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // renderInput — isDisabled added for conditional enable/disable
 // ─────────────────────────────────────────────────────────────────────────────
-function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false, isReadOnly = false) {
+function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false, isReadOnly = false, allFields = [], fieldStates = {}, conditionallyRequiredFields = new Set(), fieldErrors = {}) {
   const type = field.fieldType?.toUpperCase();
   const value = values[field.fieldKey];
   const uiConfig = field.uiConfig || {};
@@ -622,6 +653,40 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           {uiConfig.description && <p className="text-sm text-indigo-700 mt-1 leading-relaxed">{uiConfig.description}</p>}
         </div>
       );
+
+    // ── GROUP ───────────────────────────────────────────────────────
+    case "GROUP": {
+      // Filter children using stable fieldKey linkage
+      const children = allFields.filter(f => f.parentId === field.fieldKey && !f.isDeleted);
+      return (
+        <div className={`p-6 rounded-2xl border-2 border-slate-200 bg-white shadow-sm transition-all duration-300 ${isDisabled ? "opacity-60 grayscale" : ""}`}>
+          <div className="mb-6 pb-4 border-b border-slate-100">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <LayoutTemplate size={20} className="text-indigo-600" />
+              {uiConfig.title || field.fieldLabel}
+            </h3>
+            {uiConfig.description && <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">{uiConfig.description}</p>}
+          </div>
+          
+          <div className="space-y-8">
+            {children.map(child => {
+              const childState = fieldStates[child.fieldKey] || { visible: true, disabled: false };
+              if (childState.visible === false) return null;
+              if (child.uiConfig?.hidden) return null;
+
+              const isCondReq = conditionallyRequiredFields.has(child.fieldKey);
+              const isReadOnly = child.uiConfig?.readOnly === true;
+              return (
+                <div key={child.fieldKey} id={`field_${child.fieldKey}`}>
+                  {renderInput(child, values, handleChange, fieldErrors[child.fieldKey], lookupData, childState.disabled || isDisabled, isCondReq, isReadOnly || child.uiConfig?.readOnly === true, allFields, fieldStates, conditionallyRequiredFields, fieldErrors)}
+                </div>
+              );
+            })}
+            {children.length === 0 && <p className="text-xs text-slate-400 italic">No fields in this section.</p>}
+          </div>
+        </div>
+      );
+    }
 
     // ── Text / Email ──────────────────────────────────────────────────────────
     case "TEXT":

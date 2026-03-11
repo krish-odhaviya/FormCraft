@@ -16,4 +16,11 @@ public interface FormRepository extends JpaRepository<Form, Long> {
 
     /** Fetch a form only if it belongs to the given owner. */
     Optional<Form> findByIdAndCreatedByUsername(Long id, String username);
+
+    Optional<Form> findByIdAndStatus(Long id, com.sttl.formbuilder.Enums.FormStatusEnum status);
+
+    List<Form> findAllByStatus(com.sttl.formbuilder.Enums.FormStatusEnum status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT f FROM Form f LEFT JOIN FETCH f.fields WHERE f.id = :id")
+    Optional<Form> findByIdWithFields(@org.springframework.data.repository.query.Param("id") Long id);
 }

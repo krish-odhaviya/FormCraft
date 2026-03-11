@@ -37,6 +37,7 @@ const FIELD_TYPES = [
   { value: "SECTION",        label: "Section Break",         icon: <Heading1 size={18} /> },
   { value: "LABEL",          label: "Label / Info",          icon: <AlignLeftIcon size={18} /> },
   { value: "PAGE_BREAK",     label: "Page Break",            icon: <BookOpen size={18} /> },
+  { value: "GROUP",           label: "Group",                 icon: <LayoutTemplate size={18} /> },
 ];
 
 const OPTIONS_BASED_TYPES = ["RADIO", "CHECKBOX_GROUP", "DROPDOWN"];
@@ -68,39 +69,38 @@ export default function BuilderPage() {
   const params = useParams();
   const formId = Array.isArray(params.formId) ? params.formId[0] : params.formId;
 
-  const { getForm, setFormFromServer, updateVersion } = useForms();
+  const { getForm, setFormFromServer } = useForms();
   const form = getForm(formId);
 
   const [loading, setLoading]               = useState(true);
   const [publishing, setPublishing]         = useState(false);
   const [saving, setSaving]                 = useState(false);
+  const [isArchived, setIsArchived]         = useState(false);
+  const [showLookupModal, setShowLookupModal] = useState(false);
   const [localFields, setLocalFields]       = useState([]);
   const [activeFieldId, setActiveFieldId]   = useState(null);
   const [publishedForms, setPublishedForms] = useState([]);
   const [activeTab, setActiveTab]           = useState('settings');
-  const [versions, setVersions]             = useState([]);
-  const [creatingVersion, setCreatingVersion] = useState(false);
-  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   // ── Fetch published forms for LOOKUP_DROPDOWN ─────────────────────────────
   useEffect(() => {
-    api.getAllPublishedForms()
-      .then((res) => setPublishedForms(res?.data || []))
-      .catch(console.error);
-  }, []);
+    if (formId) {
+      api.getAllPublishedForms(formId)
+        .then((res) => setPublishedForms(res?.data || []))
+        .catch(console.error);
+    }
+  }, [formId]);
 
-  // ── Fetch form + version history ──────────────────────────────────────────
+  // ── Fetch form + fields ──────────────────────────────────────────
   useEffect(() => {
     const fetchForm = async () => {
       try {
-        const [formRes, versionsRes] = await Promise.all([
-          api.getForm(formId),
-          api.getFormVersions(formId),
-        ]);
+        const formRes = await api.getForm(formId);
         setFormFromServer(formRes.data);
-        const draft = formRes.data.versions?.find((v) => v.status === "DRAFT");
-        setLocalFields(draft?.fields || []);
-        setVersions(versionsRes?.data || []);
+        setLocalFields(formRes.data.fields || []);
+        if (formRes.data.status === "ARCHIVED") {
+          setIsArchived(true);
+        }
       } catch (err) {
         console.error("Failed to fetch form:", err);
       } finally {
@@ -125,8 +125,6 @@ export default function BuilderPage() {
   };
 
   // ── Derived state ─────────────────────────────────────────────────────────
-  const draft           = form?.versions?.find((v) => v.status === "DRAFT");
-  const publishedVersion = form?.versions?.find((v) => v.status === "PUBLISHED");
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const generateFieldKey = (label, order) =>
@@ -151,9 +149,11 @@ export default function BuilderPage() {
         : type === "FILE_UPLOAD"    ? { acceptedFileTypes: [".pdf", ".png", ".jpg"], maxFileSizeMb: 5 }
         : type === "LOOKUP_DROPDOWN"? { sourceTable: "", sourceColumn: "id", sourceDisplayColumn: "" }
         : type === "SECTION"        ? { title: "New Section", description: "" }
+        : type === "GROUP"? { title: "New Group", description: "" }
         : type === "LABEL"          ? { title: "Label Title", description: "" }
         : {},
       conditions: null,
+      parentId: null,
     };
   };
 
@@ -165,10 +165,19 @@ export default function BuilderPage() {
   const handleDropOnCanvas = (e) => {
     e.preventDefault();
     const newFieldType = e.dataTransfer.getData("newFieldType");
+    const existingIdx  = e.dataTransfer.getData("existingFieldIndex");
+
     if (newFieldType) {
       const newField = createNewField(newFieldType, localFields.length + 1);
       setLocalFields((prev) => [...prev, newField]);
       setActiveFieldId(newField.id);
+    } else if (existingIdx !== "") {
+      const fromIdx = Number(existingIdx);
+      setLocalFields((prev) => {
+        const list = [...prev];
+        list[fromIdx] = { ...list[fromIdx], parentId: null };
+        return list;
+      });
     }
   };
 
@@ -188,16 +197,31 @@ export default function BuilderPage() {
       const fromIndex = Number(existingFieldIndex);
       if (fromIndex === targetIndex) return;
       const [movedField] = newFields.splice(fromIndex, 1);
-      newFields.splice(targetIndex, 0, movedField);
+      // Inherit the parentId of the field we are dropping onto
+      const targetField = localFields[targetIndex];
+      // Use fieldKey for parentId linkage
+      newFields.splice(targetIndex, 0, { ...movedField, parentId: targetField?.parentId || null });
       setLocalFields(newFields);
     }
   };
 
   // ── Field updaters ────────────────────────────────────────────────────────
   const updateLocalField = (id, key, value) =>
-    setLocalFields((prev) => prev.map((f) => (f.id === id ? { ...f, [key]: value } : f)));
+    setLocalFields((prev) => {
+      const field = prev.find(f => f.id === id);
+      if (!field) return prev;
+      
+      let nextFields = prev.map((f) => (f.id === id ? { ...f, [key]: value } : f));
 
-  const updateNestedObject = (id, parentKey, childKey, value) =>
+      // ── Cascade fieldKey change to children ──
+      if (key === "fieldKey" && field.fieldType === "GROUP") {
+        const oldKey = field.fieldKey;
+        nextFields = nextFields.map(f => f.parentId === oldKey ? { ...f, parentId: value } : f);
+      }
+      return nextFields;
+    });
+
+  const updateNestedObject = (id, parentKey, childKey, value) => {
     setLocalFields((prev) =>
       prev.map((f) => {
         if (f.id !== id) return f;
@@ -207,10 +231,19 @@ export default function BuilderPage() {
         return { ...f, [parentKey]: newObj };
       })
     );
+  };
 
   const deleteLocalField = (id, e) => {
     e.stopPropagation();
-    setLocalFields((prev) => prev.filter((f) => f.id !== id));
+    setLocalFields((prev) => {
+      const fieldToDelete = prev.find(f => f.id === id);
+      const filtered = prev.filter((f) => f.id !== id);
+      // If we delete a logical section, un-nest its children so they don't disappear
+      if (fieldToDelete?.fieldType === "GROUP") {
+        return filtered.map(f => f.parentId === fieldToDelete.fieldKey ? { ...f, parentId: null } : f);
+      }
+      return filtered;
+    });
     if (activeFieldId === id) setActiveFieldId(null);
   };
 
@@ -244,27 +277,44 @@ export default function BuilderPage() {
   // ── Save / Publish ────────────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
-    const payload = localFields.map((field, index) => ({
-      fieldKey:   generateFieldKey(field.fieldLabel, index + 1),
-      fieldLabel: field.fieldLabel,
-      fieldType:  field.fieldType,
-      required:   field.required || false,
-      fieldOrder: index + 1,
-      options:    field.options || [],
-      validation: {
-        ...(field.validation || {}),
-        rows:    field.validation?.rows    || [],
-        columns: field.validation?.columns || [],
-      },
-      uiConfig:   { ...(field.uiConfig || {}) },
-      conditions: field.conditions || null,   // ✅ persist conditions
-    }));
+    const payload = localFields.map((field, index) => {
+      // Helper to convert empty string to null for numeric fields
+      const sanitize = (val) => (val === "" ? null : val);
+      
+      return {
+        fieldKey:   generateFieldKey(field.fieldLabel, index + 1),
+        parentId:   field.parentId,
+        fieldLabel: field.fieldLabel,
+        fieldType:  field.fieldType,
+        required:   field.required || false,
+        fieldOrder: index + 1,
+        options:    field.options || [],
+        validation: {
+          ...(field.validation || {}),
+          minLength: sanitize(field.validation?.minLength),
+          maxLength: sanitize(field.validation?.maxLength),
+          min:       sanitize(field.validation?.min),
+          max:       sanitize(field.validation?.max),
+          rows:      field.validation?.rows    || [],
+          columns:   field.validation?.columns || [],
+        },
+        uiConfig: { 
+          ...(field.uiConfig || {}),
+          maxStars:      sanitize(field.uiConfig?.maxStars),
+          scaleMin:      sanitize(field.uiConfig?.scaleMin),
+          scaleMax:      sanitize(field.uiConfig?.scaleMax),
+          maxFileSizeMb: sanitize(field.uiConfig?.maxFileSizeMb),
+        },
+        conditions: field.conditions || null,
+      };
+    });
+    
     try {
-      await api.saveDraft(draft.id, payload);
-      alert("Draft saved successfully!");
+      await api.saveDraft(formId, payload);
+      alert("Form saved successfully!");
     } catch (e) {
       console.error(e);
-      alert("Failed to save draft.");
+      alert("Failed to save form.");
     } finally {
       setSaving(false);
     }
@@ -274,8 +324,7 @@ export default function BuilderPage() {
     if (localFields.length === 0) return alert("Add at least one field before publishing");
     setPublishing(true);
     try {
-      await api.publishVersion(draft.id);
-      updateVersion(form.id, draft.id, { status: "PUBLISHED" });
+      await api.publishForm(formId);
       router.push("/");
     } catch {
       alert("Publish failed");
@@ -302,150 +351,7 @@ export default function BuilderPage() {
     );
   }
 
-  // ── "Form is Published" screen — create new version or view history ────────
-  if (!draft && publishedVersion) {
-    const statusColor = (s) =>
-      s === 'PUBLISHED' ? '#16a34a' :
-      s === 'DRAFT'     ? '#d97706' : '#64748b';
-    const statusBg = (s) =>
-      s === 'PUBLISHED' ? '#f0fdf4' :
-      s === 'DRAFT'     ? '#fffbeb' : '#f8fafc';
-    const StatusIcon = ({ s }) =>
-      s === 'PUBLISHED' ? <CheckCircle2 size={12} /> :
-      s === 'DRAFT'     ? <FilePen size={12} /> :
-                          <Archive size={12} />;
 
-    const handleCreateNewVersion = async () => {
-      setCreatingVersion(true);
-      try {
-        await api.createNewVersion(formId);
-        // Version created — reload opens the builder with the new draft
-        window.location.reload();
-      } catch (err) {
-        alert(err?.response?.data?.message || "Failed to create new version");
-        setCreatingVersion(false);
-      }
-    };
-
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 max-w-lg w-full overflow-hidden">
-
-          {/* Header */}
-          <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-8 py-8 text-white">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <CheckCircle2 size={20} />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold">Form is Live</h1>
-                <p className="text-indigo-200 text-sm">{form?.name}</p>
-              </div>
-            </div>
-            <p className="text-indigo-100 text-sm leading-relaxed">
-              This form is collecting responses. Create a new version to make edits
-              without interrupting existing submissions.
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div className="p-6 space-y-3">
-            <button
-              onClick={handleCreateNewVersion}
-              disabled={creatingVersion}
-              className="flex items-center justify-center w-full gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-5 py-3.5 rounded-xl font-semibold transition-colors"
-            >
-              {creatingVersion
-                ? <><Loader2 size={18} className="animate-spin" /> Creating new version...</>
-                : <><GitBranch size={18} /> Create New Version (v{versions.length + 1})</>
-              }
-            </button>
-
-            <Link
-              href={`/forms/${formId}/submissions`}
-              className="flex items-center justify-center w-full gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-3 rounded-xl font-medium transition-colors"
-            >
-              <ClipboardList size={18} /> View Submissions
-            </Link>
-
-            <Link
-              href={`/forms/${formId}/view`}
-              target="_blank"
-              className="flex items-center justify-center w-full gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-5 py-3 rounded-xl font-medium transition-colors"
-            >
-              <ExternalLink size={18} /> View Live Form
-            </Link>
-
-            <Link
-              href="/"
-              className="flex items-center justify-center w-full gap-2 text-slate-400 hover:text-slate-600 px-5 py-2 rounded-xl text-sm transition-colors"
-            >
-              <ArrowLeft size={16} /> Return to Dashboard
-            </Link>
-          </div>
-
-          {/* Version History */}
-          <div className="border-t border-slate-100">
-            <button
-              onClick={() => setShowVersionHistory(v => !v)}
-              className="w-full flex items-center justify-between px-6 py-4 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <History size={16} /> Version History ({versions.length})
-              </span>
-              <ChevronDownIcon
-                size={16}
-                className={`transition-transform ${showVersionHistory ? 'rotate-180' : ''}`}
-              />
-            </button>
-
-            {showVersionHistory && (
-              <div className="px-6 pb-6 space-y-2">
-                {versions.slice().reverse().map((v) => (
-                  <div
-                    key={v.id}
-                    className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold"
-                        style={{ background: statusBg(v.status), color: statusColor(v.status) }}
-                      >
-                        v{v.versionNumber}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1"
-                            style={{ background: statusBg(v.status), color: statusColor(v.status) }}
-                          >
-                            <StatusIcon s={v.status} />
-                            {v.status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {v.fieldCount} field{v.fieldCount !== 1 ? 's' : ''}
-                          {v.publishedAt && ` · Published ${new Date(v.publishedAt).toLocaleDateString()}`}
-                        </p>
-                      </div>
-                    </div>
-                    {v.status === 'PUBLISHED' && (
-                      <Link
-                        href={`/forms/${formId}/submissions`}
-                        className="text-xs text-indigo-600 hover:underline font-medium"
-                      >
-                        Submissions
-                      </Link>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const activeField = localFields.find((f) => f.id === activeFieldId);
 
@@ -598,6 +504,82 @@ export default function BuilderPage() {
           );
         }
 
+        case "GROUP": {
+          const children = localFields.filter(f => f.parentId === field.fieldKey);
+          return (
+            <div 
+              className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-6 min-h-[100px] transition-all"
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const newType = e.dataTransfer.getData("newFieldType");
+                const existingIdx = e.dataTransfer.getData("existingFieldIndex");
+                
+                if (newType) {
+                  const newF = createNewField(newType, localFields.length + 1);
+                  newF.parentId = field.fieldKey; // Link via fieldKey
+                  setLocalFields(prev => [...prev, newF]);
+                  setActiveFieldId(newF.id);
+                } else if (existingIdx !== "") {
+                  const fromIdx = Number(existingIdx);
+                  const moved = { ...localFields[fromIdx] };
+                  if (moved.id === field.id) return; 
+                  
+                  // Move field into this section via fieldKey
+                  setLocalFields(prev => {
+                    const list = [...prev];
+                    list[fromIdx] = { ...moved, parentId: field.fieldKey };
+                    return list;
+                  });
+                }
+              }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <LayoutTemplate size={18} className="text-indigo-400" />
+                <span className="text-sm font-bold text-slate-600 uppercase tracking-wider">{field.uiConfig?.title || "Group"}</span>
+              </div>
+              
+              {children.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-4 text-slate-400">
+                  <p className="text-xs font-medium">Drop fields here to group them</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {children.map(child => {
+                    const childIndex = localFields.indexOf(child);
+                    return (
+                      <div 
+                        key={child.id}
+                        draggable
+                        onDragStart={(e) => handleFieldDragStart(e, childIndex)}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDropOnField(e, childIndex)}
+                        onClick={(e) => { e.stopPropagation(); setActiveFieldId(child.id); }}
+                        className={`p-4 rounded-xl border-2 transition-all cursor-pointer bg-white ${
+                          activeFieldId === child.id ? "border-indigo-500 shadow-sm" : "border-slate-100 hover:border-indigo-200"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <label className="text-sm font-semibold text-slate-800">
+                            {child.fieldLabel} {child.required && <span className="text-red-500">*</span>}
+                          </label>
+                          <button onClick={(e) => deleteLocalField(child.id, e)} className="p-1 text-slate-300 hover:text-red-500">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <div className="pointer-events-none opacity-80 scale-95 origin-top-left">
+                          {renderFieldPreview(child)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+
         case "PAGE_BREAK":
           return (
             <div className="w-full relative flex items-center justify-center py-6">
@@ -655,17 +637,34 @@ export default function BuilderPage() {
 
       {/* ── MAIN CANVAS ── */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+        {isArchived && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-[100] flex items-center justify-center p-6">
+            <div className="bg-white border-2 border-red-100 rounded-[32px] p-10 max-w-md w-full text-center shadow-2xl shadow-red-100/50">
+              <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                <Archive size={40} className="text-red-500" />
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 mb-3">Form Archived</h2>
+              <p className="text-slate-500 mb-8 leading-relaxed">
+                This form has been archived and is now in read-only mode. No further changes can be made.
+              </p>
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center gap-2 bg-slate-900 text-white px-8 py-3.5 rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg active:scale-95"
+              >
+                Back to Dashboard
+              </Link>
+            </div>
+          </div>
+        )}
         <header className="h-[72px] bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-10">
           <div className="flex items-center gap-3">
             <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><LayoutTemplate size={20} /></div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-bold text-slate-900 leading-tight line-clamp-1">{form.name}</h1>
-                {draft && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                    v{draft.versionNumber} DRAFT
-                  </span>
-                )}
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                  {form.status || "DRAFT"}
+                </span>
               </div>
               <p className="text-xs text-slate-500 font-medium">Builder Mode</p>
             </div>
@@ -700,51 +699,54 @@ export default function BuilderPage() {
                 <p className="text-sm mt-1">Drag and drop elements from the left panel.</p>
               </div>
             ) : (
-              localFields.map((field, index) => (
-                <div
-                  key={field.id}
-                  draggable
-                  onDragStart={(e) => handleFieldDragStart(e, index)}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDropOnField(e, index)}
-                  onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); }}
-                  className={`group relative bg-white rounded-2xl transition-all cursor-pointer border-2 ${
-                    activeFieldId === field.id
-                      ? "border-indigo-600 shadow-md ring-4 ring-indigo-50"
-                      : "border-slate-200 hover:border-indigo-300 shadow-sm"
-                  }`}
-                >
-                  {/* Drag handle */}
-                  <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col items-center justify-center text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50 rounded-l-xl border-r border-slate-100">
-                    <GripVertical size={18} />
-                  </div>
-                  {/* Delete button */}
-                  <button
-                    onClick={(e) => deleteLocalField(field.id, e)}
-                    className="absolute -right-3 -top-3 bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 shadow-sm p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all z-10"
+              localFields.filter(f => !f.parentId).map((field) => {
+                const realIndex = localFields.indexOf(field);
+                return (
+                  <div
+                    key={field.id}
+                    draggable
+                    onDragStart={(e) => handleFieldDragStart(e, realIndex)}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDropOnField(e, realIndex)}
+                    onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); }}
+                    className={`group relative bg-white rounded-2xl transition-all cursor-pointer border-2 ${
+                      activeFieldId === field.id
+                        ? "border-indigo-600 shadow-md ring-4 ring-indigo-50"
+                        : "border-slate-200 hover:border-indigo-300 shadow-sm"
+                    }`}
                   >
-                    <Trash2 size={16} />
-                  </button>
-                  {/* Condition indicator badge */}
-                  {field.conditions && (() => {
-                    try {
-                      const c = JSON.parse(field.conditions);
-                      if (c.rules?.length > 0) return (
-                        <div className="absolute -left-3 -top-3 bg-indigo-600 text-white p-1 rounded-full shadow-sm z-10" title="Has conditions">
-                          <GitBranch size={12} />
-                        </div>
-                      );
-                    } catch {}
-                    return null;
-                  })()}
-                  <div className="p-8 pl-14 pointer-events-none">
-                    <label className="block text-base font-semibold text-slate-800 mb-4">
-                      {field.fieldLabel} {field.required && <span className="text-red-500">*</span>}
-                    </label>
-                    {renderFieldPreview(field)}
+                    {/* Drag handle */}
+                    <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col items-center justify-center text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50 rounded-l-xl border-r border-slate-100">
+                      <GripVertical size={18} />
+                    </div>
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => deleteLocalField(field.id, e)}
+                      className="absolute -right-3 -top-3 bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 shadow-sm p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all z-10"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                    {/* Condition indicator badge */}
+                    {field.conditions && (() => {
+                      try {
+                        const c = JSON.parse(field.conditions);
+                        if (c.rules?.length > 0) return (
+                          <div className="absolute -left-3 -top-3 bg-indigo-600 text-white p-1 rounded-full shadow-sm z-10" title="Has conditions">
+                            <GitBranch size={12} />
+                          </div>
+                        );
+                      } catch {}
+                      return null;
+                    })()}
+                    <div className={`p-8 pl-14 ${field.fieldType === "GROUP" ? "" : "pointer-events-none"}`}>
+                      <label className="block text-base font-semibold text-slate-800 mb-4">
+                        {field.fieldLabel} {field.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {renderFieldPreview(field)}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

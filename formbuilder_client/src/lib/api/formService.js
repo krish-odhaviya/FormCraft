@@ -23,9 +23,8 @@ export const api = {
 
   // ── Forms ─────────────────────────────────────────────────────────────────
   getAllForms: () => API.get("/forms"),
-  getAllPublishedForms: () => API.get("/forms/published-list"),
-  getFormVersions: (formId) => API.get(`/forms/${formId}/versions`),
-  createNewVersion: (formId) => API.post(`/forms/${formId}/versions/new`),
+  getAllPublishedForms: (excludeFormId) => API.get(`/forms/published-list${excludeFormId ? `?excludeFormId=${excludeFormId}` : ''}`),
+
   getSubmissions: (formId) => API.get(`/forms/${formId}/submissions`),
   deleteSubmission: (formId, submissionId) =>
     API.delete(`/forms/${formId}/submissions/${submissionId}`),
@@ -35,16 +34,15 @@ export const api = {
   createForm: (name, description) =>
     API.post("/forms", { name, description }),
 
-  // ── Versions ──────────────────────────────────────────────────────────────
-  createDraftVersion: (formId) => API.post(`/forms/${formId}/versions`),
+  saveDraft: (formId, fields) =>
+    API.post(`/forms/${formId}/draft`, fields),
 
-  saveDraft: (versionId, fields) =>
-    API.post(`/versions/${versionId}/draft`, fields),
+  publishForm: (formId) => API.post(`/forms/${formId}/publish`),
 
-  publishVersion: (versionId) => API.post(`/versions/${versionId}/publish`),
+  archiveForm: (formId) => API.post(`/forms/${formId}/archive`),
 
   // Optional (if still needed)
-  reorderFields: (versionId, fieldIds) =>
-    API.post(`/versions/${versionId}/fields/reorder`, { fieldIds }),
+  reorderFields: (formId, fieldIds) =>
+    API.post(`/forms/${formId}/fields/reorder`, { fieldIds }),
 };
 

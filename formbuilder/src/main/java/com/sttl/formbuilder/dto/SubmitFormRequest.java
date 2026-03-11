@@ -10,7 +10,7 @@ import java.util.Map;
 @Setter
 public class SubmitFormRequest {
 
-    private Long versionId;
+    private Long formId;
 
     private Map<String, Object> values;
 }

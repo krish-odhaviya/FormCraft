@@ -7,9 +7,9 @@ import com.sttl.formbuilder.dto.FieldDto;
 import com.sttl.formbuilder.dto.PagedSubmissionsResponse;
 import com.sttl.formbuilder.dto.SubmissionsResponse;
 import com.sttl.formbuilder.entity.FormField;
-import com.sttl.formbuilder.entity.FormVersion;
+import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.exception.ValidationException;
-import com.sttl.formbuilder.repository.FormVersionRepository;
+import com.sttl.formbuilder.repository.FormRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FormSubmissionService {
 
-    private final FormVersionRepository versionRepository;
+    private final FormRepository formRepository;
     private final JdbcTemplate jdbcTemplate;
     private final RuleEngineService ruleEngineService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -37,23 +37,26 @@ public class FormSubmissionService {
     // SUBMIT
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
-    public void submit(Long versionId, Map<String, Object> values) {
+    public void submit(Long formId, Map<String, Object> values) {
 
-        FormVersion version = versionRepository.findByIdWithFields(versionId)
-                .orElseThrow(() -> new RuntimeException("Version not found"));
+        Form form = formRepository.findByIdWithFields(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
 
         if (values == null || values.isEmpty()) {
             throw new RuntimeException("Submission cannot be empty");
         }
 
-        ruleEngineService.validateSubmission(version.getFields(), values);
+        ruleEngineService.validateSubmission(form.getFields(), values);
 
-        String tableName = version.getTableName();
+        String tableName = form.getTableName();
 
         Map<String, String> fieldTypes = new HashMap<>();
         Map<String, FormField> fieldMap = new HashMap<>();
 
-        for (FormField f : version.getFields()) {
+        for (FormField f : form.getFields()) {
+            if (Boolean.TRUE.equals(f.getIsDeleted())) {
+                continue;
+            }
             if (List.of("SECTION", "LABEL", "PAGE_BREAK").contains(f.getFieldType())) {
                 continue;
             }
@@ -65,7 +68,8 @@ public class FormSubmissionService {
         Map<String, String> errors = new LinkedHashMap<>();
 
         // ── Required field validation ─────────────────────────────────────────
-        for (FormField field : version.getFields()) {
+        for (FormField field : form.getFields()) {
+            if (Boolean.TRUE.equals(field.getIsDeleted())) continue;
             String key       = field.getFieldKey();
             String fieldType = field.getFieldType();
             Object val       = values.get(key);
@@ -107,7 +111,8 @@ public class FormSubmissionService {
         }
 
         // ── Field-level validation ────────────────────────────────────────────
-        for (FormField field : version.getFields()) {
+        for (FormField field : form.getFields()) {
+            if (Boolean.TRUE.equals(field.getIsDeleted())) continue;
             String key       = field.getFieldKey();
             String fieldType = field.getFieldType();
             Object val       = values.get(key);
@@ -262,7 +267,7 @@ public class FormSubmissionService {
                 + " VALUES (" + String.join(", ", placeholdersList) + ")";
 
         jdbcTemplate.update(sql, argumentsList.toArray());
-        ruleEngineService.executePostSubmissionWorkflows(version.getFields(), values);
+        ruleEngineService.executePostSubmissionWorkflows(form.getFields(), values);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -270,8 +275,8 @@ public class FormSubmissionService {
     // ─────────────────────────────────────────────────────────────────────────
 
     /** Build FieldDto list from published version fields */
-    private List<FieldDto> buildColumnDtos(FormVersion version) {
-        return version.getFields().stream()
+    private List<FieldDto> buildColumnDtos(Form form) {
+        return form.getFields().stream()
                 .filter(f -> !"SECTION".equalsIgnoreCase(f.getFieldType())
                         && !"LABEL".equalsIgnoreCase(f.getFieldType())
                         && !"PAGE_BREAK".equalsIgnoreCase(f.getFieldType()))
@@ -319,11 +324,11 @@ public class FormSubmissionService {
     }
 
     /** Build SELECT + JOIN SQL for lookup fields */
-    private String buildSelectSql(FormVersion version, String tableName) {
+    private String buildSelectSql(Form form, String tableName) {
         StringBuilder select = new StringBuilder("SELECT t.id");
         StringBuilder joins  = new StringBuilder();
 
-        for (FormField f : version.getFields()) {
+        for (FormField f : form.getFields()) {
             if ("SECTION".equalsIgnoreCase(f.getFieldType()) 
                 || "LABEL".equalsIgnoreCase(f.getFieldType()) 
                 || "PAGE_BREAK".equalsIgnoreCase(f.getFieldType())) continue;
@@ -349,9 +354,9 @@ public class FormSubmissionService {
     }
 
     /** Build JOIN-only SQL (used for COUNT query) */
-    private String buildJoinsOnly(FormVersion version) {
+    private String buildJoinsOnly(Form form) {
         StringBuilder joins = new StringBuilder();
-        for (FormField f : version.getFields()) {
+        for (FormField f : form.getFields()) {
             if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
                     && f.getSourceTable() != null && f.getSourceColumn() != null) {
                 String alias = "ref_" + f.getFieldKey();
@@ -364,14 +369,14 @@ public class FormSubmissionService {
     }
 
     /** Build WHERE clause — always filters deleted rows, optionally applies search */
-    private String buildWhere(FormVersion version, String search) {
+    private String buildWhere(Form form, String search) {
         if (search == null || search.trim().isEmpty()) {
             return " WHERE t.is_delete = false";
         }
 
         String safe = search.trim().replace("'", "''"); // basic SQL escape for ILIKE
 
-        List<String> conditions = version.getFields().stream()
+        List<String> conditions = form.getFields().stream()
                 .filter(f -> !"SECTION".equalsIgnoreCase(f.getFieldType())
                         && !"LABEL".equalsIgnoreCase(f.getFieldType())
                         && !"PAGE_BREAK".equalsIgnoreCase(f.getFieldType())
@@ -403,13 +408,17 @@ public class FormSubmissionService {
     @Transactional(readOnly = true)
     public PagedSubmissionsResponse getSubmissionsPaged(Long formId, String search, Pageable pageable) {
 
-        FormVersion version = versionRepository.findByFormIdAndStatus(formId, FormStatusEnum.PUBLISHED)
-                .orElseThrow(() -> new RuntimeException("No published version found for this form"));
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
+        
+        if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
+            throw new RuntimeException("Form is not in a state that allows viewing submissions");
+        }
 
-        String tableName = version.getTableName();
+        String tableName = form.getTableName();
 
         // ── Valid field keys (to prevent SQL injection on sort column) ─────────
-        Set<String> validKeys = version.getFields().stream()
+        Set<String> validKeys = form.getFields().stream()
                 .map(FormField::getFieldKey)
                 .collect(Collectors.toSet());
         validKeys.add("id");
@@ -433,13 +442,13 @@ public class FormSubmissionService {
         }
 
         // ── Build SQL parts ───────────────────────────────────────────────────
-        String selectSql = buildSelectSql(version, tableName);
-        String whereSql  = buildWhere(version, search);
+        String selectSql = buildSelectSql(form, tableName);
+        String whereSql  = buildWhere(form, search);
         String orderSql  = " ORDER BY t." + orderCol + " " + orderDir;
 
         // ── COUNT query (for totalElements) ───────────────────────────────────
         String countSql = "SELECT COUNT(*) FROM " + tableName + " t"
-                + buildJoinsOnly(version) + whereSql;
+                + buildJoinsOnly(form) + whereSql;
 
         Long totalElements = jdbcTemplate.queryForObject(countSql, Long.class);
         if (totalElements == null) totalElements = 0L;
@@ -459,7 +468,7 @@ public class FormSubmissionService {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(dataSql);
 
         PagedSubmissionsResponse response = new PagedSubmissionsResponse();
-        response.setColumns(buildColumnDtos(version));
+        response.setColumns(buildColumnDtos(form));
         response.setRows(rows);
         response.setTotalElements(totalElements);
         response.setTotalPages(totalPages);
@@ -474,18 +483,22 @@ public class FormSubmissionService {
     @Transactional(readOnly = true)
     public SubmissionsResponse exportSubmissions(Long formId, String search) {
 
-        FormVersion version = versionRepository.findByFormIdAndStatus(formId, FormStatusEnum.PUBLISHED)
-                .orElseThrow(() -> new RuntimeException("No published version found for this form"));
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
+        
+        if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
+            throw new RuntimeException("Form is not in a state that allows exporting submissions");
+        }
 
-        String tableName = version.getTableName();
-        String sql = buildSelectSql(version, tableName)
-                + buildWhere(version, search)
+        String tableName = form.getTableName();
+        String sql = buildSelectSql(form, tableName)
+                + buildWhere(form, search)
                 + " ORDER BY t.id DESC";
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
 
         SubmissionsResponse response = new SubmissionsResponse();
-        response.setColumns(buildColumnDtos(version));
+        response.setColumns(buildColumnDtos(form));
         response.setRows(rows);
         return response;
     }
@@ -495,10 +508,14 @@ public class FormSubmissionService {
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
     public void softDeleteSubmission(Long formId, Long submissionId) {
-        FormVersion version = versionRepository.findByFormIdAndStatus(formId, FormStatusEnum.PUBLISHED)
-                .orElseThrow(() -> new RuntimeException("No published version found for this form"));
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
+        
+        if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
+            throw new RuntimeException("Form is not in a state that allows deleting submissions");
+        }
         jdbcTemplate.update(
-                "UPDATE " + version.getTableName() + " SET is_delete = true WHERE id = ?",
+                "UPDATE " + form.getTableName() + " SET is_delete = true WHERE id = ?",
                 submissionId
         );
     }
@@ -510,11 +527,15 @@ public class FormSubmissionService {
     public void softDeleteSubmissionsBulk(Long formId, List<Long> submissionIds) {
         if (submissionIds == null || submissionIds.isEmpty()) return;
 
-        FormVersion version = versionRepository.findByFormIdAndStatus(formId, FormStatusEnum.PUBLISHED)
-                .orElseThrow(() -> new RuntimeException("No published version found for this form"));
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
+        
+        if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
+            throw new RuntimeException("Form is not in a state that allows bulk deleting submissions");
+        }
 
         String placeholders = String.join(",", Collections.nCopies(submissionIds.size(), "?"));
-        String sql = "UPDATE " + version.getTableName() + " SET is_delete = true WHERE id IN (" + placeholders + ")";
+        String sql = "UPDATE " + form.getTableName() + " SET is_delete = true WHERE id IN (" + placeholders + ")";
 
         jdbcTemplate.update(sql, submissionIds.toArray());
     }

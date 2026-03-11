@@ -48,7 +48,7 @@ public class FormSubmissionController {
             HttpServletRequest httprequest
     ) {
         try {
-            formSubmissionService.submit(request.getVersionId(), request.getValues());
+            formSubmissionService.submit(request.getFormId(), request.getValues());
             return ApiResponseUtil.success("Submitted successfully", "Form submitted successfully", httprequest);
         } catch (ValidationException e) {
             List<ApiErrorDetail> errors = e.getErrors().entrySet().stream()
