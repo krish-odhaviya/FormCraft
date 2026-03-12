@@ -143,7 +143,7 @@ public class AuthController {
         User user = new User();
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode(body.getPassword()));
-        user.setRole("ROLE_ADMIN");
+        user.setRole(com.sttl.formbuilder.Enums.SystemRole.EMPLOYEE);
         user.setEnabled(true);
         userRepository.save(user);
 
@@ -156,6 +156,12 @@ public class AuthController {
     private Map<String, Object> buildUserData(Authentication authentication) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("username", authentication.getName());
+        
+        userRepository.findByUsername(authentication.getName()).ifPresent(user -> {
+            data.put("id", user.getId());
+            data.put("role", user.getRole().name());
+        });
+
         data.put("roles", authentication.getAuthorities()
                 .stream()
                 .map(GrantedAuthority::getAuthority)

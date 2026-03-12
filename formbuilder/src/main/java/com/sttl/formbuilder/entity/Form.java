@@ -1,6 +1,7 @@
 package com.sttl.formbuilder.entity;
 
 import com.sttl.formbuilder.Enums.FormStatusEnum;
+import com.sttl.formbuilder.Enums.VisibilityType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -29,6 +30,14 @@ public class Form {
     /** The username of the admin who created this form (tenant key). */
     @Column(nullable = false, updatable = false)
     private String createdByUsername;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private User owner;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private VisibilityType visibility = VisibilityType.PUBLIC;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

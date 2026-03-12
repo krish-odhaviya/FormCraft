@@ -13,7 +13,10 @@ import {
   LogOut,
   LayoutDashboard,
   Search,
-  Archive
+  Archive,
+  ShieldCheck,
+  Users,
+  Bell
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
@@ -83,6 +86,15 @@ function DashboardContent() {
               <button className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors">
                 Templates
               </button>
+              {user?.roles?.includes("ROLE_ADMIN") && (
+                <Link
+                  href="/admin"
+                  className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                >
+                  <ShieldCheck size={16} />
+                  Admin Panel
+                </Link>
+              )}
             </nav>
           </div>
 

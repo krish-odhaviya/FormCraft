@@ -11,7 +11,8 @@ import {
   Lock, Star, SlidersHorizontal, LayoutGrid, Grid3x3, Upload,
   Link2, Heading1, AlignLeft as AlignLeftIcon, GitBranch,
   History, CheckCircle2, Archive, FilePen, ChevronDown as ChevronDownIcon,
-  Loader2, ExternalLink, BookOpen
+  Loader2, ExternalLink, BookOpen, Eye, Users, ShieldAlert, UserPlus, Shield,
+  AlertCircle
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
@@ -81,6 +82,13 @@ export default function BuilderPage() {
   const [activeFieldId, setActiveFieldId] = useState(null);
   const [publishedForms, setPublishedForms] = useState([]);
   const [activeTab, setActiveTab] = useState('settings');
+  const [sidebarTab, setSidebarTab] = useState('fields'); // 'fields' or 'form'
+  const [permissions, setPermissions] = useState([]); // List of FormPermission
+  const [visibility, setVisibility] = useState('PUBLIC');
+  const [newPermissionUser, setNewPermissionUser] = useState("");
+  const [newPermissionRole, setNewPermissionRole] = useState("VIEWER");
+  const [isUpdatingForm, setIsUpdatingForm] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState(null); // { type: 'success'|'error', message: string }
 
   const [dragOverGroupKey, setDragOverGroupKey] = useState(null);
 
@@ -109,7 +117,17 @@ export default function BuilderPage() {
         setLoading(false);
       }
     };
-    if (formId) fetchForm();
+    if (formId) {
+      fetchForm();
+      // Fetch current visibility and permissions
+      api.getForm(formId).then(res => {
+        setVisibility(res.data.visibility || 'PUBLIC');
+      }).catch(console.error);
+
+      api.getPermissions(formId).then(res => {
+        setPermissions(res.data || []);
+      }).catch(console.error);
+    }
   }, [formId]);
 
   // ── Conditions helpers ────────────────────────────────────────────────────
@@ -802,12 +820,29 @@ export default function BuilderPage() {
 
       {/* ── RIGHT SIDEBAR ── */}
       <aside className="w-[340px] bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 shadow-xl shadow-slate-200/50">
-        <div className="border-b border-slate-100 bg-slate-50/50">
-          <div className="p-5 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              <Settings2 size={16} /> Field Settings
-            </h2>
-          </div>
+        <div className="flex border-b border-slate-100 bg-slate-50">
+          <button
+            onClick={() => setSidebarTab('fields')}
+            className={`flex-1 py-4 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${sidebarTab === 'fields' ? 'bg-white text-indigo-600 border-t-2 border-t-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <Settings2 size={14} /> Field
+          </button>
+          <button
+            onClick={() => setSidebarTab('form')}
+            className={`flex-1 py-4 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${sidebarTab === 'form' ? 'bg-white text-indigo-600 border-t-2 border-t-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <Lock size={14} /> Form Access
+          </button>
+        </div>
+
+        {sidebarTab === 'fields' ? (
+          <>
+            <div className="border-b border-slate-100 bg-slate-50/50">
+              <div className="p-5 pb-3">
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <SlidersHorizontal size={16} /> Properties
+                </h2>
+              </div>
           {activeField && (
             <div className="flex border-b border-slate-200 px-4">
               <button
@@ -1592,6 +1627,209 @@ export default function BuilderPage() {
             </div>
           )}
         </div>
+          </>
+        ) : (
+          /* ── FORM ACCESS TAB ── */
+          <div className="flex-1 flex flex-col min-h-0 bg-slate-50/30">
+            <div className="p-6 space-y-8 overflow-y-auto flex-1 custom-scrollbar">
+              
+              {/* Visibility Section */}
+              <section className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-indigo-50 rounded-lg">
+                    <Eye className="text-indigo-600" size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Form Visibility</h3>
+                    <p className="text-[11px] text-slate-500">Control who can see and submit this form</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  {[
+                    { id: 'PUBLIC', label: 'Public', desc: 'Anyone with the link can view and submit.', icon: <Users size={16} /> },
+                    { id: 'LINK', label: 'Authenticated Only', desc: 'Only logged-in users can access.', icon: <Lock size={16} /> },
+                    { id: 'RESTRICTED', label: 'Restricted', desc: 'Only specified users can access.', icon: <ShieldAlert size={16} /> }
+                  ].map((v) => (
+                    <label key={v.id} className={`flex items-start gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer group ${visibility === v.id ? 'border-indigo-600 bg-indigo-50/50 shadow-sm shadow-indigo-100' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
+                      <div className="pt-0.5">
+                        <input
+                          type="radio"
+                          name="visibility"
+                          value={v.id}
+                          checked={visibility === v.id}
+                          onChange={(e) => setVisibility(e.target.value)}
+                          className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`${visibility === v.id ? 'text-indigo-700' : 'text-slate-500'}`}>{v.icon}</span>
+                          <span className="text-sm font-bold text-slate-900">{v.label}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 leading-relaxed">{v.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                <button 
+                  onClick={async () => {
+                    setIsUpdatingForm(true);
+                    try {
+                      await api.updateVisibility(formId, visibility);
+                      setFormFromServer(prev => ({ ...prev, visibility: visibility }));
+                      setUpdateStatus({ type: 'success', message: 'Settings saved!' });
+                      setTimeout(() => setUpdateStatus(null), 3000);
+                    } catch (err) {
+                      console.error("Failed to update visibility", err);
+                      setUpdateStatus({ type: 'error', message: 'Failed to save settings.' });
+                      setTimeout(() => setUpdateStatus(null), 3000);
+                    } finally {
+                      setIsUpdatingForm(false);
+                    }
+                  }}
+                  disabled={isUpdatingForm}
+                  className="w-full mt-4 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isUpdatingForm ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <Save size={16} />}
+                  Update Visibility Settings
+                </button>
+
+                {updateStatus && (
+                  <div className={`mt-3 p-3 rounded-lg text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 ${updateStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                    {updateStatus.type === 'success' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+                    {updateStatus.message}
+                  </div>
+                )}
+              </section>
+
+              <hr className="border-slate-100" />
+
+              {/* Permissions Section */}
+              <section className="space-y-5 pb-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-emerald-50 rounded-lg">
+                      <ShieldCheck className="text-emerald-600" size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">User Permissions</h3>
+                      <p className="text-[11px] text-slate-500">Manage specific user access roles</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Add Permission UI */}
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Username / Email</label>
+                    <div className="relative">
+                      <UserPlus size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Type username..."
+                        value={newPermissionUser}
+                        onChange={(e) => setNewPermissionUser(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Select Role</label>
+                      <select
+                        value={newPermissionRole}
+                        onChange={(e) => setNewPermissionRole(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg text-sm focus:bg-white transition-all"
+                      >
+                        <option value="VIEWER">Viewer</option>
+                        <option value="BUILDER">Builder</option>
+                      </select>
+                    </div>
+                    <div className="flex items-end">
+                      <button 
+                        onClick={async () => {
+                          if (!newPermissionUser) return;
+                          try {
+                            await api.addPermission(formId, newPermissionUser, newPermissionRole);
+                            setNewPermissionUser("");
+                            // Re-fetch permissions
+                            const resp = await api.getPermissions(formId);
+                            setPermissions(resp.data || []);
+                          } catch (err) {
+                            console.error("Failed to add permission", err);
+                          }
+                        }}
+                        className="w-full py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100 flex items-center justify-center gap-2"
+                      >
+                        <Plus size={16} /> Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Permission List */}
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">Active Permissions</label>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                    
+                    {/* Owner - Static */}
+                    <div className="flex items-center justify-between p-3 bg-slate-100/50 border border-slate-200/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 uppercase">
+                          YOU
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-900">You (Owner)</p>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-tighter">Full Access</p>
+                        </div>
+                      </div>
+                      <Shield size={14} className="text-slate-400" />
+                    </div>
+
+                    {permissions.map((p) => (
+                      <div key={p.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-lg group hover:border-slate-200 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold uppercase ${p.role === 'BUILDER' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                            {p.username.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-900">{p.username}</p>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${p.role === 'BUILDER' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {p.role}
+                            </span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={async () => {
+                            try {
+                              await api.removePermission(formId, p.id);
+                              setPermissions(prev => prev.filter(x => x.id !== p.id));
+                            } catch (err) {
+                              console.error("Failed to remove permission", err);
+                            }
+                          }}
+                          className="p-1.5 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+
+                    {permissions.length === 0 && (
+                      <div className="py-6 text-center border-2 border-dashed border-slate-100 rounded-xl">
+                        <Users size={20} className="mx-auto text-slate-200 mb-2" />
+                        <p className="text-[11px] text-slate-400">No specific user permissions yet.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        )}
       </aside>
     </div>
   );

@@ -1,5 +1,6 @@
 package com.sttl.formbuilder.entity;
 
+import com.sttl.formbuilder.Enums.SystemRole;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -22,8 +23,9 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String role;
+    private SystemRole role;
 
     @Column(nullable = false)
     private boolean enabled = true;

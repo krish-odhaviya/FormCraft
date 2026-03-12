@@ -5,8 +5,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api/formService";
 import {
   Loader2, Send, CheckCircle2, AlertCircle,
-  ChevronDown, Star, Upload, LayoutTemplate
+  ChevronDown, Star, Upload, LayoutTemplate, Lock,
+  KeyRound, ShieldQuestion, HelpCircle
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Condition evaluator
@@ -73,6 +75,12 @@ function FormPageContent() {
   const [fieldErrors, setFieldErrors] = useState({});
   const [lookupData, setLookupData] = useState({});
   const [currentPage, setCurrentPage] = useState(0);
+
+  // ── Permission & Request state ──
+  const { user, isAuthenticated } = useAuth();
+  const [accessRequested, setAccessRequested] = useState(false);
+  const [requestReason, setRequestReason] = useState("");
+  const [requestStatus, setRequestStatus] = useState(null); // 'pending', 'success', 'error'
 
   const formPages = useMemo(() => {
     const pages = [];
@@ -230,7 +238,13 @@ function FormPageContent() {
         setFormValues(initialValues);
       } catch (err) {
         console.error(err);
-        setMessage("error");
+        if (err.response?.status === 403) {
+          setMessage("forbidden");
+        } else if (err.response?.status === 401) {
+          setMessage("unauthorized");
+        } else {
+          setMessage("error");
+        }
       } finally {
         setLoading(false);
       }
@@ -431,30 +445,22 @@ function FormPageContent() {
     // ────────────────────────────────────────────────────────────────────────
 
     try {
-      const res = await fetch("http://localhost:9090/api/forms/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formId: formId, values: visibleValues }),
-      });
-
-      const data = await res.json();
-
-      if (res.status === 400 && Array.isArray(data.errors)) {
-        const errorsMap = {};
-        data.errors.forEach((err) => { errorsMap[err.field] = err.message; });
-        setFieldErrors(errorsMap);
-        const firstKey = Object.keys(errorsMap)[0];
-        const el = document.getElementById(`field_${firstKey}`);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
-      }
-
-      if (!res.ok) { setMessage("error"); return; }
+      const resp = await api.submitForm(formId, visibleValues);
+      
       setMessage("success");
       router.push(`/forms/${formId}/submissions`);
     } catch (err) {
       console.error(err);
-      setMessage("error");
+      if (err.response?.status === 400 && Array.isArray(err.response.data?.errors)) {
+        const errorsMap = {};
+        err.response.data.errors.forEach((e) => { errorsMap[e.field] = e.message; });
+        setFieldErrors(errorsMap);
+        const firstKey = Object.keys(errorsMap)[0];
+        const el = document.getElementById(`field_${firstKey}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        setMessage("error");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -468,6 +474,100 @@ function FormPageContent() {
       </div>
     </div>
   );
+
+  const handleRequestAccess = async () => {
+    setRequestStatus('pending');
+    try {
+      await api.createAccessRequest(formId, 'VIEW_FORM', requestReason);
+      setRequestStatus('success');
+      setAccessRequested(true);
+    } catch (err) {
+      console.error(err);
+      setRequestStatus('error');
+    }
+  };
+
+  if (message === "unauthorized") {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-xl p-10 max-w-md w-full text-center border border-slate-200">
+          <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Lock size={32} className="text-indigo-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-3">Login Required</h2>
+          <p className="text-slate-500 mb-8">
+            This form is restricted to authenticated users. Please log in to view and submit this form.
+          </p>
+          <button
+            onClick={() => router.push(`/login?redirect=/forms/${formId}/view`)}
+            className="w-full bg-indigo-600 text-white px-8 py-4 rounded-2xl text-base font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all active:scale-[0.98]"
+          >
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (message === "forbidden") {
+    return (
+      <div className="min-h-screen bg-slate-50/50 py-20 px-4 flex justify-center">
+        <div className="w-full max-w-xl">
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+            <div className="bg-red-600 h-2 w-full" />
+            <div className="p-10 text-center">
+              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <ShieldQuestion size={32} className="text-red-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-3">Access Restricted</h2>
+              <p className="text-slate-500 mb-10 leading-relaxed">
+                You do not have permission to access <strong>{formId}</strong>. This form is restricted to specific users or groups.
+              </p>
+
+              {!accessRequested ? (
+                <div className="space-y-4 text-left">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Request access to this form
+                  </label>
+                  <textarea
+                    placeholder="Briefly explain why you need access..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all min-h-[120px]"
+                    value={requestReason}
+                    onChange={(e) => setRequestReason(e.target.value)}
+                  />
+                  <button
+                    onClick={handleRequestAccess}
+                    disabled={requestStatus === 'pending' || !requestReason.trim()}
+                    className="w-full bg-indigo-600 text-white px-8 py-4 rounded-2xl text-base font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {requestStatus === 'pending' ? <Loader2 className="animate-spin" size={20} /> : <KeyRound size={20} />}
+                    Submit Access Request
+                  </button>
+                  {requestStatus === 'error' && (
+                    <p className="text-red-500 text-sm text-center font-medium">Failed to submit request. Please try again.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-100 rounded-2xl p-6 text-center">
+                  <CheckCircle2 size={32} className="text-green-500 mx-auto mb-3" />
+                  <p className="text-green-800 font-bold mb-1">Request Submitted</p>
+                  <p className="text-green-700 text-sm">
+                    Your request has been sent to the form administrator. You'll be notified once it's processed.
+                  </p>
+                  <button
+                    onClick={() => router.push("/")}
+                    className="mt-6 text-sm font-bold text-indigo-600 hover:text-indigo-700 underline"
+                  >
+                    Back to Home
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const hasErrors = Object.keys(fieldErrors).length > 0;
 

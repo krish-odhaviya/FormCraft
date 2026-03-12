@@ -9,6 +9,8 @@ import java.util.stream.Collectors;
 import com.sttl.formbuilder.Enums.FormStatusEnum;
 import com.sttl.formbuilder.dto.FieldDto;
 import com.sttl.formbuilder.dto.VersionDto;
+import com.sttl.formbuilder.entity.User;
+import com.sttl.formbuilder.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
 import com.sttl.formbuilder.dto.FormDetailsResponse;
@@ -22,22 +24,38 @@ public class FormService {
 
     private final FormRepository formRepository;
     private final FormFieldRepository formFieldRepository;
+    private final UserRepository userRepository;
+    private final PermissionService permissionService;
 
     public FormService(FormRepository formRepository,
-                       FormFieldRepository formFieldRepository) {
+                       FormFieldRepository formFieldRepository,
+                       UserRepository userRepository,
+                       PermissionService permissionService) {
         this.formRepository = formRepository;
         this.formFieldRepository = formFieldRepository;
+        this.userRepository = userRepository;
+        this.permissionService = permissionService;
     }
 
-    /** Returns only forms owned by the current user. */
+    /** Returns forms the user has access to manage (Owner or Admin or Builder). */
     public List<Form> getAllForms(String currentUsername) {
-        return formRepository.findByCreatedByUsername(currentUsername);
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        if (user.getRole() == com.sttl.formbuilder.Enums.SystemRole.ADMIN) {
+            return formRepository.findAll();
+        }
+        
+        return formRepository.findByOwner(user);
+        // TODO: Also include forms where the user has FormRole.BUILDER permission
     }
 
     /** Creates a form tagged with the current user as owner. */
     public Form createForm(String name, String description, String currentUsername) {
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (formRepository.existsByNameAndCreatedByUsername(name, currentUsername)) {
+        if (formRepository.existsByNameAndOwner(name, user)) {
             throw new RuntimeException("You already have a form with that name");
         }
 
@@ -45,6 +63,7 @@ public class FormService {
         form.setName(name);
         form.setDescription(description);
         form.setCreatedByUsername(currentUsername);
+        form.setOwner(user);
 
         return formRepository.save(form);
     }
@@ -55,14 +74,18 @@ public class FormService {
      * or a real username to enforce ownership.
      */
     public FormDetailsResponse getFormWithStructure(Long formId, String currentUsername) {
-        // 1. Fetch the main Form — scoped to owner OR open read for public form-fill
-        Form form;
-        if (currentUsername != null) {
-            form = formRepository.findByIdAndCreatedByUsername(formId, currentUsername)
-                    .orElseThrow(() -> new RuntimeException("Form not found or access denied"));
-        } else {
-            form = formRepository.findById(formId)
-                    .orElseThrow(() -> new RuntimeException("Form not found"));
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
+
+        User user = currentUsername != null ? userRepository.findByUsername(currentUsername).orElse(null) : null;
+        
+        System.out.println("FormService.getFormWithStructure: formId=" + formId + 
+                           " visibility=" + form.getVisibility() + 
+                           " user=" + (user != null ? user.getUsername() : "ANONYMOUS"));
+
+        if (!permissionService.canViewForm(user, form)) {
+            System.out.println("  Access Denied by permissionService");
+            throw new RuntimeException("Access denied to this form");
         }
 
         FormDetailsResponse response = new FormDetailsResponse();
@@ -146,10 +169,17 @@ public class FormService {
         return response;
     }
     public Form archiveForm(Long formId, String currentUsername) {
-        Form form = formRepository.findByIdAndCreatedByUsername(formId, currentUsername)
-                .orElseThrow(() -> new RuntimeException("Form not found or access denied"));
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
         
-        form.setStatus(FormStatusEnum.ARCHIVED);
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!permissionService.canConfigureForm(user, form)) {
+            throw new RuntimeException("Access denied: only owners or builders can archive");
+        }
+        
+        form.setStatus(com.sttl.formbuilder.Enums.FormStatusEnum.ARCHIVED);
         return formRepository.save(form);
     }
 }

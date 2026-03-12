@@ -15,10 +15,17 @@ export const api = {
     API.post("/auth/register", { username, password }),
 
   // ── User Management (admin only) ──────────────────────────────────────────
-  getUsers: () => API.get("/users"),
-  registerAdmin: (username, password) =>
-    API.post("/users/register", { username, password }),
-  deleteUser: (id) => API.delete(`/users/${id}`),
+  getAdminUsers: () => API.get("/admin/users"),
+  updateUserRole: (userId, role) => API.post(`/admin/users/${userId}/role?role=${role}`),
+  toggleUserStatus: (userId, enabled) => API.post(`/admin/users/${userId}/enable?enabled=${enabled}`),
+
+  // ── Access Requests ───────────────────────────────────────────────────────
+  createAccessRequest: (formId, type, reason) =>
+    API.post("/requests", { formId, type, reason }),
+  getMyRequests: () => API.get("/requests/my"),
+  getPendingRequests: () => API.get("/requests/pending"),
+  processRequest: (requestId, status) =>
+    API.post(`/requests/${requestId}/process?status=${status}`),
 
 
   // ── Forms ─────────────────────────────────────────────────────────────────
@@ -34,12 +41,27 @@ export const api = {
   createForm: (name, description) =>
     API.post("/forms", { name, description }),
 
+  submitForm: (formId, values) =>
+    API.post("/forms/submit", { formId, values }),
+
   saveDraft: (formId, fields) =>
     API.post(`/forms/${formId}/draft`, fields),
 
   publishForm: (formId) => API.post(`/forms/${formId}/publish`),
 
   archiveForm: (formId) => API.post(`/forms/${formId}/archive`),
+
+  // ── Form Visibility & Permissions ──────────────────────────────────────────
+  updateVisibility: (formId, visibility) =>
+    API.post(`/forms/${formId}/visibility?visibility=${visibility}`),
+  
+  getPermissions: (formId) => API.get(`/forms/${formId}/permissions`),
+  
+  addPermission: (formId, username, role) =>
+    API.post(`/forms/${formId}/permissions?username=${username}&role=${role}`),
+  
+  removePermission: (formId, permissionId) =>
+    API.delete(`/forms/${formId}/permissions/${permissionId}`),
 
   // Optional (if still needed)
   reorderFields: (formId, fieldIds) =>

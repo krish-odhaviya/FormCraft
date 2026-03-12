@@ -74,13 +74,22 @@ public class SecurityConfig {
                         .requestMatchers("/api/forms/upload").permitAll()
                         .requestMatchers("/api/forms/files/**").permitAll()
 
-                        // Public — filling a published form
+                        // Form View/Submit endpoints (Visibility checked inside Service)
                         .requestMatchers(HttpMethod.GET, "/api/forms/*/view").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/forms/*/published").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/forms/**").permitAll() // Broaden to allow all public structure fetches
                         .requestMatchers(HttpMethod.GET, "/api/forms/lookup").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/forms/submit").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/forms/*/evaluate").permitAll()
+                        
+                        // Debug access
+                        .requestMatchers("/api/debug/**").permitAll()
+                        
+                        // Swagger
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+
+                        // ── Admin-only system management ──────────────────────────────────
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
                         // ── Everything else requires a valid session ───────────────────────
                         .anyRequest().authenticated()

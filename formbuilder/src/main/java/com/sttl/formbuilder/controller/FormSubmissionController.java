@@ -34,29 +34,59 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import com.sttl.formbuilder.service.PermissionService;
+import com.sttl.formbuilder.repository.UserRepository;
+import com.sttl.formbuilder.entity.User;
+import com.sttl.formbuilder.entity.Form;
+import com.sttl.formbuilder.repository.FormRepository;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+
 @RestController
 @RequestMapping("/api/forms")
 @RequiredArgsConstructor
 public class FormSubmissionController {
 
     private final FormSubmissionService formSubmissionService;
+    private final PermissionService permissionService;
+    private final UserRepository userRepository;
+    private final FormRepository formRepository;
 
     // ── Submit form ───────────────────────────────────────────────────────────
     @PostMapping("/submit")
     public ResponseEntity<?> submitForm(
             @RequestBody SubmitFormRequest request,
+            @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest httprequest
     ) {
+        System.out.println("--- SUBMISSION REQUEST RECEIVED ---");
+        System.out.println("Form ID: " + request.getFormId());
+        System.out.println("User: " + (currentUser != null ? currentUser.getUsername() : "ANONYMOUS"));
+        
         try {
+            User user = currentUser != null ? userRepository.findByUsername(currentUser.getUsername()).orElse(null) : null;
+            Form form = formRepository.findById(request.getFormId())
+                .orElseThrow(() -> new RuntimeException("Form not found: " + request.getFormId()));
+            
+            System.out.println("Form visibility: " + form.getVisibility());
+            
+            if (!permissionService.canSubmitForm(user, form)) {
+                System.err.println("SUBMISSION DENIED: Permission check failed for user=" + (user != null ? user.getUsername() : "ANONYMOUS") + " on form=" + form.getId());
+                return ApiResponseUtil.error("Access denied to submit this form", null, HttpStatus.FORBIDDEN, httprequest);
+            }
+
+            System.out.println("Submitting values: " + request.getValues());
             formSubmissionService.submit(request.getFormId(), request.getValues());
+            System.out.println("SUBMISSION SUCCESS");
             return ApiResponseUtil.success("Submitted successfully", "Form submitted successfully", httprequest);
         } catch (ValidationException e) {
+            System.err.println("SUBMISSION VALIDATION FAILED: " + e.getErrors());
             List<ApiErrorDetail> errors = e.getErrors().entrySet().stream()
                     .map(entry -> new ApiErrorDetail(entry.getKey(), entry.getValue()))
                     .toList();
             return ApiResponseUtil.error("Form validation failed", errors, HttpStatus.BAD_REQUEST, httprequest);
         } catch (Exception e) {
-            System.err.println("SUBMISSION FAILED: " + e.getMessage());
+            System.err.println("SUBMISSION CRASHED: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.internalServerError()
                     .body(Map.of("status", "error", "message", e.getMessage()));
@@ -81,8 +111,16 @@ public class FormSubmissionController {
             @PathVariable Long formId,
             @RequestParam(defaultValue = "") String search,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request
     ) {
+        Form form = formRepository.findById(formId).orElseThrow(() -> new RuntimeException("Form not found"));
+        User user = currentUser != null ? userRepository.findByUsername(currentUser.getUsername()).orElse(null) : null;
+
+        if (!permissionService.canViewSubmissions(user, form)) {
+            return ApiResponseUtil.error("Access denied to view submissions", null, HttpStatus.FORBIDDEN, request);
+        }
+
         PagedSubmissionsResponse response = formSubmissionService.getSubmissionsPaged(
                 formId, search, pageable
         );
@@ -102,8 +140,16 @@ public class FormSubmissionController {
     public ResponseEntity<byte[]> exportSubmissions(
             @PathVariable Long formId,
             @RequestParam(defaultValue = "") String search,
-            @RequestParam(defaultValue = "csv") String format
+            @RequestParam(defaultValue = "csv") String format,
+            @AuthenticationPrincipal UserDetails currentUser
     ) {
+        Form form = formRepository.findById(formId).orElseThrow(() -> new RuntimeException("Form not found"));
+        User user = currentUser != null ? userRepository.findByUsername(currentUser.getUsername()).orElse(null) : null;
+
+        if (!permissionService.canViewSubmissions(user, form)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
         SubmissionsResponse data = formSubmissionService.exportSubmissions(formId, search);
         
         try {

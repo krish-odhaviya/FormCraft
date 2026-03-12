@@ -12,13 +12,7 @@ export const API = axios.create({
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (
-      error.response?.status === 401 &&
-      typeof window !== "undefined" &&
-      !window.location.pathname.startsWith("/login")
-    ) {
-      window.location.href = "/login";
-    }
+    // We handle auth redirection in AuthContext and individual pages
     return Promise.reject(error);
   }
 );
