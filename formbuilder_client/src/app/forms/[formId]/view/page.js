@@ -97,21 +97,22 @@ function FormPageContent() {
     fields.forEach((field) => {
       const parentId = field.parentId;
       let ownState;
-      
-      if (field.fieldType === "SECTION" || field.fieldType === "LABEL" || field.fieldType === "GROUP") {
-        ownState = { visible: true, disabled: false };
-      }
-      
       let cond;
       try { cond = field.conditions ? JSON.parse(field.conditions) : null; } catch { cond = null; }
 
-      if (cond?.action === "calculate" && cond.formula) {
-        const calcValue = evaluateFormula(cond.formula, formValues);
-        ownState = { visible: true, disabled: true, calculatedValue: calcValue };
+      // SECTION and LABEL are always visible
+      // GROUP must go through condition evaluation like any other field
+      if (field.fieldType === "SECTION" || field.fieldType === "LABEL") {
+        ownState = { visible: true, disabled: false };
       } else {
-        ownState = evaluateConditions(field, formValues);
+        if (cond?.action === "calculate" && cond.formula) {
+          const calcValue = evaluateFormula(cond.formula, formValues);
+          ownState = { visible: true, disabled: true, calculatedValue: calcValue };
+        } else {
+          ownState = evaluateConditions(field, formValues);
+        }
       }
-      
+
       states[field.fieldKey] = ownState;
 
       // ── Detect active REQUIRE actions ──
@@ -146,7 +147,6 @@ function FormPageContent() {
     const finalStates = { ...states };
     fields.forEach(field => {
       if (field.parentId) {
-        // Find parent by fieldKey instead of database ID for stability
         const parentField = fields.find(f => f.fieldKey === field.parentId);
         if (parentField) {
           const parentState = states[parentField.fieldKey];
@@ -159,7 +159,6 @@ function FormPageContent() {
 
     return { fieldStates: finalStates, conditionallyRequiredFields: requiredSet };
   }, [fields, formValues]);
-
   // ── Auto-update calculated fields ─────────────────────────────────────────
   useEffect(() => {
     const updates = {};
@@ -182,7 +181,10 @@ function FormPageContent() {
         if (!sourceTable || !sourceColumn || !sourceDisplayColumn) return;
         fetch(`http://localhost:9090/api/forms/lookup?table=${sourceTable}&valueColumn=${sourceColumn}&labelColumn=${sourceDisplayColumn}`)
           .then((r) => r.json())
-          .then((res) => setLookupData((prev) => ({ ...prev, [field.fieldKey]: res.data || [] })))
+          .then((res) => {
+            console.log(res)
+            setLookupData((prev) => ({ ...prev, [field.fieldKey]: res.data || [] }))
+          })
           .catch(console.error);
       }
     });
@@ -193,16 +195,17 @@ function FormPageContent() {
     async function fetchFields() {
       try {
         const res = await api.getForm(formId);
+        console.log(res)
         setFormDetails(res.data);
 
         if (!isPreview && res.data.status === "ARCHIVED") {
           setMessage("archived"); setLoading(false); return;
         }
 
-        if (!isPreview && res.data.status !== "PUBLISHED") { 
+        if (!isPreview && res.data.status !== "PUBLISHED") {
           setMessage("not_published"); setLoading(false); return;
         }
-        
+
         const fieldsData = res.data.fields?.filter(f => !f.isDeleted) || [];
         setFields(fieldsData);
 
@@ -253,16 +256,21 @@ function FormPageContent() {
     setFieldErrors({});
 
     // Filter out hidden fields
+
+    const EXCLUDED_FIELD_TYPES = new Set(["SECTION", "LABEL", "PAGE_BREAK", "GROUP"]);
     const visibleValues = {};
     Object.keys(formValues).forEach((key) => {
       const state = fieldStates[key];
-      if (state?.visible !== false) visibleValues[key] = formValues[key];
+      const fieldDef = fields.find(f => f.fieldKey === key);
+      if (state?.visible !== false && !EXCLUDED_FIELD_TYPES.has(fieldDef?.fieldType)) {
+        visibleValues[key] = formValues[key];
+      }
     });
 
     // ── Evaluate FormRuleDTO actions on client side (current page only) ───
     let customErrors = {};
     const fieldsToValidate = formPages[currentPage] || [];
-    
+
     fieldsToValidate.forEach((field) => {
       if (!field.conditions) return;
       let cond;
@@ -572,11 +580,10 @@ function FormPageContent() {
                   </div>
 
                   <button type="submit" disabled={submitting || message === "success" || (isPreview && currentPage === formPages.length - 1)}
-                    className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-medium shadow-sm transition-all ${
-                      (isPreview && currentPage === formPages.length - 1) 
-                        ? "bg-slate-200 text-slate-500 cursor-not-allowed" 
-                        : "bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white"
-                    }`}>
+                    className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-medium shadow-sm transition-all ${(isPreview && currentPage === formPages.length - 1)
+                      ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                      : "bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white"
+                      }`}>
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                     {currentPage < formPages.length - 1 ? "Next Step" : (isPreview ? "Submit Disabled" : submitting ? "Submitting..." : "Submit Form")}
                   </button>
@@ -608,7 +615,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
     isReadOnly ? "bg-amber-50/60 border-amber-200 cursor-default text-slate-700" : "",
     error ? "border-red-400 focus:ring-red-500/20 focus:border-red-500"
       : isReadOnly ? "focus:ring-amber-300/20"
-      : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500",
+        : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500",
   ].join(" ");
 
   const FieldLabel = () => (
@@ -667,7 +674,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
             </h3>
             {uiConfig.description && <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">{uiConfig.description}</p>}
           </div>
-          
+
           <div className="space-y-8">
             {children.map(child => {
               const childState = fieldStates[child.fieldKey] || { visible: true, disabled: false };
@@ -864,7 +871,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
               {steps.map((val) => (
                 <button key={val} type="button" onClick={() => !isDisabled && handleChange(field.fieldKey, val)}
                   className={`w-10 h-10 rounded-full border-2 text-sm font-semibold transition-all focus:outline-none ${value === val ? "bg-indigo-600 border-indigo-600 text-white shadow-md"
-                      : "bg-white border-slate-300 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"}`}>
+                    : "bg-white border-slate-300 text-slate-600 hover:border-indigo-400 hover:bg-indigo-50"}`}>
                   {val}
                 </button>
               ))}

@@ -57,7 +57,7 @@ public class FormSubmissionService {
             if (Boolean.TRUE.equals(f.getIsDeleted())) {
                 continue;
             }
-            if (List.of("SECTION", "LABEL", "PAGE_BREAK").contains(f.getFieldType())) {
+            if (List.of("SECTION", "LABEL", "PAGE_BREAK", "GROUP").contains(f.getFieldType())) {
                 continue;
             }
             fieldTypes.put(f.getFieldKey(), f.getFieldType());
@@ -70,10 +70,10 @@ public class FormSubmissionService {
         // ── Required field validation ─────────────────────────────────────────
         for (FormField field : form.getFields()) {
             if (Boolean.TRUE.equals(field.getIsDeleted())) continue;
-            String key       = field.getFieldKey();
+            String key = field.getFieldKey();
             String fieldType = field.getFieldType();
-            Object val       = values.get(key);
-            String label     = field.getFieldLabel();
+            Object val = values.get(key);
+            String label = field.getFieldLabel();
 
             if (field.getRequired() == null || !field.getRequired()) continue;
 
@@ -83,7 +83,7 @@ public class FormSubmissionService {
                     boolean isActive = true;
                     if (conds != null) {
                         boolean rulePasses = ruleEngineService.evaluateRule(conds, values);
-                        if ("hide".equalsIgnoreCase(conds.getAction()) && rulePasses)   isActive = false;
+                        if ("hide".equalsIgnoreCase(conds.getAction()) && rulePasses) isActive = false;
                         else if ("hide".equalsIgnoreCase(conds.getAction()) && !rulePasses) isActive = true;
                         else if ("show".equalsIgnoreCase(conds.getAction()) && !rulePasses) isActive = false;
                     }
@@ -99,8 +99,11 @@ public class FormSubmissionService {
             else if (val instanceof List<?> l && l.isEmpty()) isEmpty = true;
             else if (val instanceof Map<?, ?> m && m.isEmpty()) isEmpty = true;
             else if ("STAR_RATING".equalsIgnoreCase(fieldType)) {
-                try { if (Integer.parseInt(val.toString()) <= 0) isEmpty = true; }
-                catch (NumberFormatException e) { isEmpty = true; }
+                try {
+                    if (Integer.parseInt(val.toString()) <= 0) isEmpty = true;
+                } catch (NumberFormatException e) {
+                    isEmpty = true;
+                }
             } else if ("LINEAR_SCALE".equalsIgnoreCase(fieldType)) {
                 if (val.toString().trim().isEmpty()) isEmpty = true;
             } else if ("LOOKUP_DROPDOWN".equalsIgnoreCase(fieldType)) {
@@ -113,10 +116,10 @@ public class FormSubmissionService {
         // ── Field-level validation ────────────────────────────────────────────
         for (FormField field : form.getFields()) {
             if (Boolean.TRUE.equals(field.getIsDeleted())) continue;
-            String key       = field.getFieldKey();
+            String key = field.getFieldKey();
             String fieldType = field.getFieldType();
-            Object val       = values.get(key);
-            String label     = field.getFieldLabel();
+            Object val = values.get(key);
+            String label = field.getFieldLabel();
 
             if (errors.containsKey(key)) continue;
             if (val == null) continue;
@@ -128,7 +131,7 @@ public class FormSubmissionService {
                     FormRuleDTO conds = objectMapper.readValue(field.getConditions(), FormRuleDTO.class);
                     if (conds != null) {
                         boolean rulePasses = ruleEngineService.evaluateRule(conds, values);
-                        if ("hide".equalsIgnoreCase(conds.getAction()) && rulePasses)  skipValidation = true;
+                        if ("hide".equalsIgnoreCase(conds.getAction()) && rulePasses) skipValidation = true;
                         if ("show".equalsIgnoreCase(conds.getAction()) && !rulePasses) skipValidation = true;
                     }
                 } catch (Exception e) { /* ignore */ }
@@ -184,12 +187,18 @@ public class FormSubmissionService {
                     }
                 }
                 case "DATE" -> {
-                    try { LocalDate.parse(val.toString().trim()); }
-                    catch (Exception e) { errors.put(key, "'" + label + "' must be a valid date (YYYY-MM-DD)."); }
+                    try {
+                        LocalDate.parse(val.toString().trim());
+                    } catch (Exception e) {
+                        errors.put(key, "'" + label + "' must be a valid date (YYYY-MM-DD).");
+                    }
                 }
                 case "TIME" -> {
-                    try { LocalTime.parse(val.toString().trim()); }
-                    catch (Exception e) { errors.put(key, "'" + label + "' must be a valid time (HH:MM)."); }
+                    try {
+                        LocalTime.parse(val.toString().trim());
+                    } catch (Exception e) {
+                        errors.put(key, "'" + label + "' must be a valid time (HH:MM).");
+                    }
                 }
                 case "FILE_UPLOAD" -> {
                     if (field.getAcceptedFileTypes() != null && !field.getAcceptedFileTypes().isEmpty()) {
@@ -215,15 +224,16 @@ public class FormSubmissionService {
                         }
                     }
                 }
-                default -> { }
+                default -> {
+                }
             }
         }
 
         if (!errors.isEmpty()) throw new ValidationException(errors);
 
         // ── Build and execute INSERT ───────────────────────────────────────────
-        List<String> columnsList     = new ArrayList<>();
-        List<Object> argumentsList   = new ArrayList<>();
+        List<String> columnsList = new ArrayList<>();
+        List<Object> argumentsList = new ArrayList<>();
         List<String> placeholdersList = new ArrayList<>();
 
         for (Map.Entry<String, Object> entry : values.entrySet()) {
@@ -235,16 +245,67 @@ public class FormSubmissionService {
             String expectedType = fieldTypes.get(key);
 
             switch (expectedType.toUpperCase()) {
-                case "DATE"   -> { if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalDate.parse(s.trim()); placeholdersList.add("?"); }
-                case "TIME"   -> { if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalTime.parse(s.trim()); placeholdersList.add("?"); }
-                case "INTEGER" -> { if (val instanceof String s) val = s.trim().isEmpty() ? null : Integer.parseInt(s.trim()); else if (val instanceof Number n) val = n.intValue(); placeholdersList.add("?"); }
-                case "STAR_RATING", "LINEAR_SCALE" -> { if (val instanceof String s) val = s.trim().isEmpty() ? null : Integer.parseInt(s.trim()); else if (val instanceof Number n) val = n.intValue(); placeholdersList.add("?"); }
-                case "BOOLEAN" -> { if (val instanceof String s) val = Boolean.parseBoolean(s.trim()); placeholdersList.add("?"); }
-                case "CHECKBOX_GROUP" -> { if (val instanceof List) { try { val = objectMapper.writeValueAsString(val); } catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize checkbox: " + key); } } placeholdersList.add("?"); }
-                case "MC_GRID"       -> { if (val instanceof Map)  { try { val = objectMapper.writeValueAsString(val); } catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize MC grid: " + key); } } placeholdersList.add("?::jsonb"); }
-                case "TICK_BOX_GRID" -> { if (val instanceof Map)  { try { val = objectMapper.writeValueAsString(val); } catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize tick box: " + key); } } placeholdersList.add("?::jsonb"); }
-                case "LOOKUP_DROPDOWN" -> { if (val instanceof Map<?, ?> map) val = map.get("value"); if (val instanceof Number n) val = n.longValue(); placeholdersList.add("?"); }
-                default -> { if (val instanceof String s && s.trim().isEmpty()) val = null; placeholdersList.add("?"); }
+                case "DATE" -> {
+                    if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalDate.parse(s.trim());
+                    placeholdersList.add("?");
+                }
+                case "TIME" -> {
+                    if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalTime.parse(s.trim());
+                    placeholdersList.add("?");
+                }
+                case "INTEGER" -> {
+                    if (val instanceof String s) val = s.trim().isEmpty() ? null : Integer.parseInt(s.trim());
+                    else if (val instanceof Number n) val = n.intValue();
+                    placeholdersList.add("?");
+                }
+                case "STAR_RATING", "LINEAR_SCALE" -> {
+                    if (val instanceof String s) val = s.trim().isEmpty() ? null : Integer.parseInt(s.trim());
+                    else if (val instanceof Number n) val = n.intValue();
+                    placeholdersList.add("?");
+                }
+                case "BOOLEAN" -> {
+                    if (val instanceof String s) val = Boolean.parseBoolean(s.trim());
+                    placeholdersList.add("?");
+                }
+                case "CHECKBOX_GROUP" -> {
+                    if (val instanceof List) {
+                        try {
+                            val = objectMapper.writeValueAsString(val);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException("Failed to serialize checkbox: " + key);
+                        }
+                    }
+                    placeholdersList.add("?");
+                }
+                case "MC_GRID" -> {
+                    if (val instanceof Map) {
+                        try {
+                            val = objectMapper.writeValueAsString(val);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException("Failed to serialize MC grid: " + key);
+                        }
+                    }
+                    placeholdersList.add("?::jsonb");
+                }
+                case "TICK_BOX_GRID" -> {
+                    if (val instanceof Map) {
+                        try {
+                            val = objectMapper.writeValueAsString(val);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException("Failed to serialize tick box: " + key);
+                        }
+                    }
+                    placeholdersList.add("?::jsonb");
+                }
+                case "LOOKUP_DROPDOWN" -> {
+                    if (val instanceof Map<?, ?> map) val = map.get("value");
+                    if (val instanceof Number n) val = n.longValue();
+                    placeholdersList.add("?");
+                }
+                default -> {
+                    if (val instanceof String s && s.trim().isEmpty()) val = null;
+                    placeholdersList.add("?");
+                }
             }
             argumentsList.add(val);
 
@@ -274,12 +335,16 @@ public class FormSubmissionService {
     // SHARED HELPERS
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** Build FieldDto list from published version fields */
+    /**
+     * Build FieldDto list from published version fields
+     */
     private List<FieldDto> buildColumnDtos(Form form) {
         return form.getFields().stream()
                 .filter(f -> !"SECTION".equalsIgnoreCase(f.getFieldType())
                         && !"LABEL".equalsIgnoreCase(f.getFieldType())
-                        && !"PAGE_BREAK".equalsIgnoreCase(f.getFieldType()))
+                        && !"PAGE_BREAK".equalsIgnoreCase(f.getFieldType())
+                        && !"GROUP".equalsIgnoreCase(f.getFieldType())
+                )
                 .map(f -> {
                     FieldDto dto = new FieldDto();
                     dto.setFieldKey(f.getFieldKey());
@@ -291,31 +356,33 @@ public class FormSubmissionService {
                     dto.setOptions(f.getOptions());
 
                     Map<String, Object> uiConfig = new HashMap<>();
-                    if (f.getPlaceholder()         != null) uiConfig.put("placeholder",         f.getPlaceholder());
-                    if (f.getHelpText()            != null) uiConfig.put("helpText",            f.getHelpText());
-                    if (f.getDefaultValue()        != null) uiConfig.put("defaultValue",        f.getDefaultValue());
-                    if (f.getReadOnly()            != null) uiConfig.put("readOnly",            f.getReadOnly());
-                    if (f.getMaxStars()            != null) uiConfig.put("maxStars",            f.getMaxStars());
-                    if (f.getScaleMin()            != null) uiConfig.put("scaleMin",            f.getScaleMin());
-                    if (f.getScaleMax()            != null) uiConfig.put("scaleMax",            f.getScaleMax());
-                    if (f.getLowLabel()            != null) uiConfig.put("lowLabel",            f.getLowLabel());
-                    if (f.getHighLabel()           != null) uiConfig.put("highLabel",           f.getHighLabel());
-                    if (f.getMaxFileSizeMb()       != null) uiConfig.put("maxFileSizeMb",       f.getMaxFileSizeMb());
-                    if (f.getSourceTable()         != null) uiConfig.put("sourceTable",         f.getSourceTable());
-                    if (f.getSourceColumn()        != null) uiConfig.put("sourceColumn",        f.getSourceColumn());
-                    if (f.getSourceDisplayColumn() != null) uiConfig.put("sourceDisplayColumn", f.getSourceDisplayColumn());
-                    if (f.getAcceptedFileTypes()   != null && !f.getAcceptedFileTypes().isEmpty())
+                    if (f.getPlaceholder() != null) uiConfig.put("placeholder", f.getPlaceholder());
+                    if (f.getHelpText() != null) uiConfig.put("helpText", f.getHelpText());
+                    if (f.getDefaultValue() != null) uiConfig.put("defaultValue", f.getDefaultValue());
+                    if (f.getReadOnly() != null) uiConfig.put("readOnly", f.getReadOnly());
+                    if (f.getMaxStars() != null) uiConfig.put("maxStars", f.getMaxStars());
+                    if (f.getScaleMin() != null) uiConfig.put("scaleMin", f.getScaleMin());
+                    if (f.getScaleMax() != null) uiConfig.put("scaleMax", f.getScaleMax());
+                    if (f.getLowLabel() != null) uiConfig.put("lowLabel", f.getLowLabel());
+                    if (f.getHighLabel() != null) uiConfig.put("highLabel", f.getHighLabel());
+                    if (f.getMaxFileSizeMb() != null) uiConfig.put("maxFileSizeMb", f.getMaxFileSizeMb());
+                    if (f.getSourceTable() != null) uiConfig.put("sourceTable", f.getSourceTable());
+                    if (f.getSourceColumn() != null) uiConfig.put("sourceColumn", f.getSourceColumn());
+                    if (f.getSourceDisplayColumn() != null)
+                        uiConfig.put("sourceDisplayColumn", f.getSourceDisplayColumn());
+                    if (f.getAcceptedFileTypes() != null && !f.getAcceptedFileTypes().isEmpty())
                         uiConfig.put("acceptedFileTypes", f.getAcceptedFileTypes());
                     dto.setUiConfig(uiConfig);
 
                     Map<String, Object> validation = new HashMap<>();
-                    if (f.getMinLength()   != null) validation.put("minLength", f.getMinLength());
-                    if (f.getMaxLength()   != null) validation.put("maxLength", f.getMaxLength());
-                    if (f.getMinValue()    != null) validation.put("min",       f.getMinValue());
-                    if (f.getMaxValue()    != null) validation.put("max",       f.getMaxValue());
-                    if (f.getPattern()     != null) validation.put("pattern",   f.getPattern());
-                    if (f.getGridRows()    != null && !f.getGridRows().isEmpty())    validation.put("rows",    f.getGridRows());
-                    if (f.getGridColumns() != null && !f.getGridColumns().isEmpty()) validation.put("columns", f.getGridColumns());
+                    if (f.getMinLength() != null) validation.put("minLength", f.getMinLength());
+                    if (f.getMaxLength() != null) validation.put("maxLength", f.getMaxLength());
+                    if (f.getMinValue() != null) validation.put("min", f.getMinValue());
+                    if (f.getMaxValue() != null) validation.put("max", f.getMaxValue());
+                    if (f.getPattern() != null) validation.put("pattern", f.getPattern());
+                    if (f.getGridRows() != null && !f.getGridRows().isEmpty()) validation.put("rows", f.getGridRows());
+                    if (f.getGridColumns() != null && !f.getGridColumns().isEmpty())
+                        validation.put("columns", f.getGridColumns());
                     dto.setValidation(validation);
 
                     return dto;
@@ -323,19 +390,24 @@ public class FormSubmissionService {
                 .collect(Collectors.toList());
     }
 
-    /** Build SELECT + JOIN SQL for lookup fields */
+    /**
+     * Build SELECT + JOIN SQL for lookup fields
+     */
     private String buildSelectSql(Form form, String tableName) {
         StringBuilder select = new StringBuilder("SELECT t.id");
-        StringBuilder joins  = new StringBuilder();
+        StringBuilder joins = new StringBuilder();
 
         for (FormField f : form.getFields()) {
-            if ("SECTION".equalsIgnoreCase(f.getFieldType()) 
-                || "LABEL".equalsIgnoreCase(f.getFieldType()) 
-                || "PAGE_BREAK".equalsIgnoreCase(f.getFieldType())) continue;
+            if ("SECTION".equalsIgnoreCase(f.getFieldType())
+                    || "LABEL".equalsIgnoreCase(f.getFieldType())
+                    || "PAGE_BREAK".equalsIgnoreCase(f.getFieldType())
+                    || "GROUP".equalsIgnoreCase(f.getFieldType())
+
+            ) continue;
 
             if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
                     && f.getSourceTable() != null && f.getSourceColumn() != null) {
-                String alias      = "ref_" + f.getFieldKey();
+                String alias = "ref_" + f.getFieldKey();
                 String displayCol = f.getSourceDisplayColumn() != null
                         ? f.getSourceDisplayColumn() : f.getSourceColumn();
                 select.append(", ").append(alias).append(".").append(displayCol)
@@ -353,7 +425,9 @@ public class FormSubmissionService {
         return select.toString() + " FROM " + tableName + " t" + joins.toString();
     }
 
-    /** Build JOIN-only SQL (used for COUNT query) */
+    /**
+     * Build JOIN-only SQL (used for COUNT query)
+     */
     private String buildJoinsOnly(Form form) {
         StringBuilder joins = new StringBuilder();
         for (FormField f : form.getFields()) {
@@ -368,7 +442,9 @@ public class FormSubmissionService {
         return joins.toString();
     }
 
-    /** Build WHERE clause — always filters deleted rows, optionally applies search */
+    /**
+     * Build WHERE clause — always filters deleted rows, optionally applies search
+     */
     private String buildWhere(Form form, String search) {
         if (search == null || search.trim().isEmpty()) {
             return " WHERE t.is_delete = false";
@@ -380,13 +456,14 @@ public class FormSubmissionService {
                 .filter(f -> !"SECTION".equalsIgnoreCase(f.getFieldType())
                         && !"LABEL".equalsIgnoreCase(f.getFieldType())
                         && !"PAGE_BREAK".equalsIgnoreCase(f.getFieldType())
+                        && !"GROUP".equalsIgnoreCase(f.getFieldType())
                         && !"MC_GRID".equalsIgnoreCase(f.getFieldType())
                         && !"TICK_BOX_GRID".equalsIgnoreCase(f.getFieldType())
                         && !"BOOLEAN".equalsIgnoreCase(f.getFieldType())
                         && !"FILE_UPLOAD".equalsIgnoreCase(f.getFieldType()))
                 .map(f -> {
                     if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())) {
-                        String alias      = "ref_" + f.getFieldKey();
+                        String alias = "ref_" + f.getFieldKey();
                         String displayCol = f.getSourceDisplayColumn() != null
                                 ? f.getSourceDisplayColumn() : f.getSourceColumn();
                         return "CAST(" + alias + "." + displayCol + " AS TEXT) ILIKE '%" + safe + "%'";
@@ -410,7 +487,7 @@ public class FormSubmissionService {
 
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new RuntimeException("Form not found"));
-        
+
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
             throw new RuntimeException("Form is not in a state that allows viewing submissions");
         }
@@ -424,8 +501,8 @@ public class FormSubmissionService {
         validKeys.add("id");
 
         // ── Extract pagination values from Pageable ───────────────────────────
-        int page   = pageable.getPageNumber();   // 0-based
-        int size   = pageable.getPageSize();
+        int page = pageable.getPageNumber();   // 0-based
+        int size = pageable.getPageSize();
         long offset = pageable.getOffset();      // page * size
 
         // ── Extract sort from Pageable ────────────────────────────────────────
@@ -443,8 +520,8 @@ public class FormSubmissionService {
 
         // ── Build SQL parts ───────────────────────────────────────────────────
         String selectSql = buildSelectSql(form, tableName);
-        String whereSql  = buildWhere(form, search);
-        String orderSql  = " ORDER BY t." + orderCol + " " + orderDir;
+        String whereSql = buildWhere(form, search);
+        String orderSql = " ORDER BY t." + orderCol + " " + orderDir;
 
         // ── COUNT query (for totalElements) ───────────────────────────────────
         String countSql = "SELECT COUNT(*) FROM " + tableName + " t"
@@ -485,7 +562,7 @@ public class FormSubmissionService {
 
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new RuntimeException("Form not found"));
-        
+
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
             throw new RuntimeException("Form is not in a state that allows exporting submissions");
         }
@@ -510,7 +587,7 @@ public class FormSubmissionService {
     public void softDeleteSubmission(Long formId, Long submissionId) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new RuntimeException("Form not found"));
-        
+
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
             throw new RuntimeException("Form is not in a state that allows deleting submissions");
         }
@@ -529,7 +606,7 @@ public class FormSubmissionService {
 
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new RuntimeException("Form not found"));
-        
+
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
             throw new RuntimeException("Form is not in a state that allows bulk deleting submissions");
         }
