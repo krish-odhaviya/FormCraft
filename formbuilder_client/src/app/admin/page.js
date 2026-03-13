@@ -55,10 +55,10 @@ function AdminDashboardContent() {
     fetchData();
   }, [user, router]);
 
-  const handleProcessRequest = async (requestId, status) => {
-    setProcessingId(requestId);
+  const handleProcessRequest = async (requestId, status, role) => {
+    setProcessingId({ id: requestId, role }); // Track which specific action is loading
     try {
-      await api.processRequest(requestId, status);
+      await api.processRequest(requestId, status, role);
       setRequests((prev) => prev.filter((r) => r.id !== requestId));
     } catch (err) {
       console.error("Failed to process request:", err);
@@ -191,20 +191,41 @@ function AdminDashboardContent() {
                           )}
                         </div>
                         <div className="flex flex-row sm:flex-col gap-2 justify-center shrink-0">
-                          <button
-                            onClick={() => handleProcessRequest(req.id, "APPROVED")}
-                            disabled={processingId === req.id}
-                            className="bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-3 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-100"
-                          >
-                            {processingId === req.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                            Approve
-                          </button>
+                          {req.type === 'CREATE_FORM' ? (
+                            <button
+                               onClick={() => handleProcessRequest(req.id, "APPROVED")}
+                               disabled={processingId?.id === req.id}
+                               className="bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-3 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-100"
+                            >
+                               {processingId?.id === req.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                               Approve
+                             </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleProcessRequest(req.id, "APPROVED", "VIEWER")}
+                                disabled={processingId?.id === req.id}
+                                className="bg-emerald-600 text-white hover:bg-emerald-700 px-6 py-3 rounded-2xl text-[10px] font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-100"
+                              >
+                                {processingId?.id === req.id && processingId?.role === 'VIEWER' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                                Approve as Viewer
+                              </button>
+                              <button
+                                onClick={() => handleProcessRequest(req.id, "APPROVED", "BUILDER")}
+                                disabled={processingId?.id === req.id}
+                                className="bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-3 rounded-2xl text-[10px] font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-100"
+                              >
+                                {processingId?.id === req.id && processingId?.role === 'BUILDER' ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
+                                Approve as Builder
+                              </button>
+                            </>
+                          )}
                           <button
                             onClick={() => handleProcessRequest(req.id, "REJECTED")}
-                            disabled={processingId === req.id}
-                            className="bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 px-6 py-3 rounded-2xl text-xs font-bold transition-all flex items-center gap-2"
+                            disabled={processingId?.id === req.id}
+                            className="bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 px-6 py-3 rounded-2xl text-[10px] font-bold transition-all flex items-center gap-2"
                           >
-                            <X size={16} />
+                            <X size={14} />
                             Reject
                           </button>
                         </div>

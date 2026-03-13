@@ -10,7 +10,9 @@ import com.sttl.formbuilder.Enums.FormStatusEnum;
 import com.sttl.formbuilder.dto.FieldDto;
 import com.sttl.formbuilder.dto.VersionDto;
 import com.sttl.formbuilder.entity.User;
+import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.sttl.formbuilder.dto.FormDetailsResponse;
@@ -84,7 +86,11 @@ public class FormService {
 
         if (!permissionService.canViewForm(user, form)) {
             System.out.println("  Access Denied by permissionService");
-            throw new RuntimeException("Access denied to this form");
+            if (user == null) {
+                throw new BusinessException("Authentication required to view this form", HttpStatus.UNAUTHORIZED);
+            } else {
+                throw new BusinessException("You do not have permission to view this form", HttpStatus.FORBIDDEN);
+            }
         }
 
         FormDetailsResponse response = new FormDetailsResponse();
@@ -94,8 +100,12 @@ public class FormService {
         response.setCreatedAt(form.getCreatedAt());
         response.setUpdatedAt(form.getUpdatedAt());
         response.setStatus(String.valueOf(form.getStatus()));
+        response.setVisibility(form.getVisibility() != null ? form.getVisibility().name() : "PUBLIC");
         response.setTableName(form.getTableName());
         response.setPublishedAt(form.getPublishedAt());
+        response.setCanEdit(permissionService.canConfigureForm(user, form));
+        response.setCanViewSubmissions(permissionService.canViewSubmissions(user, form));
+        response.setOwnerName(form.getOwner() != null ? form.getOwner().getUsername() : "Unknown");
 
         // 2. Fetch Fields for this form
         List<FormField> fields = formFieldRepository

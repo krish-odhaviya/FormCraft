@@ -17,8 +17,6 @@ public class ApiResponseUtil {
             String message,
             HttpServletRequest request) {
 
-        System.out.println("From api : " +data);
-
         ApiResponse<T> response = ApiResponse.<T>builder()
                 .success(true)
                 .message(message)

@@ -24,8 +24,8 @@ export const api = {
     API.post("/requests", { formId, type, reason }),
   getMyRequests: () => API.get("/requests/my"),
   getPendingRequests: () => API.get("/requests/pending"),
-  processRequest: (requestId, status) =>
-    API.post(`/requests/${requestId}/process?status=${status}`),
+  processRequest: (requestId, status, role) =>
+    API.post(`/requests/${requestId}/process?status=${status}${role ? `&role=${role}` : ""}`),
 
 
   // ── Forms ─────────────────────────────────────────────────────────────────

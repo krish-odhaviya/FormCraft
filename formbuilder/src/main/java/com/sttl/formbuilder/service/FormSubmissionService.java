@@ -8,11 +8,13 @@ import com.sttl.formbuilder.dto.PagedSubmissionsResponse;
 import com.sttl.formbuilder.dto.SubmissionsResponse;
 import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.entity.Form;
+import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.exception.ValidationException;
 import com.sttl.formbuilder.repository.FormRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,10 +42,10 @@ public class FormSubmissionService {
     public void submit(Long formId, Map<String, Object> values) {
 
         Form form = formRepository.findByIdWithFields(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
         if (values == null || values.isEmpty()) {
-            throw new RuntimeException("Submission cannot be empty");
+            throw new BusinessException("Submission cannot be empty", HttpStatus.BAD_REQUEST);
         }
 
         ruleEngineService.validateSubmission(form.getFields(), values);
@@ -272,7 +274,7 @@ public class FormSubmissionService {
                         try {
                             val = objectMapper.writeValueAsString(val);
                         } catch (JsonProcessingException e) {
-                            throw new RuntimeException("Failed to serialize checkbox: " + key);
+                            throw new BusinessException("Failed to serialize checkbox: " + key, HttpStatus.INTERNAL_SERVER_ERROR);
                         }
                     }
                     placeholdersList.add("?");
@@ -321,7 +323,7 @@ public class FormSubmissionService {
 
         if (!errors.isEmpty()) throw new ValidationException(errors);
 
-        if (columnsList.isEmpty()) throw new RuntimeException("No valid columns provided.");
+        if (columnsList.isEmpty()) throw new BusinessException("No valid columns provided.", HttpStatus.BAD_REQUEST);
 
         String sql = "INSERT INTO " + tableName
                 + " (" + String.join(", ", columnsList) + ")"
@@ -486,10 +488,10 @@ public class FormSubmissionService {
     public PagedSubmissionsResponse getSubmissionsPaged(Long formId, String search, Pageable pageable) {
 
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
-            throw new RuntimeException("Form is not in a state that allows viewing submissions");
+            throw new BusinessException("Form is not in a state that allows viewing submissions", HttpStatus.BAD_REQUEST);
         }
 
         String tableName = form.getTableName();
@@ -561,10 +563,10 @@ public class FormSubmissionService {
     public SubmissionsResponse exportSubmissions(Long formId, String search) {
 
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
-            throw new RuntimeException("Form is not in a state that allows exporting submissions");
+            throw new BusinessException("Form is not in a state that allows exporting submissions", HttpStatus.BAD_REQUEST);
         }
 
         String tableName = form.getTableName();
@@ -586,10 +588,10 @@ public class FormSubmissionService {
     @Transactional
     public void softDeleteSubmission(Long formId, Long submissionId) {
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
-            throw new RuntimeException("Form is not in a state that allows deleting submissions");
+            throw new BusinessException("Form is not in a state that allows deleting submissions", HttpStatus.BAD_REQUEST);
         }
         jdbcTemplate.update(
                 "UPDATE " + form.getTableName() + " SET is_delete = true WHERE id = ?",
@@ -605,10 +607,10 @@ public class FormSubmissionService {
         if (submissionIds == null || submissionIds.isEmpty()) return;
 
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
-            throw new RuntimeException("Form is not in a state that allows bulk deleting submissions");
+            throw new BusinessException("Form is not in a state that allows bulk deleting submissions", HttpStatus.BAD_REQUEST);
         }
 
         String placeholders = String.join(",", Collections.nCopies(submissionIds.size(), "?"));

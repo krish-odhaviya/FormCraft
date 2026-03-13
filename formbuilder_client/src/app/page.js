@@ -87,6 +87,13 @@ function DashboardContent() {
               <button className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors">
                 Templates
               </button>
+              <Link
+                href="/requests"
+                className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <Bell size={16} />
+                Requests
+              </Link>
               {user?.roles?.includes("ROLE_ADMIN") && (
                 <Link
                   href="/admin"
@@ -233,9 +240,13 @@ function DashboardContent() {
                     </div>
                   </div>
 
-                  <h3 className="font-bold text-slate-900 text-xl mb-3 truncate group-hover:text-indigo-600 transition-colors">
+                  <h3 className="font-bold text-slate-900 text-xl mb-1 truncate group-hover:text-indigo-600 transition-colors">
                     {form.name}
                   </h3>
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 mb-3 uppercase tracking-wider">
+                    <Users size={12} className="shrink-0" />
+                    <span>Created by {form.ownerUsername === user.username ? "You" : (form.ownerUsername || "Unknown")}</span>
+                  </div>
                   <p className="text-slate-500 text-sm leading-relaxed line-clamp-2 mb-6">
                     {form.description || "No description provided for this form."}
                   </p>

@@ -109,6 +109,13 @@ export default function BuilderPage() {
     const fetchForm = async () => {
       try {
         const formRes = await api.getForm(formId);
+        
+        if (formRes.data.canEdit === false) {
+           setErrorState({ status: 403, message: "You do not have permission to edit this form." });
+           setLoading(false);
+           return;
+        }
+
         setFormFromServer(formRes.data);
         setLocalFields(formRes.data.fields || []);
         if (formRes.data.status === "ARCHIVED") {
@@ -126,7 +133,6 @@ export default function BuilderPage() {
         }
 
       } catch (err) {
-        console.error("Failed to fetch form:", err);
         const status = err.response?.status;
         let message = "An unexpected error occurred while loading the form.";
         
@@ -136,7 +142,8 @@ export default function BuilderPage() {
           message = "You do not have permission to edit this form.";
         } else if (status === 404) {
           message = "The form you are looking for could not be found.";
-        } else if (status === 500) {
+        } else {
+          console.error("Failed to fetch form:", err);
           message = "Server Error. Something went wrong on our end. Please try again later.";
         }
 
@@ -146,7 +153,7 @@ export default function BuilderPage() {
       }
     };
     if (formId) {
-      fetchForm();
+      fetchForm().catch(() => {});
     }
   }, [formId, setFormFromServer]);
 
@@ -788,8 +795,11 @@ export default function BuilderPage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-bold text-slate-900 leading-tight line-clamp-1">{form.name}</h1>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-tighter">
                   {form.status || "DRAFT"}
+                </span>
+                <span className="text-[11px] font-medium text-slate-400">
+                  by {form.ownerName === user?.username ? "you" : (form.ownerName || "unknown")}
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium">Builder Mode</p>

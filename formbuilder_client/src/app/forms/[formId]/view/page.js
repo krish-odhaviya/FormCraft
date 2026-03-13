@@ -9,6 +9,7 @@ import {
   KeyRound, ShieldQuestion, HelpCircle
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useForms } from "@/context/FormsContext";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Condition evaluator
@@ -81,6 +82,8 @@ function FormPageContent() {
   const [accessRequested, setAccessRequested] = useState(false);
   const [requestReason, setRequestReason] = useState("");
   const [requestStatus, setRequestStatus] = useState(null); // 'pending', 'success', 'error'
+  const [errorMessage, setErrorMessage] = useState("");
+  const { showToast } = useForms();
 
   const formPages = useMemo(() => {
     const pages = [];
@@ -237,19 +240,19 @@ function FormPageContent() {
         });
         setFormValues(initialValues);
       } catch (err) {
-        console.error(err);
         if (err.response?.status === 403) {
           setMessage("forbidden");
         } else if (err.response?.status === 401) {
           setMessage("unauthorized");
         } else {
+          console.error("Failed to fetch form structure:", err);
           setMessage("error");
         }
       } finally {
         setLoading(false);
       }
     }
-    if (formId) fetchFields();
+    if (formId) fetchFields().catch(() => { });
   }, [formId]);
 
   const handleChange = (key, value) => {
@@ -446,9 +449,15 @@ function FormPageContent() {
 
     try {
       const resp = await api.submitForm(formId, visibleValues);
-      
-      setMessage("success");
-      router.push(`/forms/${formId}/submissions`);
+
+      if (formDetails.canViewSubmissions) {
+        showToast("Form submitted successfully!");
+        router.push(`/forms/${formId}/submissions`);
+      } else {
+        showToast("Success! Your response has been recorded.");
+        setMessage("success");
+        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch (err) {
       console.error(err);
       if (err.response?.status === 400 && Array.isArray(err.response.data?.errors)) {
@@ -483,6 +492,11 @@ function FormPageContent() {
       setAccessRequested(true);
     } catch (err) {
       console.error(err);
+      if (err.response?.data?.message) {
+        setErrorMessage(err.response.data.message);
+      } else {
+        setErrorMessage("Failed to submit request. Please try again.");
+      }
       setRequestStatus('error');
     }
   };
@@ -606,9 +620,28 @@ function FormPageContent() {
           )}
 
           {message === "success" && (
-            <div className="mb-8 flex items-start gap-3 bg-green-50 border border-green-200 px-5 py-4 rounded-xl text-sm">
-              <CheckCircle2 size={20} className="text-green-600 shrink-0 mt-0.5" />
-              <div><strong className="block font-semibold text-green-900 mb-1">Success!</strong><span className="text-green-800">Your response has been recorded. Thank you.</span></div>
+            <div className="flex flex-col items-center justify-center py-10 text-center animate-in fade-in zoom-in duration-500">
+              <div className="w-24 h-24 bg-green-50 rounded-[40px] flex items-center justify-center mb-8 shadow-inner shadow-green-100/50">
+                <CheckCircle2 size={48} className="text-green-500" />
+              </div>
+              <h2 className="text-3xl font-black text-slate-900 mb-4 tracking-tight">Thank You!</h2>
+              <p className="text-slate-500 text-lg mb-10 max-w-sm leading-relaxed">
+                Your response has been successfully recorded. We appreciate your feedback.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
+                <button
+                  onClick={() => window.location.reload()}
+                  className="flex-1 bg-white border-2 border-slate-100 text-slate-700 px-8 py-4 rounded-2xl text-sm font-bold hover:bg-slate-50 transition-all active:scale-[0.98]"
+                >
+                  Submit Another Response
+                </button>
+                <button
+                  onClick={() => router.push("/")}
+                  className="flex-1 bg-indigo-600 text-white px-8 py-4 rounded-2xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-[0.98]"
+                >
+                  Return Home
+                </button>
+              </div>
             </div>
           )}
 
@@ -633,9 +666,9 @@ function FormPageContent() {
             </div>
           )}
 
-          {fields.length === 0 && message !== "success" ? (
+          {(fields.length === 0 && message !== "success") ? (
             <div className="text-center py-10"><p className="text-slate-500">This form is currently empty.</p></div>
-          ) : (
+          ) : message !== "success" ? (
             <form onSubmit={handleSubmit} className="space-y-8">
               {formPages.length > 1 && (
                 <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
@@ -690,7 +723,7 @@ function FormPageContent() {
                 </div>
               )}
             </form>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

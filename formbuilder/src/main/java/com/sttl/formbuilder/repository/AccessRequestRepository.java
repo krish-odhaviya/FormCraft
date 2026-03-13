@@ -13,4 +13,6 @@ public interface AccessRequestRepository extends JpaRepository<AccessRequest, Lo
     List<AccessRequest> findByStatus(String status);
     List<AccessRequest> findByUser(User user);
     List<AccessRequest> findByFormAndStatus(Form form, String status);
+    List<AccessRequest> findByFormOwnerAndStatus(User owner, String status);
+    boolean existsByUserAndFormAndStatusIn(User user, Form form, List<String> statuses);
 }

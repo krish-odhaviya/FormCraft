@@ -15,8 +15,12 @@ public class FormDetailsResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String status;
+    private String visibility;
     private String tableName;
     private LocalDateTime publishedAt;
+    private boolean canEdit;
+    private boolean canViewSubmissions;
+    private String ownerName;
     private List<FieldDto> fields;
 
 }

@@ -6,6 +6,7 @@ import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.PagedSubmissionsResponse;
 import com.sttl.formbuilder.dto.SubmissionsResponse;
 import com.sttl.formbuilder.dto.SubmitFormRequest;
+import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.exception.ValidationException;
 import com.sttl.formbuilder.service.FormSubmissionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -66,7 +67,7 @@ public class FormSubmissionController {
         try {
             User user = currentUser != null ? userRepository.findByUsername(currentUser.getUsername()).orElse(null) : null;
             Form form = formRepository.findById(request.getFormId())
-                .orElseThrow(() -> new RuntimeException("Form not found: " + request.getFormId()));
+                .orElseThrow(() -> new BusinessException("Form not found: " + request.getFormId(), HttpStatus.NOT_FOUND));
             
             System.out.println("Form visibility: " + form.getVisibility());
             
@@ -85,11 +86,13 @@ public class FormSubmissionController {
                     .map(entry -> new ApiErrorDetail(entry.getKey(), entry.getValue()))
                     .toList();
             return ApiResponseUtil.error("Form validation failed", errors, HttpStatus.BAD_REQUEST, httprequest);
+        } catch (BusinessException e) {
+            System.err.println("SUBMISSION BUSINESS ERROR: " + e.getMessage());
+            return ApiResponseUtil.error(e.getMessage(), null, e.getStatus(), httprequest);
         } catch (Exception e) {
             System.err.println("SUBMISSION CRASHED: " + e.getMessage());
             e.printStackTrace();
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("status", "error", "message", e.getMessage()));
+            return ApiResponseUtil.error("Internal Server Error: " + e.getMessage(), null, HttpStatus.INTERNAL_SERVER_ERROR, httprequest);
         }
     }
 
@@ -289,8 +292,16 @@ public class FormSubmissionController {
     public ResponseEntity<ApiResponse<String>> deleteSubmission(
             @PathVariable Long formId,
             @PathVariable Long submissionId,
+            @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request
     ) {
+        Form form = formRepository.findById(formId).orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
+        User user = currentUser != null ? userRepository.findByUsername(currentUser.getUsername()).orElse(null) : null;
+
+        if (!permissionService.canViewSubmissions(user, form)) {
+            return ApiResponseUtil.error("Access denied to delete submissions", null, HttpStatus.FORBIDDEN, request);
+        }
+
         formSubmissionService.softDeleteSubmission(formId, submissionId);
         return ApiResponseUtil.success("Row deleted successfully", "Submission deleted successfully", request);
     }
@@ -300,8 +311,16 @@ public class FormSubmissionController {
     public ResponseEntity<ApiResponse<String>> bulkDeleteSubmissions(
             @PathVariable Long formId,
             @RequestBody List<Long> submissionIds,
+            @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request
     ) {
+        Form form = formRepository.findById(formId).orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
+        User user = currentUser != null ? userRepository.findByUsername(currentUser.getUsername()).orElse(null) : null;
+
+        if (!permissionService.canViewSubmissions(user, form)) {
+            return ApiResponseUtil.error("Access denied to bulk delete submissions", null, HttpStatus.FORBIDDEN, request);
+        }
+
         formSubmissionService.softDeleteSubmissionsBulk(formId, submissionIds);
         return ApiResponseUtil.success("Rows deleted successfully", "Submissions deleted successfully", request);
     }

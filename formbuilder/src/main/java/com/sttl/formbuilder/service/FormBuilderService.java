@@ -67,13 +67,13 @@ public class FormBuilderService {
     @Transactional
     public void saveDraft(Long formId, List<AddFieldRequest> fieldRequests, String currentUsername) {
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
         User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.UNAUTHORIZED));
 
         if (!permissionService.canConfigureForm(user, form)) {
-            throw new RuntimeException("Access denied: only owners or builders can save draft");
+            throw new BusinessException("Access denied: only owners or builders can save draft", HttpStatus.FORBIDDEN);
         }
 
         // Soft delete all existing fields for a fresh update
