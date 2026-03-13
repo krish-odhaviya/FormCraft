@@ -66,5 +66,23 @@ export const api = {
   // Optional (if still needed)
   reorderFields: (formId, fieldIds) =>
     API.post(`/forms/${formId}/fields/reorder`, { fieldIds }),
+
+  // ── Dynamic Menu (sidebar) ────────────────────────────────────────────────
+  getUserMenu: () => API.get("/menu"),
+
+  // ── Module Management (admin) ─────────────────────────────────────────────
+  getModules: () => API.get("/modules"),
+  createModule: (data) => API.post("/modules", data),
+  updateModule: (id, data) => API.put(`/modules/${id}`, data),
+  deleteModule: (id) => API.delete(`/modules/${id}`),
+
+  // ── Role Management (admin) ───────────────────────────────────────────────
+  getRoles: () => API.get("/roles"),
+  createRole: (data) => API.post("/roles", data),
+  updateRole: (id, data) => API.put(`/roles/${id}`, data),
+  deleteRole: (id) => API.delete(`/roles/${id}`),
+  getRoleModules: (roleId) => API.get(`/roles/${roleId}/modules`),
+  assignModulesToRole: (roleId, moduleIds) => API.post(`/roles/${roleId}/modules`, { moduleIds }),
+  assignRoleToUser: (roleId, userId) => API.post(`/roles/${roleId}/users/${userId}`),
 };
 
