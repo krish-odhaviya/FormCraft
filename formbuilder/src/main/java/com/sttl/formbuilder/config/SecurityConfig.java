@@ -65,28 +65,24 @@ public class SecurityConfig {
                 )
                 .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
-                        // ── Fully public ──────────────────────────────────────────────────
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
-
-                        // Public — file serving
-                        .requestMatchers("/api/forms/upload").permitAll()
-                        .requestMatchers("/api/forms/files/**").permitAll()
-
-                        // Form View/Submit endpoints (Visibility checked inside Service)
-                        .requestMatchers(HttpMethod.GET, "/api/forms/*/view").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/forms/*/published").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/forms/**").permitAll() // Broaden to allow all public structure fetches
-                        .requestMatchers(HttpMethod.GET, "/api/forms/lookup").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/forms/submit").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/forms/*/evaluate").permitAll()
-                        
-                        // Debug access
-                        .requestMatchers("/api/debug/**").permitAll()
-                        
-                        // Swagger
+                        // ── Public Access (CORS, Auth, Static) ───────────────────────────
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/logout", "/api/auth/register").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/api/forms/upload", "/api/forms/files/**").permitAll()
+                        .requestMatchers("/api/debug/**").permitAll()
+
+                        // ── Public Form View/Submit Endpoints ──────────────────────────────
+                        // (Internal logic in Service/PermissionService should handle visibility)
+                        .requestMatchers(HttpMethod.GET, "/api/forms/lookup", "/api/forms/published-list").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/forms/[0-9]+").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/forms/[0-9]+/view").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/forms/[0-9]+/published").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/forms/submit").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/forms/[0-9]+/evaluate").permitAll()
+                        
+                        // Final fallback for GET forms (just in case)
+                        .requestMatchers(HttpMethod.GET, "/api/forms/**").permitAll()
 
                         // ── Admin-only system management ──────────────────────────────────
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

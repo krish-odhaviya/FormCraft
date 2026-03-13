@@ -28,35 +28,36 @@ export function FormsProvider({ children }) {
     }
   }, []);
 
-  const persistForms = useCallback((updatedForms) => {
-    setForms(updatedForms);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedForms));
-    } catch {
-      // ignore
-    }
+  const persistForms = useCallback((updateFn) => {
+    setForms((prevForms) => {
+      const updatedForms = typeof updateFn === "function" ? updateFn(prevForms) : updateFn;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedForms));
+      } catch {
+        // ignore
+      }
+      return updatedForms;
+    });
   }, []);
 
   const addForm = useCallback(
     (form) => {
-      persistForms([
+      persistForms((prevForms) => [
         { ...form, localCreatedAt: new Date().toISOString() },
-        ...forms,
+        ...prevForms,
       ]);
     },
-    [forms, persistForms]
+    [persistForms]
   );
 
   const updateForm = useCallback(
     (formId, updates) => {
-      persistForms(
-        forms.map((f) => (f.id === formId ? { ...f, ...updates } : f))
+      persistForms((prevForms) =>
+        prevForms.map((f) => (f.id === formId ? { ...f, ...updates } : f))
       );
     },
-    [forms, persistForms]
+    [persistForms]
   );
-
-
 
   const getForm = useCallback(
     (formId) => forms.find((f) => f.id === Number(formId) || f.id === formId),
@@ -65,21 +66,21 @@ export function FormsProvider({ children }) {
 
   const setFormFromServer = useCallback(
     (serverForm) => {
-      const existing = forms.find((f) => f.id === serverForm.id);
+      persistForms((prevForms) => {
+        const existing = prevForms.find((f) => f.id === serverForm.id);
 
-      const formWithMeta = {
-        ...serverForm,
-        localCreatedAt:
-          existing?.localCreatedAt || new Date().toISOString(),
-      };
+        const formWithMeta = {
+          ...serverForm,
+          localCreatedAt:
+            existing?.localCreatedAt || new Date().toISOString(),
+        };
 
-      const updatedForms = existing
-        ? forms.map((f) => (f.id === serverForm.id ? formWithMeta : f))
-        : [formWithMeta, ...forms];
-
-      persistForms(updatedForms);
+        return existing
+          ? prevForms.map((f) => (f.id === serverForm.id ? formWithMeta : f))
+          : [formWithMeta, ...prevForms];
+      });
     },
-    [forms, persistForms]
+    [persistForms]
   );
 
   const showToast = useCallback((message, type = "success") => {

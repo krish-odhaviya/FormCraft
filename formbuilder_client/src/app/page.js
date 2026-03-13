@@ -16,7 +16,8 @@ import {
   Archive,
   ShieldCheck,
   Users,
-  Bell
+  Bell,
+  Lock
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
@@ -126,10 +127,10 @@ function DashboardContent() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>
             <h2 className="text-4xl font-black text-slate-900 tracking-tight mb-2">
-              Your Workspace
+              Workspace
             </h2>
             <p className="text-slate-500 text-lg">
-              Create, manage, and analyze your forms in one place.
+              Forms you own or have been shared with you.
             </p>
           </div>
 
@@ -204,6 +205,11 @@ function DashboardContent() {
                     </div>
                     
                     <div className="flex gap-1.5 flex-wrap justify-end max-w-[60%]">
+                      {form.ownerUsername && user && form.ownerUsername !== user.username && (
+                        <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-indigo-50 text-indigo-600 rounded-md border border-indigo-100/50 flex items-center gap-1">
+                          <Users size={10} /> Shared
+                        </span>
+                      )}
                       {form.status === "PUBLISHED" && (
                         <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase bg-emerald-50 text-emerald-600 rounded-md border border-emerald-100/50">
                           Live
@@ -242,7 +248,7 @@ function DashboardContent() {
                       <Archive size={16} />
                       <span>Archived</span>
                     </div>
-                  ) : (
+                  ) : form.canEdit ? (
                     <Link
                       href={`/forms/${form.id}/builder`}
                       className="flex-[2] flex items-center justify-center gap-2 bg-[#0F172A] text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-indigo-600 transition-all shadow-md active:scale-95"
@@ -250,15 +256,22 @@ function DashboardContent() {
                       <PenLine size={16} className="text-white" />
                       <span className="text-white">Edit</span>
                     </Link>
+                  ) : (
+                    <div className="flex-[2] flex items-center justify-center gap-2 bg-slate-50 text-slate-400 py-3.5 rounded-2xl text-sm font-bold border border-slate-100">
+                      <Lock size={16} />
+                      <span>No Edit Access</span>
+                    </div>
                   )}
-
-                  <Link
-                    href={`/forms/${form.id}/submissions`}
-                    className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-100"
-                    title="Analytics"
-                  >
-                    <BarChart2 size={20} />
-                  </Link>
+ 
+                  {form.canViewSubmissions && (
+                    <Link
+                      href={`/forms/${form.id}/submissions`}
+                      className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-100"
+                      title="Analytics"
+                    >
+                      <BarChart2 size={20} />
+                    </Link>
+                  )}
                   <Link
                     href={`/forms/${form.id}/view`}
                     className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-100"

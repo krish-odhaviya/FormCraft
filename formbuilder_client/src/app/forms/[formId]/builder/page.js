@@ -17,6 +17,7 @@ import {
 
 import { api } from "@/lib/api/formService";
 import { useForms } from "@/context/FormsContext";
+import { useAuth } from "@/context/AuthContext";
 
 const FIELD_TYPES = [
   { value: "TEXT", label: "Short Answer", icon: <Type size={18} /> },
@@ -70,6 +71,7 @@ export default function BuilderPage() {
   const params = useParams();
   const formId = Array.isArray(params.formId) ? params.formId[0] : params.formId;
 
+  const { user } = useAuth();
   const { getForm, setFormFromServer } = useForms();
   const form = getForm(formId);
 
@@ -89,6 +91,7 @@ export default function BuilderPage() {
   const [newPermissionRole, setNewPermissionRole] = useState("VIEWER");
   const [isUpdatingForm, setIsUpdatingForm] = useState(false);
   const [updateStatus, setUpdateStatus] = useState(null); // { type: 'success'|'error', message: string }
+  const [errorState, setErrorState] = useState(null); // { status: number, message: string }
 
   const [dragOverGroupKey, setDragOverGroupKey] = useState(null);
 
@@ -111,24 +114,41 @@ export default function BuilderPage() {
         if (formRes.data.status === "ARCHIVED") {
           setIsArchived(true);
         }
+        
+        // Also sync visibility and permissions if form load succeeded
+        setVisibility(formRes.data.visibility || 'PUBLIC');
+        
+        try {
+           const permsRes = await api.getPermissions(formId);
+           setPermissions(permsRes.data || []);
+        } catch (pErr) {
+           console.warn("Could not fetch permissions (might be a non-owner)", pErr);
+        }
+
       } catch (err) {
         console.error("Failed to fetch form:", err);
+        const status = err.response?.status;
+        let message = "An unexpected error occurred while loading the form.";
+        
+        if (status === 401) {
+          message = "Unauthorized. Please login to access the form builder.";
+        } else if (status === 403) {
+          message = "You do not have permission to edit this form.";
+        } else if (status === 404) {
+          message = "The form you are looking for could not be found.";
+        } else if (status === 500) {
+          message = "Server Error. Something went wrong on our end. Please try again later.";
+        }
+
+        setErrorState({ status, message });
       } finally {
         setLoading(false);
       }
     };
     if (formId) {
       fetchForm();
-      // Fetch current visibility and permissions
-      api.getForm(formId).then(res => {
-        setVisibility(res.data.visibility || 'PUBLIC');
-      }).catch(console.error);
-
-      api.getPermissions(formId).then(res => {
-        setPermissions(res.data || []);
-      }).catch(console.error);
     }
-  }, [formId]);
+  }, [formId, setFormFromServer]);
 
   // ── Conditions helpers ────────────────────────────────────────────────────
   const parseConditions = (field) => {
@@ -394,11 +414,47 @@ export default function BuilderPage() {
     );
   }
 
-  if (!form) {
+  if (errorState || !form) {
+    const isForbidden = errorState?.status === 403;
+    const isUnauthorized = errorState?.status === 401;
+    const isServerError = errorState?.status === 500;
+    const isNotFound = errorState?.status === 404;
+
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
-        <h2 className="text-xl font-bold text-slate-800">Form not found</h2>
-        <Link href="/" className="text-indigo-600 hover:underline mt-2">Return to Dashboard</Link>
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 px-6 text-center">
+        <div className="w-20 h-20 bg-red-50 rounded-[32px] flex items-center justify-center mb-6">
+          {isForbidden || isUnauthorized ? (
+            <ShieldAlert size={40} className="text-red-500" />
+          ) : isServerError ? (
+            <AlertCircle size={40} className="text-red-500" />
+          ) : (
+            <Search size={40} className="text-slate-400" />
+          )}
+        </div>
+        <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">
+          {isUnauthorized ? "Login Required" : 
+           isForbidden ? "Access Denied" : 
+           isServerError ? "Server Error" : 
+           isNotFound ? "Form Not Found" : "Error Loading Form"}
+        </h2>
+        <p className="text-slate-500 max-w-sm mb-8 leading-relaxed">
+          {errorState?.message || "There was a problem loading the form builder. Please check your connection and try again."}
+        </p>
+        <div className="flex gap-4">
+          <Link href="/" className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-50 transition-all">
+            Back to Dashboard
+          </Link>
+          {isUnauthorized && (
+            <Link href={`/login?redirect=/forms/${formId}/builder`} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
+              Go to Login
+            </Link>
+          )}
+          {isForbidden && (
+            <Link href={`/forms/${formId}/view`} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
+              View Live Form
+            </Link>
+          )}
+        </div>
       </div>
     );
   }

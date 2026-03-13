@@ -46,8 +46,7 @@ public class FormService {
             return formRepository.findAll();
         }
         
-        return formRepository.findByOwner(user);
-        // TODO: Also include forms where the user has FormRole.BUILDER permission
+        return formRepository.findFormsAccessibleToUser(user);
     }
 
     /** Creates a form tagged with the current user as owner. */

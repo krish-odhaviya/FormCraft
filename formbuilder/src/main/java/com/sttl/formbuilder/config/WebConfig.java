@@ -8,6 +8,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig {
 
+    // CORS is centrally managed in SecurityConfig
+    /*
     @Bean
     public WebMvcConfigurer corsConfigurer() {
         return new WebMvcConfigurer() {
@@ -20,4 +22,5 @@ public class WebConfig {
             }
         };
     }
+    */
 }

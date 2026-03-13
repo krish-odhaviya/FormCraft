@@ -8,7 +8,8 @@ import {
   ArrowLeft, Loader2, Database, FileSpreadsheet,
   Trash2, Star, SlidersHorizontal, LayoutGrid,
   Grid3x3, Upload, CheckSquare, Link2, Search, X,
-  FileText, FileDown, ChevronDown
+  FileText, FileDown, ChevronDown,
+  ShieldAlert
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 
@@ -89,8 +90,18 @@ export default function SubmissionsPage() {
   const fetchSubmissions = useCallback(async (pg, size, srch, sb, sd) => {
     setLoading(true);
     try {
-      // Check form is published first
-      const formRes = await api.getForm(formId);
+      // Check form is published/archived first (also serves as a permission check)
+      let formRes;
+      try {
+        formRes = await api.getForm(formId);
+      } catch (fErr) {
+        if (fErr.response?.status === 403) {
+          setError("FORBIDDEN");
+          return;
+        }
+        throw fErr;
+      }
+
       const status = formRes.data?.status;
       if (status !== "PUBLISHED" && status !== "ARCHIVED") {
         setError("This form is not in a state that allows viewing submissions.");
@@ -103,6 +114,12 @@ export default function SubmissionsPage() {
         `http://localhost:9090/api/forms/${formId}/submissions?page=${springPage}&size=${size}&search=${encodeURIComponent(srch)}&sort=${sb},${sd}`,
         { credentials: "include" }
       );
+      
+      if (res.status === 403) {
+        setError("FORBIDDEN");
+        return;
+      }
+      
       const json = await res.json();
       const payload = json.data || {};
 
@@ -111,7 +128,12 @@ export default function SubmissionsPage() {
       setTotalRows(payload.totalElements || 0);
     } catch (err) {
       console.error(err);
-      setError("Failed to load submissions.");
+      if (err.name === 'SyntaxError') {
+          // Likely got HTML (redirect) or empty/bad response
+          setError("Failed to parse server response.");
+      } else {
+          setError(err.message || "Failed to load submissions.");
+      }
     } finally {
       setLoading(false);
     }
@@ -422,12 +444,24 @@ export default function SubmissionsPage() {
 
   // ── Loading / Error ───────────────────────────────────────────────────────
   if (error) {
+    const isForbidden = error === "FORBIDDEN";
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <Database className="text-slate-300 mb-4" size={48} />
-        <h2 className="text-lg font-bold text-slate-800 mb-2">No Data Available</h2>
-        <p className="text-sm text-slate-500 mb-6">{error}</p>
-        <Link href="/" className="text-indigo-600 font-medium hover:underline">Return to Dashboard</Link>
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-20 h-20 bg-red-50 rounded-[32px] flex items-center justify-center mb-6">
+          <ShieldAlert size={40} className="text-red-500" />
+        </div>
+        <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">
+          {isForbidden ? "Access Denied" : "No Data Available"}
+        </h2>
+        <p className="text-slate-500 max-w-sm mb-8 leading-relaxed">
+          {isForbidden 
+            ? "You don't have permission to view submissions for this form."
+            : error
+          }
+        </p>
+        <Link href="/" className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
+          Return to Dashboard
+        </Link>
       </div>
     );
   }

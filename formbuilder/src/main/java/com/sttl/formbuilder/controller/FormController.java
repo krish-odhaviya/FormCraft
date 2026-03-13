@@ -47,7 +47,9 @@ public class FormController {
             HttpServletRequest request) {
 
         List<Form> forms = formService.getAllForms(currentUser.getUsername());
-        
+        User user = userRepository.findByUsername(currentUser.getUsername())
+                .orElse(null);
+
         List<Map<String, Object>> response = forms.stream().map(form -> {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("id", form.getId());
@@ -56,6 +58,10 @@ public class FormController {
             map.put("createdAt", form.getCreatedAt());
             map.put("updatedAt", form.getUpdatedAt());
             map.put("status", form.getStatus().name());
+            map.put("visibility", form.getVisibility() != null ? form.getVisibility().name() : "PUBLIC");
+            map.put("ownerUsername", form.getOwner() != null ? form.getOwner().getUsername() : null);
+            map.put("canEdit", user != null && (user.getRole() == com.sttl.formbuilder.Enums.SystemRole.ADMIN || permissionService.canConfigureForm(user, form)));
+            map.put("canViewSubmissions", user != null && (user.getRole() == com.sttl.formbuilder.Enums.SystemRole.ADMIN || permissionService.canViewSubmissions(user, form)));
             
             return map;
         }).collect(Collectors.toList());
@@ -71,6 +77,7 @@ public class FormController {
             HttpServletRequest request) {
 
         // currentUser is null for the public /view endpoint (handled by SecurityConfig)
+        System.out.println("Fetching form structure for ID: " + formId + " | User: " + (currentUser != null ? currentUser.getUsername() : "anonymous"));
         String username = currentUser != null ? currentUser.getUsername() : null;
         FormDetailsResponse response = formService.getFormWithStructure(formId, username);
         return ApiResponseUtil.success(response, "Form fetched successfully", request);
