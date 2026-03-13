@@ -6,8 +6,10 @@ import com.sttl.formbuilder.Enums.VisibilityType;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormPermission;
 import com.sttl.formbuilder.entity.User;
+import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormPermissionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -18,6 +20,8 @@ import java.util.Optional;
 public class PermissionService {
 
     private final FormPermissionRepository permissionRepository;
+    private final com.sttl.formbuilder.repository.UserRoleRepository userRoleRepository;
+
 
     public boolean canViewForm(User user, Form form) {
         if (form == null) return false;
@@ -62,6 +66,11 @@ public class PermissionService {
         if (user == null) return false;
         if (user.getRole() == SystemRole.ADMIN) return true;
         
+        boolean canEdit = userRoleRepository.findFirstByUser(user)
+                .map(ur -> ur.getRole().isCanEditForm())
+                .orElse(false);
+        if (!canEdit) return false;
+
         // Check if user is the owner or has BUILDER role
         if (form.getOwner() != null && form.getOwner().getId().equals(user.getId())) {
             return true;
@@ -70,16 +79,63 @@ public class PermissionService {
         return hasFormRole(user, form, FormRole.BUILDER);
     }
 
+    public boolean canCreateForm(User user) {
+        if (user == null) return false;
+        if (user.getRole() == SystemRole.ADMIN) return true;
+        
+        return userRoleRepository.findFirstByUser(user)
+                .map(ur -> ur.getRole().isCanCreateForm())
+                .orElse(false);
+    }
+
+    public boolean canArchiveForm(User user, Form form) {
+        if (user == null) return false;
+        if (user.getRole() == SystemRole.ADMIN) return true;
+
+        boolean canArchive = userRoleRepository.findFirstByUser(user)
+                .map(ur -> ur.getRole().isCanArchiveForm())
+                .orElse(false);
+        if (!canArchive) return false;
+
+        // Ensure they also own/have access to this specific form
+        if (form.getOwner() != null && form.getOwner().getId().equals(user.getId())) {
+            return true;
+        }
+        return hasFormRole(user, form, FormRole.BUILDER);
+    }
+
     public boolean canViewSubmissions(User user, Form form) {
         if (user == null) return false;
         if (user.getRole() == SystemRole.ADMIN) return true;
         
-        // Owner and Builders can view all submissions
-        if (canConfigureForm(user, form)) {
+        boolean globalCanView = userRoleRepository.findFirstByUser(user)
+                .map(ur -> ur.getRole().isCanViewSubmissions())
+                .orElse(false);
+        if (!globalCanView) return false;
+
+        // Check if user is owner/builder, OR if they're a VIEWER
+        if (form.getOwner() != null && form.getOwner().getId().equals(user.getId())) {
             return true;
         }
         
-        return false;
+        return hasFormRole(user, form, null);
+    }
+
+    public boolean canDeleteSubmissions(User user, Form form) {
+        if (user == null) return false;
+        if (user.getRole() == SystemRole.ADMIN) return true;
+        
+        boolean globalCanDelete = userRoleRepository.findFirstByUser(user)
+                .map(ur -> ur.getRole().isCanDeleteSubmissions())
+                .orElse(false);
+        if (!globalCanDelete) return false;
+
+        // Must be owner or builder
+        if (form.getOwner() != null && form.getOwner().getId().equals(user.getId())) {
+            return true;
+        }
+        
+        return hasFormRole(user, form, FormRole.BUILDER);
     }
 
     public boolean canManageSystem(User user) {
@@ -88,7 +144,7 @@ public class PermissionService {
 
     public void grantFormRole(User grantor, User user, Form form, FormRole role, LocalDateTime expiry) {
         if (!canApproveFormRequests(grantor, form)) {
-            throw new RuntimeException("Access denied: you cannot grant permissions for this form");
+            throw new BusinessException("Access denied: you cannot grant permissions for this form", HttpStatus.FORBIDDEN);
         }
 
         FormPermission perm = permissionRepository.findByUserAndForm(user, form)
@@ -106,6 +162,12 @@ public class PermissionService {
 
     public boolean canApproveFormRequests(User user, Form form) {
         return canConfigureForm(user, form);
+    }
+
+    public boolean isOwnerOrAdmin(User user, Form form) {
+        if (user == null || form == null) return false;
+        if (user.getRole() == SystemRole.ADMIN) return true;
+        return form.getOwner() != null && form.getOwner().getId().equals(user.getId());
     }
 
     private boolean hasFormRole(User user, Form form, FormRole requiredRole) {

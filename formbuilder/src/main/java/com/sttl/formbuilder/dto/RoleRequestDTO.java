@@ -10,4 +10,11 @@ public class RoleRequestDTO {
     private String description;
     /** List of module IDs to assign to this role */
     private List<Long> moduleIds;
+
+    private boolean canCreateForm;
+    private boolean canEditForm;
+    private boolean canDeleteForm;
+    private boolean canArchiveForm;
+    private boolean canViewSubmissions;
+    private boolean canDeleteSubmissions;
 }

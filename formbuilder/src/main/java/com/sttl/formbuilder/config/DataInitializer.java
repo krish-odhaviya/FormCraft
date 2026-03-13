@@ -65,16 +65,18 @@ public class DataInitializer implements CommandLineRunner {
                 .filter(m -> m.getModuleName().contains("Form") || m.getModuleName().contains("Create"))
                 .toList();
 
-        // SYSTEM_ADMIN — gets all modules
-        Role sysAdmin = findOrCreateRole("SYSTEM_ADMIN", "Full system access", true, true);
+        // SYSTEM_ADMIN — gets all modules and all permissions
+        Role sysAdmin = findOrCreateRole("SYSTEM_ADMIN", "Full system access", true, true, 
+                                         true, true, true, true, true, true);
         if (roleModuleRepository.findByRole(sysAdmin).isEmpty()) {
             for (Module m : allModules) {
                 assignModuleToRole(sysAdmin, m);
             }
         }
 
-        // FORMS_MANAGER — gets forms modules only
-        Role formsManager = findOrCreateRole("FORMS_MANAGER", "Access to form management", true, false);
+        // FORMS_MANAGER — gets forms modules only, basic permissions
+        Role formsManager = findOrCreateRole("FORMS_MANAGER", "Access to form management", true, false,
+                                             true, true, false, false, true, false);
         if (roleModuleRepository.findByRole(formsManager).isEmpty()) {
             for (Module m : formsModules) {
                 assignModuleToRole(formsManager, m);
@@ -132,13 +134,21 @@ public class DataInitializer implements CommandLineRunner {
                 });
     }
 
-    private Role findOrCreateRole(String name, String description, boolean isDefault, boolean isSystem) {
+    private Role findOrCreateRole(String name, String description, boolean isDefault, boolean isSystem,
+                                  boolean create, boolean edit, boolean delete, boolean archive, 
+                                  boolean viewSub, boolean delSub) {
         return roleRepository.findByRoleName(name).orElseGet(() -> {
             Role role = new Role();
             role.setRoleName(name);
             role.setDescription(description);
             role.setDefault(isDefault);
             role.setSystem(isSystem);
+            role.setCanCreateForm(create);
+            role.setCanEditForm(edit);
+            role.setCanDeleteForm(delete);
+            role.setCanArchiveForm(archive);
+            role.setCanViewSubmissions(viewSub);
+            role.setCanDeleteSubmissions(delSub);
             Role saved = roleRepository.save(role);
             System.out.println("[Seed] Created role: " + name);
             return saved;

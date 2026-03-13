@@ -72,8 +72,10 @@ export default function BuilderPage() {
   const formId = Array.isArray(params.formId) ? params.formId[0] : params.formId;
 
   const { user } = useAuth();
-  const { getForm, setFormFromServer } = useForms();
+  const { getForm, setFormFromServer, showToast } = useForms();
   const form = getForm(formId);
+
+  const isOwnerOrAdmin = user?.role === 'ADMIN' || (form && form.ownerId === user?.id);
 
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
@@ -92,7 +94,7 @@ export default function BuilderPage() {
   const [isUpdatingForm, setIsUpdatingForm] = useState(false);
   const [updateStatus, setUpdateStatus] = useState(null); 
   const [errorState, setErrorState] = useState(null); 
-
+  const [isAddingPermission, setIsAddingPermission] = useState(false);
   const [dragOverGroupKey, setDragOverGroupKey] = useState(null);
   const [isDraggingOverCanvas, setIsDraggingOverCanvas] = useState(false);
   const [dragOverFieldId, setDragOverFieldId] = useState(null);
@@ -1732,8 +1734,13 @@ export default function BuilderPage() {
                     <Eye className="text-indigo-600" size={20} />
                   </div>
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Form Visibility</h3>
-                    <p className="text-xs font-medium text-slate-500 mt-0.5">Control who can see and submit this form</p>
+                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                      Form Visibility
+                      {!isOwnerOrAdmin && <Shield size={14} className="text-slate-400" title="Only owner or admin can change" />}
+                    </h3>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5">
+                      {isOwnerOrAdmin ? "Control who can see and submit this form" : "Only form owner or admin can change these settings"}
+                    </p>
                   </div>
                 </div>
 
@@ -1751,7 +1758,8 @@ export default function BuilderPage() {
                           value={v.id}
                           checked={visibility === v.id}
                           onChange={(e) => setVisibility(e.target.value)}
-                          className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 transition-all"
+                          disabled={!isOwnerOrAdmin}
+                          className={`w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 transition-all ${!isOwnerOrAdmin ? 'cursor-not-allowed opacity-50' : ''}`}
                         />
                       </div>
                       <div className="flex-1">
@@ -1781,11 +1789,15 @@ export default function BuilderPage() {
                       setIsUpdatingForm(false);
                     }
                   }}
-                  disabled={isUpdatingForm}
-                  className="w-full mt-4 py-3.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95"
+                  disabled={isUpdatingForm || !isOwnerOrAdmin}
+                  className={`w-full mt-4 py-3.5 text-white rounded-xl text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 ${
+                    isOwnerOrAdmin 
+                      ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200" 
+                      : "bg-slate-400 cursor-not-allowed shadow-none"
+                  } disabled:opacity-50`}
                 >
-                  {isUpdatingForm ? <div className="w-5 h-5 border-[3px] border-white/20 border-t-white rounded-full animate-spin" /> : <Save size={18} />}
-                  Update Visibility Settings
+                  {isUpdatingForm ? <div className="w-5 h-5 border-[3px] border-white/20 border-t-white rounded-full animate-spin" /> : (!isOwnerOrAdmin ? <Lock size={18} /> : <Save size={18} />)}
+                  {isOwnerOrAdmin ? "Update Visibility Settings" : "Visibility Settings Locked"}
                 </button>
 
                 {updateStatus && (
@@ -1839,20 +1851,48 @@ export default function BuilderPage() {
                     </div>
                     <div className="flex items-end">
                       <button 
-                        onClick={async () => {
-                          if (!newPermissionUser) return;
+                        disabled={isAddingPermission || !newPermissionUser}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          if (!newPermissionUser || isAddingPermission) return;
+                          
+                          setIsAddingPermission(true);
                           try {
-                            await api.addPermission(formId, newPermissionUser, newPermissionRole);
+                            const response = await api.addPermission(formId, newPermissionUser, newPermissionRole);
+                            
+                            // Success path
                             setNewPermissionUser("");
+                            showToast(`Permission granted to ${newPermissionUser} successfully!`, "success");
+                            
+                            // Refresh permissions list
                             const resp = await api.getPermissions(formId);
                             setPermissions(resp.data || []);
                           } catch (err) {
                             console.error("Failed to add permission", err);
+                            
+                            // Robust error message extraction
+                            const errorMsg = err.response?.data?.message 
+                              || err.response?.data?.error 
+                              || err.message 
+                              || "Failed to add permission. Please try again.";
+                            
+                            showToast(errorMsg, "error");
+                          } finally {
+                            setIsAddingPermission(false);
                           }
                         }}
-                        className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-200 flex items-center justify-center gap-2 active:scale-95 h-[42px]"
+                        className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 h-[42px] min-w-[100px] ${
+                          isAddingPermission || !newPermissionUser 
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none" 
+                            : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
+                        }`}
                       >
-                        <Plus size={18} strokeWidth={2.5} /> Add
+                        {isAddingPermission ? (
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Plus size={18} strokeWidth={2.5} />
+                        )} 
+                        {isAddingPermission ? "Adding..." : "Add"}
                       </button>
                     </div>
                   </div>

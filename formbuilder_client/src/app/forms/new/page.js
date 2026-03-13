@@ -5,21 +5,45 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api/formService";
 import { useForms } from "@/context/FormsContext";
+import { useAuth } from "@/context/AuthContext";
 import { 
   ArrowLeft, 
   FilePlus, 
   Loader2, 
-  AlertCircle 
+  AlertCircle,
+  ShieldAlert
 } from "lucide-react";
 
 export default function NewFormPage() {
   const router = useRouter();
   const { addForm } = useForms();
-
+  const { user } = useAuth();
+  
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Permission Check
+  const isAdmin = user?.role === "ADMIN";
+  const canCreate = isAdmin || user?.canCreateForm;
+
+  if (!canCreate) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 px-6 text-center">
+        <div className="w-24 h-24 bg-red-100/50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-red-100">
+          <ShieldAlert size={48} className="text-red-500" />
+        </div>
+        <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-3">Access Denied</h2>
+        <p className="text-slate-500 max-w-md mb-10 text-lg leading-relaxed">
+          You do not have permission to create new forms. Please contact your administrator if you believe this is an error.
+        </p>
+        <Link href="/" className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 hover:shadow-sm transition-all">
+          Back to Dashboard
+        </Link>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();

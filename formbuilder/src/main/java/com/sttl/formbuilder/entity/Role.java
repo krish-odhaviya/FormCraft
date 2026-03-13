@@ -31,6 +31,24 @@ public class Role {
     @Column(nullable = false)
     private boolean isSystem = false;
 
+    @Column(nullable = false)
+    private boolean canCreateForm = false;
+
+    @Column(nullable = false)
+    private boolean canEditForm = false;
+
+    @Column(nullable = false)
+    private boolean canDeleteForm = false;
+
+    @Column(nullable = false)
+    private boolean canArchiveForm = false;
+
+    @Column(nullable = false)
+    private boolean canViewSubmissions = false;
+
+    @Column(nullable = false)
+    private boolean canDeleteSubmissions = false;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

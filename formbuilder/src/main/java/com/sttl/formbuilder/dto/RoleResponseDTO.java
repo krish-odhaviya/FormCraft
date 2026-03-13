@@ -15,4 +15,11 @@ public class RoleResponseDTO {
     private LocalDateTime createdAt;
     private List<Long> moduleIds;
     private int assignedUserCount;
+
+    private boolean canCreateForm;
+    private boolean canEditForm;
+    private boolean canDeleteForm;
+    private boolean canArchiveForm;
+    private boolean canViewSubmissions;
+    private boolean canDeleteSubmissions;
 }

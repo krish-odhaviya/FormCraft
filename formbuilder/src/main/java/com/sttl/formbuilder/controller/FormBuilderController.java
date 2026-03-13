@@ -30,6 +30,8 @@ public class FormBuilderController {
     private final FormBuilderService formBuilderService;
     private final SchemaService schemaService;
     private final FormRepository formRepository;
+    private final com.sttl.formbuilder.repository.UserRepository userRepository;
+    private final com.sttl.formbuilder.service.PermissionService permissionService;
 
     // ── POST /api/forms/{formId}/fields ─────────────────────────────────
     @PostMapping("/api/forms/{formId}/fields")
@@ -76,9 +78,15 @@ public class FormBuilderController {
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        // Need to check permission here too before publishing
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
+        com.sttl.formbuilder.entity.User user = userRepository.findByUsername(currentUser.getUsername()).orElse(null);
+
+        if (!permissionService.canConfigureForm(user, form)) {
+             return ApiResponseUtil.error("Access denied. You cannot publish this form.", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+        }
+
         schemaService.publishForm(formId); 
-        // I'll update schemaService later or check it here
         return ApiResponseUtil.success("Published successfully", "Form published successfully", request);
     }
 

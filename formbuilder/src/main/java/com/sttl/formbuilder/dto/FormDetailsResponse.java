@@ -21,6 +21,7 @@ public class FormDetailsResponse {
     private boolean canEdit;
     private boolean canViewSubmissions;
     private String ownerName;
+    private Long ownerId;
     private List<FieldDto> fields;
 
 }

@@ -1,5 +1,6 @@
 package com.sttl.formbuilder.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 @Data
@@ -8,7 +9,9 @@ public class ModuleRequestDTO {
     private String description;
     private String prefix;
     private String iconCss;
+    @JsonProperty("isParent")
     private boolean isParent;
+    @JsonProperty("isSubParent")
     private boolean isSubParent;
     private Long parentId;
     private Long subParentId;

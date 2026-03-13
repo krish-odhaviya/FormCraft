@@ -8,7 +8,8 @@ import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
 import {
   FileText, PlusCircle, Shield, LayoutList,
-  Users, UserCog, Inbox, LayoutDashboard
+  Users, UserCog, Inbox, LayoutDashboard,
+  Menu, ChevronLeft, PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
 
 // Map icon strings from backend to Lucide components
@@ -27,7 +28,7 @@ function getIcon(name) {
   return ICON_MAP[name] || <LayoutDashboard size={18} />;
 }
 
-function MenuItem({ item, depth = 0 }) {
+function MenuItem({ item, depth = 0, isCollapsed }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const hasChildren = item.children && item.children.length > 0;
@@ -48,20 +49,23 @@ function MenuItem({ item, depth = 0 }) {
             open || isGroupActive
               ? "bg-indigo-50 text-indigo-700"
               : "text-slate-600 hover:bg-slate-50"
-          }`}
+          } ${isCollapsed ? "justify-center px-0" : ""}`}
+          title={isCollapsed ? item.moduleName : ""}
         >
           <span className={open || isGroupActive ? "text-indigo-600" : "text-slate-400"}>
             {getIcon(item.iconCss)}
           </span>
-          <span className="flex-1 text-left">{item.moduleName}</span>
-          <span className="text-slate-400">
-            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </span>
+          {!isCollapsed && <span className="flex-1 text-left">{item.moduleName}</span>}
+          {!isCollapsed && (
+            <span className="text-slate-400">
+              {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </span>
+          )}
         </button>
-        {open && (
+        {open && !isCollapsed && (
           <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-3">
             {item.children.map(child => (
-              <MenuItem key={child.id} item={child} depth={depth + 1} />
+              <MenuItem key={child.id} item={child} depth={depth + 1} isCollapsed={isCollapsed} />
             ))}
           </div>
         )}
@@ -76,12 +80,13 @@ function MenuItem({ item, depth = 0 }) {
         isActive
           ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-      }`}
+      } ${isCollapsed ? "justify-center px-0" : ""}`}
+      title={isCollapsed ? item.moduleName : ""}
     >
       <span className={isActive ? "text-white" : "text-slate-400"}>
         {getIcon(item.iconCss)}
       </span>
-      {item.moduleName}
+      {!isCollapsed && item.moduleName}
     </Link>
   );
 }
@@ -90,6 +95,7 @@ export default function Sidebar() {
   const { user } = useAuth();
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -102,36 +108,62 @@ export default function Sidebar() {
   if (!user || loading) return null;
 
   return (
-    <aside className="w-64 min-h-screen bg-white border-r border-slate-100 flex flex-col shadow-sm">
+    <aside 
+      className={`min-h-screen bg-white border-r border-slate-100 flex flex-col shadow-sm transition-all duration-300 ease-in-out ${
+        isCollapsed ? "w-20" : "w-64"
+      }`}
+    >
       {/* Brand */}
-      <div className="h-20 flex items-center gap-3 px-6 border-b border-slate-100">
-        <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center">
-          <FileText size={16} className="text-white" />
+      <div className={`h-20 flex items-center px-4 border-b border-slate-100 transition-all ${
+        isCollapsed ? "justify-center" : "gap-3 px-6"
+      }`}>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+            <FileText size={16} className="text-white" />
+          </div>
+          {!isCollapsed && (
+            <div className="flex items-center min-w-0">
+              <span className="text-base font-black text-slate-900 tracking-tight truncate">FORMCRAFT</span>
+              <span className="ml-1.5 text-[9px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full uppercase tracking-widest shrink-0">PRO</span>
+            </div>
+          )}
         </div>
-        <div>
-          <span className="text-base font-black text-slate-900 tracking-tight">FORMCRAFT</span>
-          <span className="ml-1.5 text-[9px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full uppercase tracking-widest">PRO</span>
-        </div>
+        
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors shrink-0"
+          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        >
+          {isCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
       </div>
 
       {/* Menu */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav className={`flex-1 space-y-1 overflow-y-auto transition-all ${
+        isCollapsed ? "p-3" : "p-4"
+      }`}>
         {menuItems.length === 0 ? (
-          <p className="text-xs text-slate-400 px-4 py-6 text-center">No menu items</p>
+          <p className="text-xs text-slate-400 px-4 py-6 text-center">{!isCollapsed && "No menu items"}</p>
         ) : (
-          menuItems.map(item => <MenuItem key={item.id} item={item} />)
+          menuItems.map(item => <MenuItem key={item.id} item={item} isCollapsed={isCollapsed} />)
         )}
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-slate-100">
-        <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-slate-600 text-xs font-black">
+      <div className={`border-t border-slate-100 transition-all ${
+        isCollapsed ? "p-2" : "p-4"
+      }`}>
+        <div className={`flex items-center gap-3 px-3 py-2 ${
+          isCollapsed ? "justify-center px-0" : ""
+        }`}>
+          <div className="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-slate-600 text-xs font-black shrink-0">
             {user?.username?.charAt(0)?.toUpperCase()}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-slate-900 truncate">{user?.username}</p>
-          </div>
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-slate-900 truncate">{user?.username}</p>
+            </div>
+          )}
         </div>
       </div>
     </aside>

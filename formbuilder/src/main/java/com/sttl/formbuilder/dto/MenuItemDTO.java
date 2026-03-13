@@ -1,5 +1,6 @@
 package com.sttl.formbuilder.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -16,7 +17,9 @@ public class MenuItemDTO {
     private String moduleName;
     private String prefix;
     private String iconCss;
+    @JsonProperty("isParent")
     private boolean isParent;
+    @JsonProperty("isSubParent")
     private boolean isSubParent;
     private int sortOrder;
     private List<MenuItemDTO> children = new ArrayList<>();

@@ -298,7 +298,7 @@ public class FormSubmissionController {
         Form form = formRepository.findById(formId).orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
         User user = currentUser != null ? userRepository.findByUsername(currentUser.getUsername()).orElse(null) : null;
 
-        if (!permissionService.canViewSubmissions(user, form)) {
+        if (!permissionService.canDeleteSubmissions(user, form)) {
             return ApiResponseUtil.error("Access denied to delete submissions", null, HttpStatus.FORBIDDEN, request);
         }
 
@@ -317,7 +317,7 @@ public class FormSubmissionController {
         Form form = formRepository.findById(formId).orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
         User user = currentUser != null ? userRepository.findByUsername(currentUser.getUsername()).orElse(null) : null;
 
-        if (!permissionService.canViewSubmissions(user, form)) {
+        if (!permissionService.canDeleteSubmissions(user, form)) {
             return ApiResponseUtil.error("Access denied to bulk delete submissions", null, HttpStatus.FORBIDDEN, request);
         }
 

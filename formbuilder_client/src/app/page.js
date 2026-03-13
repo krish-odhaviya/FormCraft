@@ -29,6 +29,13 @@ function DashboardContent() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab] = useState("ALL"); // ALL, LIVE, SHARED, DRAFTS, ARCHIVED
+
+  const isAdmin = user?.role === "ADMIN";
+  const canCreate = isAdmin || user?.canCreateForm;
+  const canEditAny = isAdmin || user?.canEditForm;
+  const canArchiveAny = isAdmin || user?.canArchiveForm;
+  const canViewSubsAny = isAdmin || user?.canViewSubmissions;
 
   useEffect(() => {
     const fetchForms = async () => {
@@ -63,9 +70,30 @@ function DashboardContent() {
     }
   };
 
-  const filteredForms = forms.filter((f) =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredForms = forms.filter((f) => {
+    const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+
+    switch (activeTab) {
+      case "LIVE":     return f.status === "PUBLISHED";
+      case "DRAFTS":   return f.status === "DRAFT";
+      case "ARCHIVED": return f.status === "ARCHIVED";
+      case "SHARED":   return f.ownerUsername !== user?.username;
+      case "ALL":      return true;
+      default:         return true;
+    }
+  });
+
+  const getEmptyMessage = () => {
+    if (searchQuery) return "No matches found for your search.";
+    switch (activeTab) {
+      case "LIVE":     return "No live forms yet. Publish a draft to see it here.";
+      case "DRAFTS":   return "No draft forms. Create a new form to get started.";
+      case "ARCHIVED": return "No archived forms.";
+      case "SHARED":   return "No forms have been shared with you yet.";
+      default:         return "Get started by building your first questionnaire.";
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
@@ -155,14 +183,53 @@ function DashboardContent() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            {/* FIX: Explicit text-white and flex-center */}
-            <Link
-              href="/forms/new"
-              className="flex items-center justify-center gap-2 bg-[#0F172A] text-white hover:bg-slate-800  px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-xl shadow-slate-200 active:scale-95 whitespace-nowrap"
-            >
-              <Plus size={18} strokeWidth={3} className="text-white" />
-              <span className="text-white">Create New</span>
-            </Link>
+            {canCreate && (
+              <Link
+                href="/forms/new"
+                className="flex items-center justify-center gap-2 bg-[#0F172A] text-white hover:bg-slate-800  px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-xl shadow-slate-200 active:scale-95 whitespace-nowrap"
+              >
+                <Plus size={18} strokeWidth={3} className="text-white" />
+                <span className="text-white">Create New</span>
+              </Link>
+            )}
+          </div>
+        </div>
+        {/* Tabs Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-slate-200">
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-[1px]">
+            {[
+              { id: "ALL",      label: "All Forms", icon: <Inbox size={16} /> },
+              { id: "LIVE",     label: "Live",      icon: <ExternalLink size={16} /> },
+              { id: "SHARED",   label: "Shared",    icon: <Users size={16} /> },
+              { id: "DRAFTS",   label: "Drafts",    icon: <PenLine size={16} /> },
+              { id: "ARCHIVED", label: "Archived",  icon: <Archive size={16} /> },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-5 py-3.5 text-sm font-bold transition-all relative whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "text-indigo-600"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+                {activeTab === tab.id && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-600 rounded-full animate-in fade-in" />
+                )}
+                <span className="ml-1.5 px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[10px] font-black group-hover:bg-slate-200 transition-colors">
+                  {forms.filter(f => {
+                    if (tab.id === "ALL") return true;
+                    if (tab.id === "LIVE") return f.status === "PUBLISHED";
+                    if (tab.id === "DRAFTS") return f.status === "DRAFT";
+                    if (tab.id === "ARCHIVED") return f.status === "ARCHIVED";
+                    if (tab.id === "SHARED") return f.ownerUsername !== user?.username;
+                    return false;
+                  }).length}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -192,9 +259,7 @@ function DashboardContent() {
               No forms found
             </h3>
             <p className="text-slate-500 mb-8 text-center max-w-xs">
-              {searchQuery
-                ? "No matches found for your search."
-                : "Get started by building your first questionnaire."}
+              {getEmptyMessage()}
             </p>
           </div>
         ) : (
@@ -259,7 +324,7 @@ function DashboardContent() {
                       <Archive size={16} />
                       <span>Archived</span>
                     </div>
-                  ) : form.canEdit ? (
+                  ) : form.canEdit && canEditAny ? (
                     <Link
                       href={`/forms/${form.id}/builder`}
                       className="flex-[2] flex items-center justify-center gap-2 bg-[#0F172A] text-white py-3.5 rounded-2xl text-sm font-bold hover:bg-indigo-600 transition-all shadow-md active:scale-95"
@@ -270,11 +335,12 @@ function DashboardContent() {
                   ) : (
                     <div className="flex-[2] flex items-center justify-center gap-2 bg-slate-50 text-slate-400 py-3.5 rounded-2xl text-sm font-bold border border-slate-100">
                       <Lock size={16} />
-                      <span>No Edit Access</span>
+                      <span className="hidden sm:inline">No Edit Access</span>
+                      <span className="sm:hidden">Locked</span>
                     </div>
                   )}
  
-                  {form.canViewSubmissions && (
+                  {form.canViewSubmissions && canViewSubsAny && (
                     <Link
                       href={`/forms/${form.id}/submissions`}
                       className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-100"
@@ -291,7 +357,7 @@ function DashboardContent() {
                     <ExternalLink size={20} />
                   </Link>
 
-                  {form.status !== "ARCHIVED" && (
+                  {form.status !== "ARCHIVED" && canArchiveAny && (
                     <button
                       onClick={() => handleArchive(form.id)}
                       className="p-3.5 bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-slate-100"

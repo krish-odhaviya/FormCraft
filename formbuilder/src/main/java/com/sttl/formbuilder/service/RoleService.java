@@ -44,6 +44,12 @@ public class RoleService {
         Role role = new Role();
         role.setRoleName(dto.getRoleName());
         role.setDescription(dto.getDescription());
+        role.setCanCreateForm(dto.isCanCreateForm());
+        role.setCanEditForm(dto.isCanEditForm());
+        role.setCanDeleteForm(dto.isCanDeleteForm());
+        role.setCanArchiveForm(dto.isCanArchiveForm());
+        role.setCanViewSubmissions(dto.isCanViewSubmissions());
+        role.setCanDeleteSubmissions(dto.isCanDeleteSubmissions());
         Role saved = roleRepository.save(role);
 
         if (dto.getModuleIds() != null && !dto.getModuleIds().isEmpty()) {
@@ -58,6 +64,12 @@ public class RoleService {
                 .orElseThrow(() -> new BusinessException("Role not found", HttpStatus.NOT_FOUND));
         role.setRoleName(dto.getRoleName());
         role.setDescription(dto.getDescription());
+        role.setCanCreateForm(dto.isCanCreateForm());
+        role.setCanEditForm(dto.isCanEditForm());
+        role.setCanDeleteForm(dto.isCanDeleteForm());
+        role.setCanArchiveForm(dto.isCanArchiveForm());
+        role.setCanViewSubmissions(dto.isCanViewSubmissions());
+        role.setCanDeleteSubmissions(dto.isCanDeleteSubmissions());
         roleRepository.save(role);
 
         if (dto.getModuleIds() != null) {
@@ -140,6 +152,12 @@ public class RoleService {
         dto.setDefault(role.isDefault());
         dto.setSystem(role.isSystem());
         dto.setCreatedAt(role.getCreatedAt());
+        dto.setCanCreateForm(role.isCanCreateForm());
+        dto.setCanEditForm(role.isCanEditForm());
+        dto.setCanDeleteForm(role.isCanDeleteForm());
+        dto.setCanArchiveForm(role.isCanArchiveForm());
+        dto.setCanViewSubmissions(role.isCanViewSubmissions());
+        dto.setCanDeleteSubmissions(role.isCanDeleteSubmissions());
         dto.setModuleIds(roleModuleRepository.findByRole(role).stream()
                 .map(rm -> rm.getModule().getId())
                 .collect(Collectors.toList()));

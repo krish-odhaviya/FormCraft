@@ -8,6 +8,7 @@ import com.sttl.formbuilder.dto.CreateFormRequest;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.repository.FormRepository;
 import com.sttl.formbuilder.service.FormService;
+import com.sttl.formbuilder.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -83,12 +84,16 @@ public class FormController {
         return ApiResponseUtil.success(response, "Form fetched successfully", request);
     }
 
-    // ── POST /api/forms — create form for logged-in user ─────────────────────
     @PostMapping
     public ResponseEntity<ApiResponse<Form>> createForm(
             @Valid @RequestBody CreateFormRequest requestBody,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
+
+        User user = userRepository.findByUsername(currentUser.getUsername()).orElse(null);
+        if (user == null || !permissionService.canCreateForm(user)) {
+            return ApiResponseUtil.error("Access Denied: You do not have permission to create forms", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+        }
 
         Form form = formService.createForm(
                 requestBody.getName(),
@@ -141,6 +146,16 @@ public class FormController {
             return ApiResponseUtil.error("Unauthorized", null, org.springframework.http.HttpStatus.UNAUTHORIZED, request);
         }
 
+        User user = userRepository.findByUsername(currentUser.getUsername()).orElse(null);
+        Form formToArchive = formRepository.findById(formId).orElse(null);
+
+        if (formToArchive == null) {
+            return ApiResponseUtil.error("Form not found", null, org.springframework.http.HttpStatus.NOT_FOUND, request);
+        }
+        if (!permissionService.canArchiveForm(user, formToArchive)) {
+            return ApiResponseUtil.error("Access Denied: You do not have permission to archive this form", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+        }
+
         try {
             Form form = formService.archiveForm(formId, currentUser.getUsername());
             return ApiResponseUtil.success(form, "Form archived successfully", request);
@@ -167,9 +182,9 @@ public class FormController {
                 .orElseThrow(() -> new RuntimeException("Form not found"));
         User user = userRepository.findByUsername(currentUser.getUsername()).orElseThrow();
 
-        if (!permissionService.canConfigureForm(user, form)) {
-            System.out.println("Access denied for user " + user.getUsername() + " on form " + formId);
-            return ApiResponseUtil.error("Access denied", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+        if (!permissionService.isOwnerOrAdmin(user, form)) {
+            System.out.println("Access denied for user " + user.getUsername() + " (not owner/admin) on form " + formId);
+            return ApiResponseUtil.error("Access denied: only owner or admin can change visibility", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
         }
 
         form.setVisibility(visibility);
@@ -187,8 +202,9 @@ public class FormController {
             HttpServletRequest request) {
 
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
-        User user = userRepository.findByUsername(currentUser.getUsername()).orElseThrow();
+                .orElseThrow(() -> new BusinessException("Form not found", org.springframework.http.HttpStatus.NOT_FOUND));
+        User user = userRepository.findByUsername(currentUser.getUsername())
+                .orElseThrow(() -> new BusinessException("Session user not found", org.springframework.http.HttpStatus.UNAUTHORIZED));
 
         if (!permissionService.canConfigureForm(user, form)) {
             return ApiResponseUtil.error("Access denied", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
@@ -218,15 +234,16 @@ public class FormController {
             HttpServletRequest request) {
 
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
-        User grantor = userRepository.findByUsername(currentUser.getUsername()).orElseThrow();
+                .orElseThrow(() -> new BusinessException("Form not found", org.springframework.http.HttpStatus.NOT_FOUND));
+        User grantor = userRepository.findByUsername(currentUser.getUsername())
+                .orElseThrow(() -> new BusinessException("Session user not found", org.springframework.http.HttpStatus.UNAUTHORIZED));
 
         if (!permissionService.canConfigureForm(grantor, form)) {
             return ApiResponseUtil.error("Access denied", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
         }
 
         User targetUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+                .orElseThrow(() -> new BusinessException("User not found: " + username, org.springframework.http.HttpStatus.NOT_FOUND));
 
         permissionService.grantFormRole(grantor, targetUser, form, role, null);
 

@@ -37,6 +37,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final com.sttl.formbuilder.repository.UserRoleRepository userRoleRepository;
 
 
     /**
@@ -160,6 +161,17 @@ public class AuthController {
         userRepository.findByUsername(authentication.getName()).ifPresent(user -> {
             data.put("id", user.getId());
             data.put("role", user.getRole().name());
+
+            userRoleRepository.findFirstByUser(user).ifPresent(ur -> {
+                com.sttl.formbuilder.entity.Role customRole = ur.getRole();
+                data.put("customRole", customRole.getRoleName());
+                data.put("canCreateForm", customRole.isCanCreateForm());
+                data.put("canEditForm", customRole.isCanEditForm());
+                data.put("canDeleteForm", customRole.isCanDeleteForm());
+                data.put("canArchiveForm", customRole.isCanArchiveForm());
+                data.put("canViewSubmissions", customRole.isCanViewSubmissions());
+                data.put("canDeleteSubmissions", customRole.isCanDeleteSubmissions());
+            });
         });
 
         data.put("roles", authentication.getAuthorities()

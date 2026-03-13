@@ -9,10 +9,16 @@ import { api } from "@/lib/api/formService";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
 function ModuleModal({ initialData, modules, onSave, onClose }) {
-  const [form, setForm] = useState(initialData || {
-    moduleName: "", description: "", prefix: "",
-    iconCss: "", isParent: false, isSubParent: false,
-    parentId: null, active: true, sortOrder: 0
+  const [form, setForm] = useState({
+    moduleName: initialData?.moduleName || "",
+    description: initialData?.description || "",
+    prefix: initialData?.prefix || "",
+    iconCss: initialData?.iconCss || "",
+    isParent: !!initialData?.isParent,
+    isSubParent: !!initialData?.isSubParent,
+    parentId: initialData?.parentId || null,
+    active: initialData?.active ?? true,
+    sortOrder: initialData?.sortOrder || 0
   });
   const [saving, setSaving] = useState(false);
 

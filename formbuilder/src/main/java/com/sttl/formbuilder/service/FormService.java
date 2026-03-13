@@ -106,6 +106,7 @@ public class FormService {
         response.setCanEdit(permissionService.canConfigureForm(user, form));
         response.setCanViewSubmissions(permissionService.canViewSubmissions(user, form));
         response.setOwnerName(form.getOwner() != null ? form.getOwner().getUsername() : "Unknown");
+        response.setOwnerId(form.getOwner() != null ? form.getOwner().getId() : null);
 
         // 2. Fetch Fields for this form
         List<FormField> fields = formFieldRepository

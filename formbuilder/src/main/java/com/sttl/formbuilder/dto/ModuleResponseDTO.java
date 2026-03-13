@@ -1,5 +1,6 @@
 package com.sttl.formbuilder.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -12,7 +13,9 @@ public class ModuleResponseDTO {
     private String description;
     private String prefix;
     private String iconCss;
+    @JsonProperty("isParent")
     private boolean isParent;
+    @JsonProperty("isSubParent")
     private boolean isSubParent;
     private Long parentId;
     private String parentName;
