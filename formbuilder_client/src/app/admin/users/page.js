@@ -133,7 +133,7 @@ function UserManagementContent() {
                     </td>
                     <td className="px-8 py-5">
                       <span className="text-[10px] font-bold px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full uppercase tracking-wide">
-                        {u.role === "ADMIN" ? "SYSTEM_ADMIN" : "FORMS_MANAGER"}
+                        {u.customRoleName || (u.role === "ADMIN" ? "SYSTEM_ADMIN" : "BASIC_USER")}
                       </span>
                     </td>
                     <td className="px-8 py-5">

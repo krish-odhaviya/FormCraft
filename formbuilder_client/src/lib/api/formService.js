@@ -83,6 +83,6 @@ export const api = {
   deleteRole: (id) => API.delete(`/roles/${id}`),
   getRoleModules: (roleId) => API.get(`/roles/${roleId}/modules`),
   assignModulesToRole: (roleId, moduleIds) => API.post(`/roles/${roleId}/modules`, { moduleIds }),
-  assignRoleToUser: (roleId, userId) => API.post(`/roles/${roleId}/users/${userId}`),
+  assignRoleToUser: (roleId, userId) => API.post(`/admin/users/${userId}/custom-role?roleId=${roleId}`),
 };
 
