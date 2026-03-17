@@ -87,7 +87,7 @@ public class RoleService {
             throw new BusinessException("Cannot delete a default role", HttpStatus.CONFLICT);
         }
         roleModuleRepository.deleteByRoleId(id);
-        userRoleRepository.deleteByUserId(id); // best-effort
+        userRoleRepository.deleteByRoleId(id);
         roleRepository.deleteById(id);
     }
 
@@ -118,7 +118,13 @@ public class RoleService {
     public String getUserRoleName(User user) {
         return userRoleRepository.findFirstByUser(user)
                 .map(ur -> ur.getRole().getRoleName())
-                .orElse("FORMS_MANAGER");
+                .orElse(null);
+    }
+
+    public Long getCustomRoleId(User user) {
+        return userRoleRepository.findFirstByUser(user)
+                .map(ur -> ur.getRole().getId())
+                .orElse(null);
     }
 
     public List<Long> getModuleIdsByRole(Long roleId) {

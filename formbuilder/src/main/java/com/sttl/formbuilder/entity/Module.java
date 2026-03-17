@@ -3,12 +3,16 @@ package com.sttl.formbuilder.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
+@ToString(exclude = {"parentModule", "subParentModule", "childModules", "subChildModules"})
 @Entity
 @Table(name = "modules")
 public class Module {
@@ -44,10 +48,15 @@ public class Module {
     @JoinColumn(name = "parent_id")
     private Module parentModule;
 
-    /** null → second-level nesting reference */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sub_parent_id")
     private Module subParentModule;
+
+    @OneToMany(mappedBy = "parentModule", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Module> childModules = new ArrayList<>();
+
+    @OneToMany(mappedBy = "subParentModule", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Module> subChildModules = new ArrayList<>();
 
     @Column(nullable = false)
     private boolean active = true;

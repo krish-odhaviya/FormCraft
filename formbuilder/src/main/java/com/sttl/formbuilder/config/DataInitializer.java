@@ -50,6 +50,7 @@ public class DataInitializer implements CommandLineRunner {
         Module formsParent = findOrCreateModule("Forms Management", null, "/", "file-text", true, false, null, null, 1);
         findOrCreateModule("Form Vault", "All your forms", "/", "inbox", false, false, formsParent, null, 2);
         findOrCreateModule("Create New Form", "Start a new form", "/forms/new", "plus-circle", false, false, formsParent, null, 3);
+//        findOrCreateModule("Form Request", "Accept or Reject form request","")
 
         // === System Admin (parent) ===
         Module sysParent = findOrCreateModule("System Admin", null, null, "shield", true, false, null, null, 10);
@@ -82,18 +83,34 @@ public class DataInitializer implements CommandLineRunner {
                 assignModuleToRole(formsManager, m);
             }
         }
+
+        // Project manager — gets forms modules only, but with delete and archive permissions
+        Role projectManager = findOrCreateRole("Project manager", "Access to project management", true, false,
+                                               true, true, true, true, true, true);
+        if (roleModuleRepository.findByRole(projectManager).isEmpty()) {
+            for (Module m : formsModules) {
+                assignModuleToRole(projectManager, m);
+            }
+        }
     }
 
     private void assignRolesToExistingUsers() {
         Optional<Role> sysAdminRole = roleRepository.findByRoleName("SYSTEM_ADMIN");
+        Optional<Role> projectManagerRole = roleRepository.findByRoleName("Project manager");
         Optional<Role> formsManagerRole = roleRepository.findByRoleName("FORMS_MANAGER");
 
         for (User user : userRepository.findAll()) {
-            if (userRoleRepository.findFirstByUser(user).isPresent()) continue; // already has role
+            Optional<UserRole> existingUr = userRoleRepository.findFirstByUser(user);
+
+            if (existingUr.isPresent()) {
+                continue;
+            }
 
             Role toAssign;
             if (user.getRole() == SystemRole.ADMIN && sysAdminRole.isPresent()) {
                 toAssign = sysAdminRole.get();
+            } else if (projectManagerRole.isPresent()) {
+                toAssign = projectManagerRole.get();
             } else if (formsManagerRole.isPresent()) {
                 toAssign = formsManagerRole.get();
             } else {

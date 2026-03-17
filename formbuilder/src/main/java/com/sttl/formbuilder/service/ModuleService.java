@@ -5,6 +5,7 @@ import com.sttl.formbuilder.dto.ModuleResponseDTO;
 import com.sttl.formbuilder.entity.Module;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.ModuleRepository;
+import com.sttl.formbuilder.repository.RoleModuleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 public class ModuleService {
 
     private final ModuleRepository moduleRepository;
+    private final RoleModuleRepository roleModuleRepository;
 
     public List<ModuleResponseDTO> getAllModules() {
         return moduleRepository.findAll().stream()
@@ -48,6 +50,7 @@ public class ModuleService {
         if (!moduleRepository.existsById(id)) {
             throw new BusinessException("Module not found", HttpStatus.NOT_FOUND);
         }
+        roleModuleRepository.deleteByModuleId(id);
         moduleRepository.deleteById(id);
     }
 

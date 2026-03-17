@@ -20,4 +20,9 @@ public interface RoleModuleRepository extends JpaRepository<RoleModule, Long> {
     @Transactional
     @Query("DELETE FROM RoleModule rm WHERE rm.role.id = :roleId")
     void deleteByRoleId(Long roleId);
+
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM RoleModule rm WHERE rm.module.id = :moduleId")
+    void deleteByModuleId(Long moduleId);
 }

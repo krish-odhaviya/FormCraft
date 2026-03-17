@@ -6,6 +6,7 @@ import com.sttl.formbuilder.dto.RegisterUserRequest;
 import com.sttl.formbuilder.dto.UserResponseDto;
 import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.repository.UserRepository;
+import com.sttl.formbuilder.service.RoleService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -38,6 +39,8 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final com.sttl.formbuilder.repository.UserRoleRepository userRoleRepository;
+    private final com.sttl.formbuilder.repository.RoleRepository roleRepository;
+    private final RoleService roleService;
 
 
     /**
@@ -146,10 +149,18 @@ public class AuthController {
         user.setPassword(passwordEncoder.encode(body.getPassword()));
         user.setRole(com.sttl.formbuilder.Enums.SystemRole.EMPLOYEE);
         user.setEnabled(true);
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // Assign "Project manager" role by default
+        roleRepository.findByRoleName("Project manager").ifPresent(role -> {
+            com.sttl.formbuilder.entity.UserRole ur = new com.sttl.formbuilder.entity.UserRole();
+            ur.setUser(savedUser);
+            ur.setRole(role);
+            userRoleRepository.save(ur);
+        });
 
         UserResponseDto dto = new UserResponseDto(
-                user.getId(), user.getUsername(), user.getRole(), user.isEnabled());
+                savedUser.getId(), savedUser.getUsername(), savedUser.getRole(), savedUser.isEnabled(), roleService.getUserRoleName(savedUser), roleService.getCustomRoleId(savedUser));
 
         return ApiResponseUtil.success(dto, "Account created successfully", request);
     }

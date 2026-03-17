@@ -11,4 +11,6 @@ public class UserResponseDto {
     private String username;
     private SystemRole role;
     private boolean enabled;
+    private String customRoleName;
+    private Long customRoleId;
 }
