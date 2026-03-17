@@ -25,6 +25,10 @@ public class RoleService {
     private final ModuleRepository moduleRepository;
     private final UserRepository userRepository;
 
+    private static final java.util.Set<String> RESTRICTED_MODULES = java.util.Set.of(
+            "System Admin", "Module Management", "Role Management", "User Management", "All Access Requests"
+    );
+
     public List<RoleResponseDTO> getAllRoles() {
         return roleRepository.findAll().stream()
                 .map(this::toDTO)
@@ -157,9 +161,18 @@ public class RoleService {
     // ── Helpers ────────────────────────────────────────────────────────────
 
     private void assignModules(Role role, List<Long> moduleIds) {
+        boolean isSystemAdmin = "SYSTEM_ADMIN".equalsIgnoreCase(role.getRoleName());
+        
         for (Long moduleId : moduleIds) {
             Module module = moduleRepository.findById(moduleId)
                     .orElseThrow(() -> new BusinessException("Module not found: " + moduleId, HttpStatus.NOT_FOUND));
+            
+            // Block only RESTRICTED modules for non-SYSTEM_ADMIN
+            if (!isSystemAdmin && RESTRICTED_MODULES.contains(module.getModuleName())) {
+                continue; // Skip silently or throw error? User said "i dont want to give it"
+                // Let's skip silently to allow batch assignment to succeed for other modules
+            }
+
             if (!roleModuleRepository.existsByRoleAndModule(role, module)) {
                 RoleModule rm = new RoleModule();
                 rm.setRole(role);

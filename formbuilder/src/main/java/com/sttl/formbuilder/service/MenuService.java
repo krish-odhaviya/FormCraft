@@ -21,9 +21,14 @@ public class MenuService {
     private final UserRoleRepository userRoleRepository;
     private final RoleModuleRepository roleModuleRepository;
     private final RoleRepository roleRepository;
+    private final ModuleRepository moduleRepository;
 
-    private static final Set<String> MANAGEMENT_MODULES = Set.of(
-            "System Admin", "Module Management", "Role Management", "User Management"
+    private static final Set<String> RESTRICTED_MODULES = Set.of(
+            "System Admin", "Module Management", "Role Management", "User Management", "All Access Requests"
+    );
+
+    private static final Set<String> AUTO_GRANT_MODULES = Set.of(
+            "System Admin", "Module Management", "Role Management", "User Management", "All Access Requests", "Form Request"
     );
 
     /**
@@ -41,7 +46,7 @@ public class MenuService {
             
             List<Module> modules = roleModuleRepository.findByRole(fallback).stream()
                     .map(RoleModule::getModule)
-                    .filter(m -> m.isActive() && !MANAGEMENT_MODULES.contains(m.getModuleName()))
+                    .filter(m -> m.isActive() && !RESTRICTED_MODULES.contains(m.getModuleName()))
                     .sorted(Comparator.comparingInt(Module::getSortOrder))
                     .collect(Collectors.toList());
             return buildTree(modules);
@@ -60,8 +65,20 @@ public class MenuService {
                     .forEach(uniqueModules::add);
         }
 
+        if (isAnySystemAdmin) {
+            // Auto-grant all management modules to SYSTEM_ADMIN
+            moduleRepository.findAll().stream()
+                    .filter(m -> AUTO_GRANT_MODULES.contains(m.getModuleName()))
+                    .forEach(uniqueModules::add);
+        }
+
+        // Filter out restricted modules for non-admins (extra safety)
+        if (!isAnySystemAdmin) {
+            uniqueModules.removeIf(m -> RESTRICTED_MODULES.contains(m.getModuleName()));
+        }
+
         List<Module> filteredModules = uniqueModules.stream()
-                .filter(m -> isAnySystemAdmin || !MANAGEMENT_MODULES.contains(m.getModuleName()))
+                .filter(Module::isActive) // Ensure modules are active after all additions/removals
                 .sorted(Comparator.comparingInt(Module::getSortOrder))
                 .collect(Collectors.toList());
 

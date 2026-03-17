@@ -48,13 +48,14 @@ public class DataInitializer implements CommandLineRunner {
         Module formsParent = findOrCreateModule("Forms Management", null, "/", "file-text", true, false, null, null, 1);
         findOrCreateModule("Form Vault", "All your forms", "/", "inbox", false, false, formsParent, null, 2);
         findOrCreateModule("Create New Form", "Start a new form", "/forms/new", "plus-circle", false, false, formsParent, null, 3);
-//        findOrCreateModule("Form Request", "Accept or Reject form request","")
+        findOrCreateModule("Form Request", "Accept or Reject form request","/requests","user-key",true,false,formsParent,null,4);
 
         // === System Admin (parent) ===
         Module sysParent = findOrCreateModule("System Admin", null, null, "shield", true, false, null, null, 10);
-        findOrCreateModule("Module Management", "Manage site modules", "/admin/modules", "layout-list", false, false, sysParent, null, 11);
-        findOrCreateModule("Role Management", "Manage roles", "/admin/roles", "users-cog", false, false, sysParent, null, 12);
-        findOrCreateModule("User Management", "Manage users", "/admin/users", "user-cog", false, false, sysParent, null, 13);
+        findOrCreateModule("All Access Requests", "Manage system-wide requests", "/requests", "globe", false, false, sysParent, null, 11);
+        findOrCreateModule("Module Management", "Manage site modules", "/admin/modules", "layout-list", false, false, sysParent, null, 12);
+        findOrCreateModule("Role Management", "Manage roles", "/admin/roles", "users-cog", false, false, sysParent, null, 13);
+        findOrCreateModule("User Management", "Manage users", "/admin/users", "user-cog", false, false, sysParent, null, 14);
     }
 
     private void seedRoles() {

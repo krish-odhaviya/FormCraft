@@ -12,6 +12,10 @@ function RolesContent() {
   const [roles, setRoles] = useState([]);
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  const RESTRICTED_MODULES = [
+    "System Admin", "Module Management", "Role Management", "User Management", "All Access Requests"
+  ];
   const [selectedRole, setSelectedRole] = useState(null);
   const [selectedModuleIds, setSelectedModuleIds] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -198,16 +202,18 @@ function RolesContent() {
               </div>
               <h3 className="text-sm font-bold text-slate-900 mb-4">Module Access</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {modules.map(m => (
-                  <label key={m.id} className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedModuleIds.includes(m.id) ? 'border-indigo-600 bg-indigo-50/60' : 'border-slate-100 hover:border-slate-200'}`}>
-                    <input type="checkbox" checked={selectedModuleIds.includes(m.id)} onChange={() => toggleModule(m.id)} className="w-4 h-4 text-indigo-600 rounded mt-0.5" />
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">{m.moduleName}</p>
-                      {m.prefix && <code className="text-[10px] text-indigo-400">{m.prefix}</code>}
-                      <p className="text-xs text-slate-400">{m.parentName ? `Under: ${m.parentName}` : "Top Level"}</p>
-                    </div>
-                  </label>
-                ))}
+                {modules
+                  .filter(m => !RESTRICTED_MODULES.includes(m.moduleName))
+                  .map(m => (
+                    <label key={m.id} className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${selectedModuleIds.includes(m.id) ? 'border-indigo-600 bg-indigo-50/60' : 'border-slate-100 hover:border-slate-200'}`}>
+                      <input type="checkbox" checked={selectedModuleIds.includes(m.id)} onChange={() => toggleModule(m.id)} className="w-4 h-4 text-indigo-600 rounded mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">{m.moduleName}</p>
+                        {m.prefix && <code className="text-[10px] text-indigo-400">{m.prefix}</code>}
+                        <p className="text-xs text-slate-400">{m.parentName ? `Under: ${m.parentName}` : "Top Level"}</p>
+                      </div>
+                    </label>
+                  ))}
               </div>
 
               <div className="mt-8 border-t border-slate-100 pt-6">

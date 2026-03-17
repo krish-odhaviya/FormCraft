@@ -115,13 +115,13 @@ function DashboardContent() {
               <button className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors">
                 Templates
               </button>
-              <Link
+              {/* <Link
                 href="/requests"
                 className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
               >
                 <Bell size={16} />
                 Requests
-              </Link>
+              </Link> */}
               {user?.roles?.includes("ROLE_ADMIN") && (
                 <Link
                   href="/admin"

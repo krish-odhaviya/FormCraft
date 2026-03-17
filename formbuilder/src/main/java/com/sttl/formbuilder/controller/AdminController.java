@@ -95,6 +95,14 @@ public class AdminController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
 
+        if (user.getId().equals(admin.getId())) {
+            throw new BusinessException("You cannot disable your own account", HttpStatus.FORBIDDEN);
+        }
+
+        if (permissionService.isSystemAdmin(user)) {
+            throw new BusinessException("You cannot disable another administrator", HttpStatus.FORBIDDEN);
+        }
+
         user.setEnabled(enabled);
         userRepository.save(user);
 

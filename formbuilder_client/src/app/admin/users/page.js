@@ -55,6 +55,18 @@ function UserManagementContent() {
     finally { setSaving(false); }
   };
 
+  const handleToggleStatus = async (user, newStatus) => {
+    setSaving(true);
+    try {
+      await api.toggleUserStatus(user.id, newStatus);
+      reload();
+    } catch (e) {
+      alert(e?.response?.data?.message || "Failed to update status.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const filtered = users.filter(u =>
     u.username?.toLowerCase().includes(search.toLowerCase())
   );
@@ -124,7 +136,7 @@ function UserManagementContent() {
             <table className="w-full text-left">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  {["Identity", "Active Roles", "Access Level", "Actions"].map(h => (
+                  {["Identity", "Active Roles", "Access Level", "Account Status", "Actions"].map(h => (
                     <th key={h} className="px-8 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">{h}</th>
                   ))}
                 </tr>
@@ -156,6 +168,20 @@ function UserManagementContent() {
                       <td className="px-8 py-5">
                         <span className={`flex items-center gap-1.5 text-xs font-bold ${canManage ? 'text-emerald-600' : 'text-slate-400'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${canManage ? 'bg-emerald-500' : 'bg-slate-400'}`} /> {canManage ? 'MANAGED' : 'PROTECTED'}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5">
+                        <button
+                          onClick={() => handleToggleStatus(u, !u.enabled)}
+                          disabled={!canManage || saving}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${u.enabled ? 'bg-emerald-500' : 'bg-slate-200'} ${(!canManage || saving) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${u.enabled ? 'translate-x-6' : 'translate-x-1'}`}
+                          />
+                        </button>
+                        <span className={`ml-2 text-xs font-bold ${u.enabled ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {u.enabled ? 'ENABLED' : 'DISABLED'}
                         </span>
                       </td>
                       <td className="px-8 py-5">

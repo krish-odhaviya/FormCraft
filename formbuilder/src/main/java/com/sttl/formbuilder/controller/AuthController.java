@@ -16,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -87,6 +88,8 @@ public class AuthController {
                     "success", false,
                     "message", "Invalid username or password"
             ));
+        } catch (DisabledException ex) {
+            return ApiResponseUtil.error("You are disabled by admin", null, HttpStatus.FORBIDDEN, request);
         }
     }
 
