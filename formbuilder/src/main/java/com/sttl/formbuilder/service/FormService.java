@@ -44,7 +44,7 @@ public class FormService {
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
-        if (user.getRole() == com.sttl.formbuilder.Enums.SystemRole.ADMIN) {
+        if (permissionService.canManageSystem(user)) {
             return formRepository.findAll();
         }
         

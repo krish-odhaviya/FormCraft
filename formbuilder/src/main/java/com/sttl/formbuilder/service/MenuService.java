@@ -22,6 +22,10 @@ public class MenuService {
     private final RoleModuleRepository roleModuleRepository;
     private final RoleRepository roleRepository;
 
+    private static final Set<String> MANAGEMENT_MODULES = Set.of(
+            "System Admin", "Module Management", "Role Management", "User Management"
+    );
+
     /**
      * Returns the hierarchical menu tree for the given username.
      * Falls back to FORMS_MANAGER modules if user has no assigned role.
@@ -30,19 +34,38 @@ public class MenuService {
         User user = userRepository.findByUsername(username).orElse(null);
         if (user == null) return Collections.emptyList();
 
-        Optional<UserRole> userRoleOpt = userRoleRepository.findFirstByUser(user);
-        Role role = userRoleOpt.map(UserRole::getRole)
-                .orElseGet(() -> roleRepository.findByRoleName("FORMS_MANAGER").orElse(null));
+        List<UserRole> userRoles = userRoleRepository.findByUser(user);
+        if (userRoles.isEmpty()) {
+            Role fallback = roleRepository.findByRoleName("FORMS_MANAGER").orElse(null);
+            if (fallback == null) return Collections.emptyList();
+            
+            List<Module> modules = roleModuleRepository.findByRole(fallback).stream()
+                    .map(RoleModule::getModule)
+                    .filter(m -> m.isActive() && !MANAGEMENT_MODULES.contains(m.getModuleName()))
+                    .sorted(Comparator.comparingInt(Module::getSortOrder))
+                    .collect(Collectors.toList());
+            return buildTree(modules);
+        }
 
-        if (role == null) return Collections.emptyList();
+        boolean isAnySystemAdmin = userRoles.stream().anyMatch(ur -> 
+            "SYSTEM_ADMIN".equalsIgnoreCase(ur.getRole().getRoleName())
+        );
 
-        List<Module> modules = roleModuleRepository.findByRole(role).stream()
-                .map(RoleModule::getModule)
-                .filter(Module::isActive)
+        Set<Module> uniqueModules = new HashSet<>();
+        for (UserRole ur : userRoles) {
+            Role r = ur.getRole();
+            roleModuleRepository.findByRole(r).stream()
+                    .map(RoleModule::getModule)
+                    .filter(Module::isActive)
+                    .forEach(uniqueModules::add);
+        }
+
+        List<Module> filteredModules = uniqueModules.stream()
+                .filter(m -> isAnySystemAdmin || !MANAGEMENT_MODULES.contains(m.getModuleName()))
                 .sorted(Comparator.comparingInt(Module::getSortOrder))
                 .collect(Collectors.toList());
 
-        return buildTree(modules);
+        return buildTree(filteredModules);
     }
 
     private List<MenuItemDTO> buildTree(List<Module> modules) {

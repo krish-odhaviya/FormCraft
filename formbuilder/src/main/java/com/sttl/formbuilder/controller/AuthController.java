@@ -147,7 +147,6 @@ public class AuthController {
         User user = new User();
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode(body.getPassword()));
-        user.setRole(com.sttl.formbuilder.Enums.SystemRole.EMPLOYEE);
         user.setEnabled(true);
         User savedUser = userRepository.save(user);
 
@@ -160,7 +159,7 @@ public class AuthController {
         });
 
         UserResponseDto dto = new UserResponseDto(
-                savedUser.getId(), savedUser.getUsername(), savedUser.getRole(), savedUser.isEnabled(), roleService.getUserRoleName(savedUser), roleService.getCustomRoleId(savedUser));
+                savedUser.getId(), savedUser.getUsername(), savedUser.isEnabled(), roleService.getUserRoleName(savedUser), roleService.getCustomRoleId(savedUser));
 
         return ApiResponseUtil.success(dto, "Account created successfully", request);
     }
@@ -171,7 +170,6 @@ public class AuthController {
         
         userRepository.findByUsername(authentication.getName()).ifPresent(user -> {
             data.put("id", user.getId());
-            data.put("role", user.getRole().name());
 
             userRoleRepository.findFirstByUser(user).ifPresent(ur -> {
                 com.sttl.formbuilder.entity.Role customRole = ur.getRole();

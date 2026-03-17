@@ -1,6 +1,5 @@
 package com.sttl.formbuilder.controller;
 
-import com.sttl.formbuilder.Enums.SystemRole;
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.UserResponseDto;
@@ -44,37 +43,11 @@ public class AdminController {
         }
 
         List<UserResponseDto> users = userRepository.findAll().stream()
-                .map(u -> new UserResponseDto(u.getId(), u.getUsername(), u.getRole(), u.isEnabled(), roleService.getUserRoleName(u), roleService.getCustomRoleId(u)))
+                .map(u -> new UserResponseDto(u.getId(), u.getUsername(), u.isEnabled(), roleService.getUserRoleName(u), roleService.getCustomRoleId(u)))
                 .toList();
         return ApiResponseUtil.success(users, "Users fetched successfully", httprequest);
     }
 
-    @PostMapping("/users/{userId}/role")
-    public ResponseEntity<ApiResponse<UserResponseDto>> updateUserRole(
-            @PathVariable Long userId,
-            @RequestParam SystemRole role,
-            @AuthenticationPrincipal UserDetails currentUser,
-            HttpServletRequest httprequest) {
-
-        if (currentUser == null) {
-            throw new BusinessException("Authentication required", HttpStatus.UNAUTHORIZED);
-        }
-        User admin = userRepository.findByUsername(currentUser.getUsername())
-                .orElseThrow(() -> new BusinessException("Admin user not found", HttpStatus.NOT_FOUND));
-
-        if (!permissionService.canManageSystem(admin)) {
-            throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
-        }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
-
-        user.setRole(role);
-        userRepository.save(user);
-
-        UserResponseDto dto = new UserResponseDto(user.getId(), user.getUsername(), user.getRole(), user.isEnabled(), roleService.getUserRoleName(user), roleService.getCustomRoleId(user));
-        return ApiResponseUtil.success(dto, "User role (System) updated successfully", httprequest);
-    }
 
     @PostMapping("/users/{userId}/custom-role")
     public ResponseEntity<ApiResponse<UserResponseDto>> updateUserCustomRole(
@@ -98,7 +71,7 @@ public class AdminController {
 
         roleService.assignRoleToUser(userId, roleId);
         
-        UserResponseDto dto = new UserResponseDto(user.getId(), user.getUsername(), user.getRole(), user.isEnabled(), roleService.getUserRoleName(user), roleService.getCustomRoleId(user));
+        UserResponseDto dto = new UserResponseDto(user.getId(), user.getUsername(), user.isEnabled(), roleService.getUserRoleName(user), roleService.getCustomRoleId(user));
         return ApiResponseUtil.success(dto, "User custom role updated successfully", httprequest);
     }
 
@@ -125,7 +98,7 @@ public class AdminController {
         user.setEnabled(enabled);
         userRepository.save(user);
 
-        UserResponseDto dto = new UserResponseDto(user.getId(), user.getUsername(), user.getRole(), user.isEnabled(), roleService.getUserRoleName(user), roleService.getCustomRoleId(user));
+        UserResponseDto dto = new UserResponseDto(user.getId(), user.getUsername(), user.isEnabled(), roleService.getUserRoleName(user), roleService.getCustomRoleId(user));
         return ApiResponseUtil.success(dto, "User status updated successfully", httprequest);
     }
 }

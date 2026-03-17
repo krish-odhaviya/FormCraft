@@ -61,8 +61,8 @@ public class FormController {
             map.put("status", form.getStatus().name());
             map.put("visibility", form.getVisibility() != null ? form.getVisibility().name() : "PUBLIC");
             map.put("ownerUsername", form.getOwner() != null ? form.getOwner().getUsername() : null);
-            map.put("canEdit", user != null && (user.getRole() == com.sttl.formbuilder.Enums.SystemRole.ADMIN || permissionService.canConfigureForm(user, form)));
-            map.put("canViewSubmissions", user != null && (user.getRole() == com.sttl.formbuilder.Enums.SystemRole.ADMIN || permissionService.canViewSubmissions(user, form)));
+            map.put("canEdit", user != null && (permissionService.canManageSystem(user) || permissionService.canConfigureForm(user, form)));
+            map.put("canViewSubmissions", user != null && (permissionService.canManageSystem(user) || permissionService.canViewSubmissions(user, form)));
             
             return map;
         }).collect(Collectors.toList());

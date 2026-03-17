@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -102,15 +103,33 @@ public class RoleService {
     /** Replace the user's current custom role with the new one */
     @Transactional
     public void assignRoleToUser(Long userId, Long roleId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new BusinessException("Current user not found", HttpStatus.UNAUTHORIZED));
+        
+        User targetUser = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("Target user not found", HttpStatus.NOT_FOUND));
+        
+        // Check if target is self
+        if (targetUser.getId().equals(currentUser.getId())) {
+            throw new BusinessException("You cannot change your own role", HttpStatus.FORBIDDEN);
+        }
+        
+        // Check if target is already an admin
+        boolean isTargetAdmin = userRoleRepository.findByUser(targetUser).stream()
+                .anyMatch(ur -> "SYSTEM_ADMIN".equalsIgnoreCase(ur.getRole().getRoleName()));
+        
+        if (isTargetAdmin) {
+            throw new BusinessException("You cannot change the role of another administrator", HttpStatus.FORBIDDEN);
+        }
+
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new BusinessException("Role not found", HttpStatus.NOT_FOUND));
 
         userRoleRepository.deleteByUserId(userId);
 
         UserRole ur = new UserRole();
-        ur.setUser(user);
+        ur.setUser(targetUser);
         ur.setRole(role);
         userRoleRepository.save(ur);
     }
@@ -156,7 +175,6 @@ public class RoleService {
         dto.setRoleName(role.getRoleName());
         dto.setDescription(role.getDescription());
         dto.setDefault(role.isDefault());
-        dto.setSystem(role.isSystem());
         dto.setCreatedAt(role.getCreatedAt());
         dto.setCanCreateForm(role.isCanCreateForm());
         dto.setCanEditForm(role.isCanEditForm());

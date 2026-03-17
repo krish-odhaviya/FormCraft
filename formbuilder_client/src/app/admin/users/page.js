@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, Loader2, Search, X, Check } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ChevronRight, Loader2, Search, X, Check, Link as LinkIcon } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { useAuth } from "@/context/AuthContext";
 
 function UserManagementContent() {
   const [users, setUsers] = useState([]);
@@ -14,6 +16,16 @@ function UserManagementContent() {
   const [managingUser, setManagingUser] = useState(null);
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [saving, setSaving] = useState(false);
+  const { user: authUser } = useAuth();
+  const router = useRouter();
+
+  const isSystemAdmin = authUser?.roles?.some(r => r === "ROLE_SYSTEM_ADMIN" || r === "ROLE_ADMIN");
+
+  useEffect(() => {
+    if (authUser && !isSystemAdmin) {
+      router.replace("/");
+    }
+  }, [authUser, isSystemAdmin, router]);
 
   const reload = async () => {
     setLoading(true);
@@ -118,37 +130,49 @@ function UserManagementContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filtered.map(u => (
-                  <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-8 py-5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-slate-900 text-white rounded-full flex items-center justify-center text-sm font-black">
-                          {u.username?.charAt(0)?.toUpperCase()}
+                {filtered.map(u => {
+                  const isUserAdmin = u.customRoleName?.toUpperCase().includes('ADMIN') || u.role === "ADMIN";
+                  const isSelf = u.username === authUser?.username;
+                  const canManage = !isUserAdmin && !isSelf;
+
+                  return (
+                    <tr key={u.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-8 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-slate-900 text-white rounded-full flex items-center justify-center text-sm font-black">
+                            {u.username?.charAt(0)?.toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-900">{u.username}</p>
+                            <p className="text-xs text-slate-400">{u.username}@formcraft</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900">{u.username}</p>
-                          <p className="text-xs text-slate-400">{u.username}@formcraft</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className="text-[10px] font-bold px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full uppercase tracking-wide">
-                        {u.customRoleName || (u.role === "ADMIN" ? "SYSTEM_ADMIN" : "BASIC_USER")}
-                      </span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" /> MANAGED
-                      </span>
-                    </td>
-                    <td className="px-8 py-5">
-                      <button onClick={() => openManage(u)}
-                        className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-[11px] font-bold hover:bg-slate-800 transition-all">
-                        MANAGE ACCESS <ChevronRight size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className="text-[10px] font-bold px-3 py-1.5 bg-slate-100 text-slate-700 rounded-full uppercase tracking-wide">
+                          {u.customRoleName || (u.role === "ADMIN" ? "SYSTEM_ADMIN" : "BASIC_USER")}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className={`flex items-center gap-1.5 text-xs font-bold ${canManage ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${canManage ? 'bg-emerald-500' : 'bg-slate-400'}`} /> {canManage ? 'MANAGED' : 'PROTECTED'}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5">
+                        {canManage ? (
+                          <button onClick={() => openManage(u)}
+                            className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-2xl text-[11px] font-bold hover:bg-slate-800 transition-all">
+                            MANAGE ACCESS <ChevronRight size={14} />
+                          </button>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400 italic px-2">
+                            RESTRICTED
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

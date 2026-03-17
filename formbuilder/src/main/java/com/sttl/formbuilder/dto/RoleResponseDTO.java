@@ -11,7 +11,6 @@ public class RoleResponseDTO {
     private String roleName;
     private String description;
     private boolean isDefault;
-    private boolean isSystem;
     private LocalDateTime createdAt;
     private List<Long> moduleIds;
     private int assignedUserCount;

@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Plus, Pencil, Trash2, Loader2, ChevronRight, X, Check
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { useAuth } from "@/context/AuthContext";
 
 function ModuleModal({ initialData, modules, onSave, onClose }) {
   const [form, setForm] = useState({
@@ -118,6 +120,16 @@ function ModulesContent() {
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
+  const { user: authUser } = useAuth();
+  const router = useRouter();
+
+  const isSystemAdmin = authUser?.roles?.some(r => r === "ROLE_SYSTEM_ADMIN" || r === "ROLE_ADMIN");
+
+  useEffect(() => {
+    if (authUser && !isSystemAdmin) {
+      router.replace("/");
+    }
+  }, [authUser, isSystemAdmin, router]);
 
   const reload = async () => {
     setLoading(true);

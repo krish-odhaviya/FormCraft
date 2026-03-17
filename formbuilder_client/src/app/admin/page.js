@@ -29,23 +29,27 @@ function AdminDashboardContent() {
   const [activeTab, setActiveTab] = useState("requests");
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
 
   useEffect(() => {
-    if (user && !user.roles?.includes("ROLE_ADMIN")) {
+    const isSystemAdmin = user?.roles?.some(r => r === "ROLE_SYSTEM_ADMIN" || r === "ROLE_ADMIN");
+    if (user && !isSystemAdmin) {
       router.replace("/");
       return;
     }
 
     const fetchData = async () => {
       try {
-        const [usersRes, reqRes] = await Promise.all([
+        const [usersRes, reqRes, rolesRes] = await Promise.all([
           api.getAdminUsers(),
           api.getPendingRequests(),
+          api.getRoles(),
         ]);
         setUsers(usersRes.data || []);
         setRequests(reqRes.data || []);
+        setRoles(rolesRes.data || []);
       } catch (err) {
         console.error("Failed to fetch admin data:", err);
       } finally {
@@ -68,11 +72,12 @@ function AdminDashboardContent() {
     }
   };
 
-  const handleUpdateRole = async (userId, role) => {
+  const handleUpdateRole = async (userId, roleId) => {
     try {
-      await api.updateUserRole(userId, role);
+      await api.assignRoleToUser(roleId, userId);
+      const selectedRole = roles.find(r => r.id === parseInt(roleId));
       setUsers((prev) =>
-        prev.map((u) => (u.id === userId ? { ...u, role } : u))
+        prev.map((u) => (u.id === userId ? { ...u, customRoleId: roleId, customRoleName: selectedRole?.roleName } : u))
       );
     } catch (err) {
       console.error("Failed to update user role:", err);
@@ -249,7 +254,7 @@ function AdminDashboardContent() {
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">User Identity</th>
-                        <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">System Role</th>
+                        <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Custom Role</th>
                         <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Account Status</th>
                         <th className="px-8 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Actions</th>
                       </tr>
@@ -267,14 +272,16 @@ function AdminDashboardContent() {
                           </td>
                           <td className="px-8 py-5">
                             <select
-                              value={u.role}
-                              onChange={(e) => handleUpdateRole(u.id, e.target.value)}
-                              className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none transition-all ${
-                                u.role === 'ADMIN' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-600 border-slate-200'
-                              }`}
+                               value={u.customRoleId || ""}
+                               onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                               className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none transition-all ${
+                                 u.customRoleName?.toUpperCase().includes('ADMIN') ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-600 border-slate-200'
+                               }`}
                             >
-                              <option value="ADMIN">ADMIN</option>
-                              <option value="EMPLOYEE">EMPLOYEE</option>
+                               <option value="" disabled>Select Role</option>
+                               {roles.map(r => (
+                                 <option key={r.id} value={r.id}>{r.roleName}</option>
+                               ))}
                             </select>
                           </td>
                           <td className="px-8 py-5">

@@ -1,11 +1,11 @@
 package com.sttl.formbuilder.service;
 
 import com.sttl.formbuilder.Enums.FormRole;
-import com.sttl.formbuilder.Enums.SystemRole;
 import com.sttl.formbuilder.Enums.VisibilityType;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormPermission;
 import com.sttl.formbuilder.entity.User;
+import com.sttl.formbuilder.entity.UserRole;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormPermissionRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -38,7 +39,7 @@ public class PermissionService {
             System.out.println("  Anonymous user on non-public form - access denied");
             return false;
         }
-        if (user.getRole() == SystemRole.ADMIN) {
+        if (isSystemAdmin(user)) {
             System.out.println("  ADMIN user - access granted");
             return true;
         }
@@ -64,7 +65,7 @@ public class PermissionService {
 
     public boolean canConfigureForm(User user, Form form) {
         if (user == null) return false;
-        if (user.getRole() == SystemRole.ADMIN) return true;
+        if (isSystemAdmin(user)) return true;
         
         boolean canEdit = userRoleRepository.findFirstByUser(user)
                 .map(ur -> ur.getRole().isCanEditForm())
@@ -81,7 +82,7 @@ public class PermissionService {
 
     public boolean canCreateForm(User user) {
         if (user == null) return false;
-        if (user.getRole() == SystemRole.ADMIN) return true;
+        if (isSystemAdmin(user)) return true;
         
         return userRoleRepository.findFirstByUser(user)
                 .map(ur -> ur.getRole().isCanCreateForm())
@@ -90,7 +91,7 @@ public class PermissionService {
 
     public boolean canArchiveForm(User user, Form form) {
         if (user == null) return false;
-        if (user.getRole() == SystemRole.ADMIN) return true;
+        if (isSystemAdmin(user)) return true;
 
         boolean canArchive = userRoleRepository.findFirstByUser(user)
                 .map(ur -> ur.getRole().isCanArchiveForm())
@@ -106,7 +107,7 @@ public class PermissionService {
 
     public boolean canViewSubmissions(User user, Form form) {
         if (user == null) return false;
-        if (user.getRole() == SystemRole.ADMIN) return true;
+        if (isSystemAdmin(user)) return true;
         
         boolean globalCanView = userRoleRepository.findFirstByUser(user)
                 .map(ur -> ur.getRole().isCanViewSubmissions())
@@ -123,7 +124,7 @@ public class PermissionService {
 
     public boolean canDeleteSubmissions(User user, Form form) {
         if (user == null) return false;
-        if (user.getRole() == SystemRole.ADMIN) return true;
+        if (isSystemAdmin(user)) return true;
         
         boolean globalCanDelete = userRoleRepository.findFirstByUser(user)
                 .map(ur -> ur.getRole().isCanDeleteSubmissions())
@@ -139,7 +140,15 @@ public class PermissionService {
     }
 
     public boolean canManageSystem(User user) {
-        return user != null && user.getRole() == SystemRole.ADMIN;
+        return isSystemAdmin(user);
+    }
+
+    public boolean isSystemAdmin(User user) {
+        if (user == null) return false;
+        List<UserRole> userRoles = userRoleRepository.findByUser(user);
+        return userRoles.stream().anyMatch(ur -> 
+            "SYSTEM_ADMIN".equalsIgnoreCase(ur.getRole().getRoleName())
+        );
     }
 
     public void grantFormRole(User grantor, User user, Form form, FormRole role, LocalDateTime expiry) {
@@ -166,7 +175,7 @@ public class PermissionService {
 
     public boolean isOwnerOrAdmin(User user, Form form) {
         if (user == null || form == null) return false;
-        if (user.getRole() == SystemRole.ADMIN) return true;
+        if (isSystemAdmin(user)) return true;
         return form.getOwner() != null && form.getOwner().getId().equals(user.getId());
     }
 

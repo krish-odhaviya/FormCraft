@@ -1,6 +1,5 @@
 package com.sttl.formbuilder.config;
 
-import com.sttl.formbuilder.Enums.SystemRole;
 import com.sttl.formbuilder.entity.*;
 import com.sttl.formbuilder.entity.Module;
 import com.sttl.formbuilder.repository.*;
@@ -38,7 +37,6 @@ public class DataInitializer implements CommandLineRunner {
             User admin = new User();
             admin.setUsername("admin");
             admin.setPassword(passwordEncoder.encode("admin123"));
-            admin.setRole(SystemRole.ADMIN);
             admin.setEnabled(true);
             userRepository.save(admin);
             System.out.println("[Seed] Created admin user: admin / admin123");
@@ -67,7 +65,7 @@ public class DataInitializer implements CommandLineRunner {
                 .toList();
 
         // SYSTEM_ADMIN — gets all modules and all permissions
-        Role sysAdmin = findOrCreateRole("SYSTEM_ADMIN", "Full system access", true, true, 
+        Role sysAdmin = findOrCreateRole("SYSTEM_ADMIN", "Full system access", true, 
                                          true, true, true, true, true, true);
         if (roleModuleRepository.findByRole(sysAdmin).isEmpty()) {
             for (Module m : allModules) {
@@ -76,7 +74,7 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         // FORMS_MANAGER — gets forms modules only, basic permissions
-        Role formsManager = findOrCreateRole("FORMS_MANAGER", "Access to form management", true, false,
+        Role formsManager = findOrCreateRole("FORMS_MANAGER", "Access to form management", true,
                                              true, true, false, false, true, false);
         if (roleModuleRepository.findByRole(formsManager).isEmpty()) {
             for (Module m : formsModules) {
@@ -85,7 +83,7 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         // Project manager — gets forms modules only, but with delete and archive permissions
-        Role projectManager = findOrCreateRole("Project manager", "Access to project management", true, false,
+        Role projectManager = findOrCreateRole("Project manager", "Access to project management", true,
                                                true, true, true, true, true, true);
         if (roleModuleRepository.findByRole(projectManager).isEmpty()) {
             for (Module m : formsModules) {
@@ -107,7 +105,7 @@ public class DataInitializer implements CommandLineRunner {
             }
 
             Role toAssign;
-            if (user.getRole() == SystemRole.ADMIN && sysAdminRole.isPresent()) {
+            if ("admin".equals(user.getUsername()) && sysAdminRole.isPresent()) {
                 toAssign = sysAdminRole.get();
             } else if (projectManagerRole.isPresent()) {
                 toAssign = projectManagerRole.get();
@@ -151,7 +149,7 @@ public class DataInitializer implements CommandLineRunner {
                 });
     }
 
-    private Role findOrCreateRole(String name, String description, boolean isDefault, boolean isSystem,
+    private Role findOrCreateRole(String name, String description, boolean isDefault,
                                   boolean create, boolean edit, boolean delete, boolean archive, 
                                   boolean viewSub, boolean delSub) {
         return roleRepository.findByRoleName(name).orElseGet(() -> {
@@ -159,7 +157,6 @@ public class DataInitializer implements CommandLineRunner {
             role.setRoleName(name);
             role.setDescription(description);
             role.setDefault(isDefault);
-            role.setSystem(isSystem);
             role.setCanCreateForm(create);
             role.setCanEditForm(edit);
             role.setCanDeleteForm(delete);

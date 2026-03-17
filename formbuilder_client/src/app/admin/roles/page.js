@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, Loader2, X, Check, Trash2, Pencil } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { useAuth } from "@/context/AuthContext";
 
 function RolesContent() {
   const [roles, setRoles] = useState([]);
@@ -19,6 +21,16 @@ function RolesContent() {
     canArchiveForm: false, canViewSubmissions: false, canDeleteSubmissions: false
   });
   const [saving, setSaving] = useState(false);
+  const { user: authUser } = useAuth();
+  const router = useRouter();
+
+  const isSystemAdmin = authUser?.roles?.some(r => r === "ROLE_SYSTEM_ADMIN" || r === "ROLE_ADMIN");
+
+  useEffect(() => {
+    if (authUser && !isSystemAdmin) {
+      router.replace("/");
+    }
+  }, [authUser, isSystemAdmin, router]);
 
   const reload = async () => {
     setLoading(true);
@@ -165,7 +177,6 @@ function RolesContent() {
                 <p className="text-xs text-slate-400 mt-1">{role.description || "No description"}</p>
                 <div className="flex items-center gap-2 mt-2">
                   {role.isDefault && <span className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded-full font-bold uppercase">Default</span>}
-                  {role.isSystem && <span className="text-[9px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-bold uppercase">System</span>}
                   <span className="text-[10px] text-slate-400">{role.moduleIds?.length || 0} modules</span>
                 </div>
               </div>

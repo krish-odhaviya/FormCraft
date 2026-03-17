@@ -27,9 +27,6 @@ public class Role {
     @Column(nullable = false)
     private boolean isDefault = false;
 
-    /** If true, this is a system-level role (SYSTEM_ADMIN) */
-    @Column(nullable = false)
-    private boolean isSystem = false;
 
     @Column(nullable = false)
     private boolean canCreateForm = false;
