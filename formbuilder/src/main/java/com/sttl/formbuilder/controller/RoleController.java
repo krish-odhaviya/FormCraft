@@ -6,6 +6,7 @@ import com.sttl.formbuilder.dto.RoleRequestDTO;
 import com.sttl.formbuilder.dto.RoleResponseDTO;
 import com.sttl.formbuilder.service.RoleService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,13 +28,13 @@ public class RoleController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<RoleResponseDTO>> create(
-            @jakarta.validation.Valid @RequestBody RoleRequestDTO dto, HttpServletRequest req) {
+            @Valid @RequestBody RoleRequestDTO dto, HttpServletRequest req) {
         return ApiResponseUtil.success(roleService.createRole(dto), "Role created", req);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<RoleResponseDTO>> update(
-            @PathVariable Long id, @jakarta.validation.Valid @RequestBody RoleRequestDTO dto, HttpServletRequest req) {
+            @PathVariable Long id, @Valid @RequestBody RoleRequestDTO dto, HttpServletRequest req) {
         return ApiResponseUtil.success(roleService.updateRole(id, dto), "Role updated", req);
     }
 

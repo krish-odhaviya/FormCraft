@@ -17,6 +17,7 @@ import {
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { toast } from "react-hot-toast";
 import Link from "next/link";
 
 function RequestsManagementContent() {
@@ -45,9 +46,10 @@ function RequestsManagementContent() {
     try {
       await api.processRequest(requestId, status, role);
       setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      toast.success(`Request ${status.toLowerCase()}`);
     } catch (err) {
       console.error("Failed to process request:", err);
-      alert("Error processing request.");
+      toast.error("Error processing request.");
     } finally {
       setProcessingId(null);
     }

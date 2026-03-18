@@ -105,6 +105,7 @@ public class FormService {
         response.setPublishedAt(form.getPublishedAt());
         response.setCanEdit(permissionService.canConfigureForm(user, form));
         response.setCanViewSubmissions(permissionService.canViewSubmissions(user, form));
+        response.setCanDeleteSubmissions(user != null && (permissionService.canManageSystem(user) || permissionService.canDeleteSubmissions(user, form)));
         response.setOwnerName(form.getOwner() != null ? form.getOwner().getUsername() : "Unknown");
         response.setOwnerId(form.getOwner() != null ? form.getOwner().getId() : null);
 

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useForms } from "@/context/FormsContext";
+import { toast } from "react-hot-toast";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Condition evaluator
@@ -440,7 +441,7 @@ function FormPageContent() {
 
     // FINAL SUBMISSION ACTION
     if (isPreview) {
-      alert("This is a preview mode. Submissions are disabled.");
+      toast.error("This is a preview mode. Submissions are disabled.");
       setSubmitting(false);
       return;
     }
@@ -468,6 +469,8 @@ function FormPageContent() {
         const el = document.getElementById(`field_${firstKey}`);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       } else {
+        const msg = err.response?.data?.message || "Submission Failed. Please try again.";
+        setErrorMessage(msg);
         setMessage("error");
       }
     } finally {
@@ -648,7 +651,10 @@ function FormPageContent() {
           {message === "error" && (
             <div className="mb-8 flex items-start gap-3 bg-red-50 border border-red-200 px-5 py-4 rounded-xl text-sm">
               <AlertCircle size={20} className="text-red-600 shrink-0 mt-0.5" />
-              <div><strong className="block font-semibold text-red-900 mb-1">Submission Failed</strong><span className="text-red-800">Something went wrong. Please try again.</span></div>
+              <div>
+                <strong className="block font-semibold text-red-900 mb-1">Submission Failed</strong>
+                <span className="text-red-800">{errorMessage || "Something went wrong. Please try again."}</span>
+              </div>
             </div>
           )}
 
@@ -1030,7 +1036,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
       const handleFileChange = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        if (file.size > maxSizeMb * 1024 * 1024) { alert(`File too large. Max size is ${maxSizeMb}MB.`); e.target.value = ""; return; }
+        if (file.size > maxSizeMb * 1024 * 1024) { toast.error(`File too large. Max size is ${maxSizeMb}MB.`); e.target.value = ""; return; }
         handleChange(field.fieldKey, "__uploading__");
         try {
           const fd = new FormData();
@@ -1040,7 +1046,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           const data = await res.json();
           handleChange(field.fieldKey, data.url);
         } catch (err) {
-          console.error(err); alert("File upload failed.");
+          console.error(err); toast.error("File upload failed.");
           handleChange(field.fieldKey, ""); e.target.value = "";
         }
       };

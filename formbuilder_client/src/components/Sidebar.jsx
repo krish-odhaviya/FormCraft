@@ -10,20 +10,34 @@ import {
   FileText, PlusCircle, Shield, LayoutList,
   Users, UserCog, Inbox, LayoutDashboard,
   Menu, ChevronLeft, PanelLeftClose, PanelLeftOpen,
-  History, LogOut
+  History, LogOut, Settings, Bell, Mail, Search,
+  Lock, Layers, Briefcase, ClipboardList, BarChart3,
+  Globe, Database, Plus
 } from "lucide-react";
 
 // Map icon strings from backend to Lucide components
 const ICON_MAP = {
-  "file-text":   <FileText size={18} />,
-  "plus-circle": <PlusCircle size={18} />,
-  "shield":      <Shield size={18} />,
-  "layout-list": <LayoutList size={18} />,
-  "users-cog":   <Users size={18} />,
-  "user-cog":    <UserCog size={18} />,
-  "inbox":       <Inbox size={18} />,
-  "layout":      <LayoutDashboard size={18} />,
-  "history":     <History size={18} />,
+  "file-text":      <FileText size={18} />,
+  "plus-circle":    <PlusCircle size={18} />,
+  "shield":         <Shield size={18} />,
+  "layout-list":    <LayoutList size={18} />,
+  "users-cog":      <Users size={18} />,
+  "user-cog":       <UserCog size={18} />,
+  "inbox":          <Inbox size={18} />,
+  "layout":         <LayoutDashboard size={18} />,
+  "history":        <History size={18} />,
+  "settings":       <Settings size={18} />,
+  "bell":           <Bell size={18} />,
+  "mail":           <Mail size={18} />,
+  "search":         <Search size={18} />,
+  "lock":           <Lock size={18} />,
+  "layers":         <Layers size={18} />,
+  "briefcase":      <Briefcase size={18} />,
+  "clipboard-list": <ClipboardList size={18} />,
+  "bar-chart":      <BarChart3 size={18} />,
+  "globe":          <Globe size={18} />,
+  "database":       <Database size={18} />,
+  "plus":           <Plus size={18} />,
 };
 
 function getIcon(name) {

@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Loader2, X, Check, Trash2, Pencil } from "lucide-react
 import { api } from "@/lib/api/formService";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "react-hot-toast";
 
 function RolesContent() {
   const [roles, setRoles] = useState([]);
@@ -63,15 +64,15 @@ function RolesContent() {
         api.assignModulesToRole(selectedRole.id, selectedModuleIds),
         api.updateRole(selectedRole.id, selectedRole)
       ]);
-      alert("Role configuration saved!");
+      toast.success("Role configuration saved!");
       reload();
     } catch (e) {
       console.error(e);
       if (e.response?.data?.errors) {
         const msgs = e.response.data.errors.map(err => `${err.field}: ${err.message}`).join("\n");
-        alert(`Validation Error:\n${msgs}`);
+        toast.error(`Validation Error:\n${msgs}`);
       } else {
-        alert("Failed to save: " + (e.response?.data?.message || "Internal error"));
+        toast.error("Failed to save: " + (e.response?.data?.message || "Internal error"));
       }
     } finally {
       setSaving(false);
@@ -80,7 +81,7 @@ function RolesContent() {
 
   const handleCreateRole = async () => {
     if (!newRole.roleName?.trim()) {
-      alert("Role Name is required");
+      toast.error("Role Name is required");
       return;
     }
     setSaving(true);
@@ -97,9 +98,9 @@ function RolesContent() {
       console.error(e);
       if (e.response?.data?.errors) {
         const msgs = e.response.data.errors.map(err => `${err.field}: ${err.message}`).join("\n");
-        alert(`Validation Error:\n${msgs}`);
+        toast.error(`Validation Error:\n${msgs}`);
       } else {
-        alert("Failed to create role: " + (e.response?.data?.message || "Internal error"));
+        toast.error("Failed to create role: " + (e.response?.data?.message || "Internal error"));
       }
     } finally {
       setSaving(false);
@@ -107,9 +108,12 @@ function RolesContent() {
   };
 
   const handleDeleteRole = async (id) => {
-    if (!confirm("Delete this role?")) return;
-    try { await api.deleteRole(id); reload(); }
-    catch (e) { alert(e?.response?.data?.message || "Cannot delete this role."); }
+    try { 
+      await api.deleteRole(id); 
+      toast.success("Role deleted");
+      reload(); 
+    }
+    catch (e) { toast.error(e?.response?.data?.message || "Cannot delete this role."); }
   };
 
   const toggleModule = (moduleId) => {

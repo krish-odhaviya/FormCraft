@@ -21,6 +21,7 @@ import {
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { toast } from "react-hot-toast";
 import Link from "next/link";
 
 function AdminDashboardContent() {
@@ -64,9 +65,10 @@ function AdminDashboardContent() {
     try {
       await api.processRequest(requestId, status, role);
       setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      toast.success(`Request ${status.toLowerCase()}`);
     } catch (err) {
       console.error("Failed to process request:", err);
-      alert("Error processing request.");
+      toast.error("Error processing request.");
     } finally {
       setProcessingId(null);
     }
@@ -79,9 +81,10 @@ function AdminDashboardContent() {
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, customRoleId: roleId, customRoleName: selectedRole?.roleName } : u))
       );
+      toast.success("Role updated");
     } catch (err) {
       console.error("Failed to update user role:", err);
-      alert("Error updating role.");
+      toast.error("Error updating role.");
     }
   };
 
@@ -91,9 +94,10 @@ function AdminDashboardContent() {
       setUsers((prev) =>
         prev.map((u) => (u.id === userId ? { ...u, enabled } : u))
       );
+      toast.success(`Status ${enabled ? 'enabled' : 'disabled'}`);
     } catch (err) {
       console.error("Failed to toggle status:", err);
-      alert("Error updating status.");
+      toast.error("Error updating status.");
     }
   };
 

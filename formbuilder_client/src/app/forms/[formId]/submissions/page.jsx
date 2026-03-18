@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "react-hot-toast";
 
 // ── Custom styles for react-data-table-component ──────────────────────────────
 const tableCustomStyles = {
@@ -85,6 +86,7 @@ export default function SubmissionsPage() {
   const [resetPaginationToggle, setResetPaginationToggle] = useState(false);
   const [selectedRows, setSelectedRows] = useState([]);
   const [clearSelectionToggle, setClearSelectionToggle] = useState(false);
+  const [canDelete,           setCanDelete]           = useState(false);
 
   const debounceRef = useRef(null);
 
@@ -126,6 +128,7 @@ export default function SubmissionsPage() {
       }
 
       const status = formRes.data?.status;
+      setCanDelete(formRes.data?.canDeleteSubmissions || false);
       if (status !== "PUBLISHED" && status !== "ARCHIVED") {
         setError("This form is not in a state that allows viewing submissions.");
         return;
@@ -218,9 +221,10 @@ export default function SubmissionsPage() {
       // Remove the deleted ID from selected rows if it was checked
       setSelectedRows(prev => prev.filter(row => row.id !== submissionId));
       fetchSubmissions(page, perPage, search, sortBy, sortDir);
+      toast.success("Submission deleted.");
     } catch (err) {
       console.error(err);
-      alert("Failed to delete submission.");
+      toast.error("Failed to delete submission.");
     }
   };
 
@@ -235,9 +239,10 @@ export default function SubmissionsPage() {
       setClearSelectionToggle(!clearSelectionToggle);
       setSelectedRows([]);
       fetchSubmissions(page, perPage, search, sortBy, sortDir);
+      toast.success(`${idsToDelete.length} submissions deleted.`);
     } catch (err) {
       console.error(err);
-      alert("Failed to bulk delete submissions.");
+      toast.error("Failed to bulk delete submissions.");
     }
   };
 
@@ -269,7 +274,7 @@ export default function SubmissionsPage() {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      alert(`Failed to export ${format.toUpperCase()}.`);
+      toast.error(`Failed to export ${format.toUpperCase()}.`);
     } finally {
       setExporting(null);
     }
@@ -451,7 +456,8 @@ export default function SubmissionsPage() {
       cell: row => formatCellValue(row[col.fieldKey], col.fieldType, row.id, col.fieldKey),
       style: { minWidth: "160px" },
     })),
-    {
+    // Only show Actions column if user can delete
+    ...(canDelete ? [{
       name: "Actions",
       right: "true",
       width: "80px",
@@ -462,7 +468,7 @@ export default function SubmissionsPage() {
           <Trash2 size={16} />
         </button>
       ),
-    },
+    }] : []),
   ];
 
   // ── Loading / Error ───────────────────────────────────────────────────────
@@ -639,7 +645,7 @@ export default function SubmissionsPage() {
             defaultSortAsc={false}
             // ── Styling & Selection ─────────────────────────────────────────
             customStyles={tableCustomStyles}
-            selectableRows
+            selectableRows={canDelete}
             onSelectedRowsChange={handleRowSelected}
             clearSelectedRows={clearSelectionToggle}
             highlightOnHover

@@ -18,28 +18,49 @@ import {
 import { api } from "@/lib/api/formService";
 import { useForms } from "@/context/FormsContext";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "react-hot-toast";
 
-const FIELD_TYPES = [
-  { value: "TEXT", label: "Short Answer", icon: <Type size={18} /> },
-  { value: "TEXTAREA", label: "Paragraph", icon: <AlignLeft size={18} /> },
-  { value: "RADIO", label: "Multiple Choice", icon: <CircleDot size={18} /> },
-  { value: "CHECKBOX_GROUP", label: "Checkboxes", icon: <ListTodo size={18} /> },
-  { value: "DROPDOWN", label: "Dropdown", icon: <ChevronDown size={18} /> },
-  { value: "INTEGER", label: "Number", icon: <Hash size={18} /> },
-  { value: "EMAIL", label: "Email", icon: <Mail size={18} /> },
-  { value: "DATE", label: "Date", icon: <Calendar size={18} /> },
-  { value: "TIME", label: "Time", icon: <Clock size={18} /> },
-  { value: "BOOLEAN", label: "Yes/No (Toggle)", icon: <ToggleRight size={18} /> },
-  { value: "FILE_UPLOAD", label: "File Upload", icon: <Upload size={18} /> },
-  { value: "STAR_RATING", label: "Star Rating", icon: <Star size={18} /> },
-  { value: "LINEAR_SCALE", label: "Linear Scale", icon: <SlidersHorizontal size={18} /> },
-  { value: "MC_GRID", label: "Multiple Choice Grid", icon: <LayoutGrid size={18} /> },
-  { value: "TICK_BOX_GRID", label: "Tick Box Grid", icon: <Grid3x3 size={18} /> },
-  { value: "LOOKUP_DROPDOWN", label: "Linked Dropdown", icon: <Link2 size={18} /> },
-  { value: "SECTION", label: "Section Break", icon: <Heading1 size={18} /> },
-  { value: "LABEL", label: "Label / Info", icon: <AlignLeftIcon size={18} /> },
-  { value: "PAGE_BREAK", label: "Page Break", icon: <BookOpen size={18} /> },
-  { value: "GROUP", label: "Group", icon: <LayoutTemplate size={18} /> },
+const FIELD_CATEGORIES = [
+  {
+    name: "Essential Fields",
+    fields: [
+      { value: "TEXT", label: "Short Answer", icon: <Type size={18} /> },
+      { value: "TEXTAREA", label: "Paragraph", icon: <AlignLeft size={18} /> },
+      { value: "EMAIL", label: "Email", icon: <Mail size={18} /> },
+      { value: "INTEGER", label: "Number", icon: <Hash size={18} /> },
+      { value: "DATE", label: "Date", icon: <Calendar size={18} /> },
+      { value: "TIME", label: "Time", icon: <Clock size={18} /> },
+      { value: "BOOLEAN", label: "Yes/No (Toggle)", icon: <ToggleRight size={18} /> },
+    ]
+  },
+  {
+    name: "Selection & Rating",
+    fields: [
+      { value: "RADIO", label: "Multiple Choice", icon: <CircleDot size={18} /> },
+      { value: "CHECKBOX_GROUP", label: "Checkboxes", icon: <ListTodo size={18} /> },
+      { value: "DROPDOWN", label: "Dropdown", icon: <ChevronDown size={18} /> },
+      { value: "STAR_RATING", label: "Star Rating", icon: <Star size={18} /> },
+      { value: "LINEAR_SCALE", label: "Linear Scale", icon: <SlidersHorizontal size={18} /> },
+    ]
+  },
+  {
+    name: "Advanced / Interactive",
+    fields: [
+      { value: "FILE_UPLOAD", label: "File Upload", icon: <Upload size={18} /> },
+      { value: "MC_GRID", label: "Multiple Choice Grid", icon: <LayoutGrid size={18} /> },
+      { value: "TICK_BOX_GRID", label: "Tick Box Grid", icon: <Grid3x3 size={18} /> },
+      { value: "LOOKUP_DROPDOWN", label: "Linked Dropdown", icon: <Link2 size={18} /> },
+    ]
+  },
+  {
+    name: "Layout & Logic",
+    fields: [
+      { value: "SECTION", label: "Section Break", icon: <Heading1 size={18} /> },
+      { value: "PAGE_BREAK", label: "Page Break", icon: <BookOpen size={18} /> },
+      { value: "GROUP", label: "Group", icon: <LayoutTemplate size={18} /> },
+      { value: "LABEL", label: "Label / Info", icon: <AlignLeftIcon size={18} /> },
+    ]
+  }
 ];
 
 const OPTIONS_BASED_TYPES = ["RADIO", "CHECKBOX_GROUP", "DROPDOWN"];
@@ -370,7 +391,7 @@ export default function BuilderPage() {
     const emptyFields = localFields.filter(f => !f.fieldLabel?.trim());
     if (emptyFields.length > 0) {
       const fieldNames = emptyFields.map(f => f.fieldType).join(", ");
-      alert(`Validation Error: One or more fields (${fieldNames}) are missing a Field Name / Question Title.`);
+      toast.error(`Validation Error: One or more fields (${fieldNames}) are missing a Field Name.`);
       return;
     }
 
@@ -408,14 +429,14 @@ export default function BuilderPage() {
 
     try {
       await api.saveDraft(formId, payload);
-      alert("Form saved successfully!");
+      toast.success("Form saved successfully!");
     } catch (e) {
       console.error(e);
       if (e.response?.data?.errors) {
         const errorMsgs = e.response.data.errors.map(err => `${err.field}: ${err.message}`).join("\n");
-        alert(`Server Validation Error:\n${errorMsgs}`);
+        toast.error(`Server Validation Error:\n${errorMsgs}`);
       } else {
-        alert("Failed to save form. " + (e.response?.data?.message || ""));
+        toast.error("Failed to save form. " + (e.response?.data?.message || ""));
       }
     } finally {
       setSaving(false);
@@ -423,22 +444,23 @@ export default function BuilderPage() {
   };
 
   const handlePublish = async () => {
-    if (localFields.length === 0) return alert("Add at least one field before publishing");
+    if (localFields.length === 0) return toast.error("Add at least one field before publishing");
     
     // Client-side validation
     const emptyFields = localFields.filter(f => !f.fieldLabel?.trim());
     if (emptyFields.length > 0) {
-      alert(`Cannot publish: One or more fields are missing a name.`);
+      toast.error(`Cannot publish: One or more fields are missing a name.`);
       return;
     }
 
     setPublishing(true);
     try {
       await api.publishForm(formId);
+      toast.success("Form published!");
       router.push("/");
     } catch (e) {
       console.error(e);
-      alert("Publish failed. " + (e.response?.data?.message || ""));
+      toast.error("Publish failed. " + (e.response?.data?.message || ""));
       setPublishing(false);
     }
   };
@@ -800,19 +822,30 @@ export default function BuilderPage() {
             <Plus size={16} className="text-indigo-500" /> Form Elements
           </h2>
         </div>
-        <div className="p-4 space-y-2.5 overflow-y-auto custom-scrollbar">
-          {FIELD_TYPES.map((type) => (
-            <div
-              key={type.value}
-              draggable
-              onDragStart={(e) => handleSidebarDragStart(e, type.value)}
-              className="group flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 ease-in-out"
-            >
-              <div className="flex items-center gap-3.5">
-                <div className="p-2 bg-slate-50 text-slate-500 border border-slate-100 rounded-lg group-hover:bg-indigo-50 group-hover:text-indigo-600 group-hover:border-indigo-100 transition-colors">{type.icon}</div>
-                <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{type.label}</span>
+        <div className="flex-1 overflow-y-auto p-5 space-y-8 no-scrollbar">
+          {FIELD_CATEGORIES.map((cat, ci) => (
+            <div key={ci} className="space-y-4">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500/40"></span>
+                {cat.name}
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                {cat.fields.map((type) => (
+                  <div
+                    key={type.value}
+                    draggable
+                    onDragStart={(e) => handleSidebarDragStart(e, type.value)}
+                    className="flex flex-col items-center justify-center gap-2.5 p-4 bg-slate-50 border border-slate-100 rounded-2xl cursor-grab hover:bg-white hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-500/5 hover:-translate-y-0.5 active:scale-95 transition-all group"
+                  >
+                    <div className="text-slate-400 group-hover:text-indigo-600 transition-colors">
+                      {type.icon}
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-600 text-center leading-tight">
+                      {type.label}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <GripVertical size={16} className="text-slate-300 group-hover:text-slate-400 transition-colors" />
             </div>
           ))}
         </div>

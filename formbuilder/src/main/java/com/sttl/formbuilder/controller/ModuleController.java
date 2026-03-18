@@ -6,6 +6,7 @@ import com.sttl.formbuilder.dto.ModuleRequestDTO;
 import com.sttl.formbuilder.dto.ModuleResponseDTO;
 import com.sttl.formbuilder.service.ModuleService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,13 +27,13 @@ public class ModuleController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<ModuleResponseDTO>> create(
-            @jakarta.validation.Valid @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
+            @Valid @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
         return ApiResponseUtil.success(moduleService.createModule(dto), "Module created", req);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ModuleResponseDTO>> update(
-            @PathVariable Long id, @jakarta.validation.Valid @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
+            @PathVariable Long id, @Valid @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
         return ApiResponseUtil.success(moduleService.updateModule(id, dto), "Module updated", req);
     }
 

@@ -20,6 +20,7 @@ public class FormDetailsResponse {
     private LocalDateTime publishedAt;
     private boolean canEdit;
     private boolean canViewSubmissions;
+    private boolean canDeleteSubmissions;
     private String ownerName;
     private Long ownerId;
     private List<FieldDto> fields;

@@ -22,6 +22,7 @@ import {
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { toast } from "react-hot-toast";
 
 function DashboardContent() {
   const { user, logout } = useAuth();
@@ -64,9 +65,10 @@ function DashboardContent() {
       setForms((prev) =>
         prev.map((f) => (f.id === formId ? { ...f, status: "ARCHIVED" } : f))
       );
+      toast.success("Form archived successfully.");
     } catch (err) {
       console.error("Failed to archive form:", err);
-      alert("Failed to archive form.");
+      toast.error("Failed to archive form.");
     }
   };
 

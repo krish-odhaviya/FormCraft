@@ -7,6 +7,7 @@ import { ArrowLeft, ChevronRight, Loader2, Search, X, Check, Link as LinkIcon } 
 import { api } from "@/lib/api/formService";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAuth } from "@/context/AuthContext";
+import { toast } from "react-hot-toast";
 
 function UserManagementContent() {
   const [users, setUsers] = useState([]);
@@ -49,9 +50,10 @@ function UserManagementContent() {
     setSaving(true);
     try {
       await api.assignRoleToUser(Number(selectedRoleId), managingUser.id);
+      toast.success("Role assigned successfully");
       setManagingUser(null);
       reload();
-    } catch { alert("Failed to assign role."); }
+    } catch { toast.error("Failed to assign role."); }
     finally { setSaving(false); }
   };
 
@@ -59,9 +61,10 @@ function UserManagementContent() {
     setSaving(true);
     try {
       await api.toggleUserStatus(user.id, newStatus);
+      toast.success(`User ${newStatus ? 'enabled' : 'disabled'}`);
       reload();
     } catch (e) {
-      alert(e?.response?.data?.message || "Failed to update status.");
+      toast.error(e?.response?.data?.message || "Failed to update status.");
     } finally {
       setSaving(false);
     }

@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { AuthProvider } from "@/context/AuthContext";
 import { FormsProvider } from "@/context/FormsContext";
-import { ToastContainer } from "@/components/ui/Toast";
+import { Toaster } from "react-hot-toast";
 
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
@@ -15,7 +15,7 @@ export default function ClientLayout({ children }) {
       <AuthProvider>
         <FormsProvider>
           {children}
-          <ToastContainer />
+          <Toaster position="top-right" />
         </FormsProvider>
       </AuthProvider>
     );
@@ -32,7 +32,7 @@ export default function ClientLayout({ children }) {
             </main>
           </div>
         </div>
-        <ToastContainer />
+        <Toaster position="top-right" />
       </FormsProvider>
     </AuthProvider>
   );
