@@ -1,10 +1,12 @@
 package com.sttl.formbuilder.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
 public class ModuleRequestDTO {
+    @NotBlank(message = "Module name is required")
     private String moduleName;
     private String description;
     private String prefix;

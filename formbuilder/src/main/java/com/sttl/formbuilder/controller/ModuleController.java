@@ -26,13 +26,13 @@ public class ModuleController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<ModuleResponseDTO>> create(
-            @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
+            @jakarta.validation.Valid @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
         return ApiResponseUtil.success(moduleService.createModule(dto), "Module created", req);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ModuleResponseDTO>> update(
-            @PathVariable Long id, @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
+            @PathVariable Long id, @jakarta.validation.Valid @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
         return ApiResponseUtil.success(moduleService.updateModule(id, dto), "Module updated", req);
     }
 

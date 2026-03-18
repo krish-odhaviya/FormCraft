@@ -64,7 +64,13 @@ export default function NewFormPage() {
 
       router.push(`/forms/${form.id}/builder`);
     } catch (err) {
-      setError(err.message || "Failed to create form. Please try again.");
+      console.error(err);
+      if (err.response?.data?.errors) {
+        const msgs = err.response.data.errors.map(e => `${e.field}: ${e.message}`).join("\n");
+        setError(`Validation Error:\n${msgs}`);
+      } else {
+        setError(err.response?.data?.message || err.message || "Failed to create form. Please try again.");
+      }
       setLoading(false);
     }
   };

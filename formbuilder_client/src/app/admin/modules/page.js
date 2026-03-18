@@ -25,14 +25,23 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!form.moduleName) return;
+    if (!form.moduleName?.trim()) {
+      alert("Module Name is required");
+      return;
+    }
     setSaving(true);
     try {
       if (initialData?.id) await api.updateModule(initialData.id, form);
       else await api.createModule(form);
       onSave();
     } catch (e) {
-      alert("Failed to save module");
+      console.error(e);
+      if (e.response?.data?.errors) {
+        const msgs = e.response.data.errors.map(err => `${err.field}: ${err.message}`).join("\n");
+        alert(`Validation Error:\n${msgs}`);
+      } else {
+        alert("Failed to save module: " + (e.response?.data?.message || "Internal error"));
+      }
     } finally {
       setSaving(false);
     }
@@ -48,14 +57,29 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Module Name</label>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 flex items-center gap-1">
+              Module Name <span className="text-red-500">*</span>
+            </label>
             <input value={form.moduleName} onChange={e => setForm(f => ({...f, moduleName: e.target.value}))}
-              placeholder="e.g. Dashboard" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500" />
+              placeholder="e.g. Dashboard" className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 ${!form.moduleName?.trim() ? 'border-red-200 bg-red-50/30' : 'border-slate-200'}`} />
+            {!form.moduleName?.trim() && <p className="text-[10px] text-red-500 mt-1 font-semibold">Name is required</p>}
           </div>
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Route Prefix</label>
-            <input value={form.prefix || ""} onChange={e => setForm(f => ({...f, prefix: e.target.value}))}
-              placeholder="e.g. /admin/dashboard" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500" />
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 flex items-center justify-between">
+              <span>Route Prefix</span>
+              {(form.isParent || form.isSubParent) && <span className="text-[9px] text-amber-600 font-black bg-amber-50 px-1.5 py-0.5 rounded">DISABLED FOR PARENTS</span>}
+            </label>
+            <input 
+              value={form.prefix || ""} 
+              onChange={e => setForm(f => ({...f, prefix: e.target.value}))}
+              disabled={form.isParent || form.isSubParent}
+              placeholder={form.isParent || form.isSubParent ? "N/A (Parent Container)" : "e.g. /admin/dashboard"} 
+              className={`w-full border rounded-xl px-4 py-3 text-sm outline-none transition-all ${
+                form.isParent || form.isSubParent 
+                  ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-70' 
+                  : 'border-slate-200 focus:border-indigo-500 bg-white'
+              }`} 
+            />
           </div>
         </div>
 
@@ -67,11 +91,17 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
 
         <div className="flex items-center justify-between bg-slate-50 rounded-2xl p-4 border border-slate-100">
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-            <input type="checkbox" checked={form.isParent} onChange={e => setForm(f => ({...f, isParent: e.target.checked}))} className="w-4 h-4 rounded" />
+            <input type="checkbox" checked={form.isParent} onChange={e => {
+              const val = e.target.checked;
+              setForm(f => ({...f, isParent: val, prefix: val ? "" : f.prefix}));
+            }} className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" />
             IS PARENT
           </label>
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-            <input type="checkbox" checked={form.isSubParent} onChange={e => setForm(f => ({...f, isSubParent: e.target.checked}))} className="w-4 h-4 rounded" />
+            <input type="checkbox" checked={form.isSubParent} onChange={e => {
+              const val = e.target.checked;
+              setForm(f => ({...f, isSubParent: val, prefix: val ? "" : f.prefix}));
+            }} className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500" />
             IS SUB-PARENT
           </label>
           <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">

@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
+@org.springframework.validation.annotation.Validated
 public class FormBuilderController {
 
     private final FormBuilderService formBuilderService;
@@ -49,7 +50,7 @@ public class FormBuilderController {
     @PostMapping("/api/forms/{formId}/draft")
     public ResponseEntity<ApiResponse<String>> saveDraft(
             @PathVariable Long formId,
-            @RequestBody List<AddFieldRequest> fields,
+            @RequestBody List<@Valid AddFieldRequest> fields,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 

@@ -55,23 +55,6 @@ function RequestsManagementContent() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-all">
-              <ArrowLeft size={20} />
-            </Link>
-            <div className="flex items-center gap-2">
-              <Bell className="text-indigo-600" size={24} />
-              <h1 className="text-xl font-bold text-slate-900">Access Requests</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 text-sm text-slate-500 font-medium italic">
-            {user?.roles?.includes("ROLE_ADMIN") ? "System-wide Management" : "Form Owner Portal"}
-          </div>
-        </div>
-      </div>
 
       <main className="max-w-4xl mx-auto px-6 py-12">
         <div className="space-y-6">

@@ -49,6 +49,7 @@ public class DataInitializer implements CommandLineRunner {
         findOrCreateModule("Form Vault", "All your forms", "/", "inbox", false, false, formsParent, null, 2);
         findOrCreateModule("Create New Form", "Start a new form", "/forms/new", "plus-circle", false, false, formsParent, null, 3);
         findOrCreateModule("Form Request", "Accept or Reject form request","/requests","user-key",true,false,formsParent,null,4);
+        findOrCreateModule("My Requests", "View your access requests", "/requests/my", "history", false, false, formsParent, null, 5);
 
         // === System Admin (parent) ===
         Module sysParent = findOrCreateModule("System Admin", null, null, "shield", true, false, null, null, 10);

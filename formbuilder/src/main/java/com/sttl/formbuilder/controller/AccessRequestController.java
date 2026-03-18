@@ -36,7 +36,7 @@ public class AccessRequestController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<AccessRequestResponseDTO>> createRequest(
-            @RequestBody AccessRequestDTO dto,
+            @jakarta.validation.Valid @RequestBody AccessRequestDTO dto,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest httprequest) {
 

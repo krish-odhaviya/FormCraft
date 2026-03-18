@@ -32,7 +32,6 @@ com\sttl\formbuilder\entity\RoleModule.class
 com\sttl\formbuilder\dto\AccessRequestResponseDTO$FormInfo.class
 com\sttl\formbuilder\dto\ModuleResponseDTO.class
 com\sttl\formbuilder\entity\FormPermission.class
-com\sttl\formbuilder\Enums\SystemRole.class
 com\sttl\formbuilder\exception\ValidationException.class
 com\sttl\formbuilder\dto\AddFieldRequest.class
 com\sttl\formbuilder\controller\MenuController.class

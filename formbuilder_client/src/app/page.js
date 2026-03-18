@@ -97,65 +97,6 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans text-slate-900">
-      {/* Navigation Bar */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-10">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
-                <LayoutDashboard size={20} className="text-white" />
-              </div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">FormCraft</h1>
-            </div>
-
-            <nav className="hidden md:flex items-center gap-1">
-              <span className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-semibold">
-                Dashboard
-              </span>
-              <button className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors">
-                Templates
-              </button>
-              {/* <Link
-                href="/requests"
-                className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-              >
-                <Bell size={16} />
-                Requests
-              </Link> */}
-              {user?.roles?.includes("ROLE_ADMIN") && (
-                <Link
-                  href="/admin"
-                  className="px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                >
-                  <ShieldCheck size={16} />
-                  Admin Panel
-                </Link>
-              )}
-            </nav>
-          </div>
-
-          <div className="flex items-center gap-4">
-            {user && (
-              <div className="hidden lg:flex items-center gap-3 px-3 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm">
-                <div className="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 text-[10px] font-bold">
-                  {user.username?.charAt(0).toUpperCase() || "U"}
-                </div>
-                <span className="text-sm font-semibold text-slate-700 pr-1">
-                  {user.username}
-                </span>
-              </div>
-            )}
-
-            <button
-              onClick={handleLogout}
-              className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-              title="Sign Out"
-            >
-              <LogOut size={20} />
-            </button>
-          </div>
-        </div>
-      </div>
 
       <main className="max-w-7xl mx-auto px-6 py-12">
         {/* Header Section */}

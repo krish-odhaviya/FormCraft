@@ -366,6 +366,14 @@ export default function BuilderPage() {
     );
 
   const handleSave = async () => {
+    // Client-side validation
+    const emptyFields = localFields.filter(f => !f.fieldLabel?.trim());
+    if (emptyFields.length > 0) {
+      const fieldNames = emptyFields.map(f => f.fieldType).join(", ");
+      alert(`Validation Error: One or more fields (${fieldNames}) are missing a Field Name / Question Title.`);
+      return;
+    }
+
     setSaving(true);
     const payload = localFields.map((field, index) => {
       const sanitize = (val) => (val === "" ? null : val);
@@ -373,7 +381,7 @@ export default function BuilderPage() {
       return {
         fieldKey: field.fieldKey || generateFieldKey(field.fieldLabel, index + 1),
         parentId: field.parentId,
-        fieldLabel: field.fieldLabel,
+        fieldLabel: (field.fieldLabel || "").trim(),
         fieldType: field.fieldType,
         required: field.required || false,
         fieldOrder: index + 1,
@@ -403,7 +411,12 @@ export default function BuilderPage() {
       alert("Form saved successfully!");
     } catch (e) {
       console.error(e);
-      alert("Failed to save form.");
+      if (e.response?.data?.errors) {
+        const errorMsgs = e.response.data.errors.map(err => `${err.field}: ${err.message}`).join("\n");
+        alert(`Server Validation Error:\n${errorMsgs}`);
+      } else {
+        alert("Failed to save form. " + (e.response?.data?.message || ""));
+      }
     } finally {
       setSaving(false);
     }
@@ -411,12 +424,21 @@ export default function BuilderPage() {
 
   const handlePublish = async () => {
     if (localFields.length === 0) return alert("Add at least one field before publishing");
+    
+    // Client-side validation
+    const emptyFields = localFields.filter(f => !f.fieldLabel?.trim());
+    if (emptyFields.length > 0) {
+      alert(`Cannot publish: One or more fields are missing a name.`);
+      return;
+    }
+
     setPublishing(true);
     try {
       await api.publishForm(formId);
       router.push("/");
-    } catch {
-      alert("Publish failed");
+    } catch (e) {
+      console.error(e);
+      alert("Publish failed. " + (e.response?.data?.message || ""));
       setPublishing(false);
     }
   };
@@ -1015,14 +1037,17 @@ export default function BuilderPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="block text-sm font-bold text-slate-800">Question Title</label>
+                        <label className="block text-sm font-bold text-slate-800 flex items-center gap-1">
+                          Field Name / Question Title <span className="text-red-500 font-black">*</span>
+                        </label>
                         <textarea
                           rows={2}
                           value={activeField.fieldLabel}
                           onChange={(e) => updateLocalField(activeField.id, "fieldLabel", e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
-                          placeholder="Enter your question..."
+                          className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-slate-900 font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm ${!activeField.fieldLabel?.trim() ? 'border-red-300' : 'border-slate-200'}`}
+                          placeholder="Enter your question name..."
                         />
+                        {!activeField.fieldLabel?.trim() && <p className="text-[10px] font-bold text-red-500">Name is required.</p>}
                       </div>
 
                       {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL") && (

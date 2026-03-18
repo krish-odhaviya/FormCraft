@@ -65,12 +65,24 @@ function RolesContent() {
       ]);
       alert("Role configuration saved!");
       reload();
-    } catch { alert("Failed to save."); }
-    finally { setSaving(false); }
+    } catch (e) {
+      console.error(e);
+      if (e.response?.data?.errors) {
+        const msgs = e.response.data.errors.map(err => `${err.field}: ${err.message}`).join("\n");
+        alert(`Validation Error:\n${msgs}`);
+      } else {
+        alert("Failed to save: " + (e.response?.data?.message || "Internal error"));
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCreateRole = async () => {
-    if (!newRole.roleName) return;
+    if (!newRole.roleName?.trim()) {
+      alert("Role Name is required");
+      return;
+    }
     setSaving(true);
     try {
       await api.createRole(newRole);
@@ -81,8 +93,17 @@ function RolesContent() {
         canArchiveForm: false, canViewSubmissions: false, canDeleteSubmissions: false
       });
       reload();
-    } catch { alert("Failed to create role."); }
-    finally { setSaving(false); }
+    } catch (e) {
+      console.error(e);
+      if (e.response?.data?.errors) {
+        const msgs = e.response.data.errors.map(err => `${err.field}: ${err.message}`).join("\n");
+        alert(`Validation Error:\n${msgs}`);
+      } else {
+        alert("Failed to create role: " + (e.response?.data?.message || "Internal error"));
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDeleteRole = async (id) => {
@@ -119,8 +140,12 @@ function RolesContent() {
               <h2 className="text-xl font-black text-slate-900">NEW ROLE</h2>
               <button onClick={() => setShowCreate(false)} className="p-2 hover:bg-slate-100 rounded-xl"><X size={18} /></button>
             </div>
-            <input value={newRole.roleName} onChange={e => setNewRole(r => ({...r, roleName: e.target.value}))}
-              placeholder="Role name (e.g. TEAM_ADMIN)" className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500" />
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1">Role Name <span className="text-red-500">*</span></label>
+              <input value={newRole.roleName} onChange={e => setNewRole(r => ({...r, roleName: e.target.value}))}
+                placeholder="Role name (e.g. TEAM_ADMIN)" className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 ${!newRole.roleName?.trim() ? 'border-red-200 bg-red-50/30' : 'border-slate-200'}`} />
+              {!newRole.roleName?.trim() && <p className="text-[10px] text-red-500 font-semibold">Name is required</p>}
+            </div>
             <textarea value={newRole.description} onChange={e => setNewRole(r => ({...r, description: e.target.value}))}
               placeholder="Description" rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none resize-none focus:border-indigo-500" />
             

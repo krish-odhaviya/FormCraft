@@ -30,7 +30,7 @@ public class LookupController {
             @RequestParam String labelColumn,
             HttpServletRequest request) {
 
-        // ✅ Security: only allow tables starting with "form_"
+        //  Security: only allow tables starting with "form_"
         if (!table.startsWith("form_")) {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", "Invalid table"));

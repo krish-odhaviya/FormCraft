@@ -1,11 +1,13 @@
 package com.sttl.formbuilder.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.util.List;
 
 @Data
 public class RoleRequestDTO {
+    @NotBlank(message = "Role name is required")
     private String roleName;
     private String description;
     /** List of module IDs to assign to this role */

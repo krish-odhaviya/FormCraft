@@ -27,13 +27,13 @@ public class RoleController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<RoleResponseDTO>> create(
-            @RequestBody RoleRequestDTO dto, HttpServletRequest req) {
+            @jakarta.validation.Valid @RequestBody RoleRequestDTO dto, HttpServletRequest req) {
         return ApiResponseUtil.success(roleService.createRole(dto), "Role created", req);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<RoleResponseDTO>> update(
-            @PathVariable Long id, @RequestBody RoleRequestDTO dto, HttpServletRequest req) {
+            @PathVariable Long id, @jakarta.validation.Valid @RequestBody RoleRequestDTO dto, HttpServletRequest req) {
         return ApiResponseUtil.success(roleService.updateRole(id, dto), "Role updated", req);
     }
 

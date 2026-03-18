@@ -9,7 +9,8 @@ import { useAuth } from "@/context/AuthContext";
 import {
   FileText, PlusCircle, Shield, LayoutList,
   Users, UserCog, Inbox, LayoutDashboard,
-  Menu, ChevronLeft, PanelLeftClose, PanelLeftOpen
+  Menu, ChevronLeft, PanelLeftClose, PanelLeftOpen,
+  History, LogOut
 } from "lucide-react";
 
 // Map icon strings from backend to Lucide components
@@ -22,6 +23,7 @@ const ICON_MAP = {
   "user-cog":    <UserCog size={18} />,
   "inbox":       <Inbox size={18} />,
   "layout":      <LayoutDashboard size={18} />,
+  "history":     <History size={18} />,
 };
 
 function getIcon(name) {
@@ -92,7 +94,7 @@ function MenuItem({ item, depth = 0, isCollapsed }) {
 }
 
 export default function Sidebar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -164,7 +166,25 @@ export default function Sidebar() {
               <p className="text-xs font-bold text-slate-900 truncate">{user?.username}</p>
             </div>
           )}
+          {!isCollapsed && (
+            <button 
+              onClick={logout}
+              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors group"
+              title="Logout"
+            >
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
+        {isCollapsed && (
+          <button 
+            onClick={logout}
+            className="w-full flex justify-center py-2 mt-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            title="Logout"
+          >
+            <LogOut size={16} />
+          </button>
+        )}
       </div>
     </aside>
   );

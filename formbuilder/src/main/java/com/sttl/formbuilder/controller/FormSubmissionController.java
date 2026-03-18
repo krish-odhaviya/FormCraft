@@ -56,7 +56,7 @@ public class FormSubmissionController {
     // ── Submit form ───────────────────────────────────────────────────────────
     @PostMapping("/submit")
     public ResponseEntity<?> submitForm(
-            @RequestBody SubmitFormRequest request,
+            @jakarta.validation.Valid @RequestBody SubmitFormRequest request,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest httprequest
     ) {

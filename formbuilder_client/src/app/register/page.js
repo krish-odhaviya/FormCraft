@@ -46,8 +46,13 @@ export default function RegisterPage() {
       setSuccess(true);
       setTimeout(() => router.replace("/login"), 2000);
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || "Registration failed.";
-      setError(typeof msg === "string" ? msg : "Registration failed.");
+      console.error(err);
+      if (err.response?.data?.errors) {
+        const msgs = err.response.data.errors.map(e => `${e.field}: ${e.message}`).join("\n");
+        setError(`Validation Error:\n${msgs}`);
+      } else {
+        setError(err.response?.data?.message || err.message || "Registration failed.");
+      }
     } finally {
       setLoading(false);
     }
