@@ -1,12 +1,9 @@
 package com.sttl.formbuilder.controller;
 
-import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.RegisterUserRequest;
 import com.sttl.formbuilder.dto.UserResponseDto;
-import com.sttl.formbuilder.entity.User;
-import com.sttl.formbuilder.repository.UserRepository;
-import com.sttl.formbuilder.service.RoleService;
+import com.sttl.formbuilder.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -14,21 +11,16 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -36,13 +28,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthenticationManager authenticationManager;
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final com.sttl.formbuilder.repository.UserRoleRepository userRoleRepository;
-    private final com.sttl.formbuilder.repository.RoleRepository roleRepository;
-    private final RoleService roleService;
-
+    private final AuthService authService;
 
     /**
      * POST /api/auth/login
@@ -58,16 +44,16 @@ public class AuthController {
         String password = body.get("password");
 
         if (username == null || username.isBlank() || password == null || password.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "Username and password are required"
-            ));
+            return ApiResponseUtil.error(
+                    "Username and password are required",
+                    null,
+                    HttpStatus.BAD_REQUEST,
+                    request
+            );
         }
 
         try {
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(username, password)
-            );
+            Authentication authentication = authService.login(username, password);
 
             // Store auth in security context and bind to HTTP session
             SecurityContext context = SecurityContextHolder.createEmptyContext();
@@ -80,16 +66,26 @@ public class AuthController {
                     context
             );
 
-            Map<String, Object> userData = buildUserData(authentication);
-            return ApiResponseUtil.success(userData, "Login successful", request);
+            return ApiResponseUtil.success(
+                    authService.buildUserData(authentication),
+                    "Login successful",
+                    request
+            );
 
         } catch (BadCredentialsException ex) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                    "success", false,
-                    "message", "Invalid username or password"
-            ));
+            return ApiResponseUtil.error(
+                    "Invalid username or password",
+                    null,
+                    HttpStatus.UNAUTHORIZED,
+                    request
+            );
         } catch (DisabledException ex) {
-            return ApiResponseUtil.error("You are disabled by admin", null, HttpStatus.FORBIDDEN, request);
+            return ApiResponseUtil.error(
+                    "You are disabled by admin",
+                    null,
+                    HttpStatus.FORBIDDEN,
+                    request
+            );
         }
     }
 
@@ -103,11 +99,11 @@ public class AuthController {
             session.invalidate();
         }
         SecurityContextHolder.clearContext();
-        return ResponseEntity.ok(Map.of("success", true, "message", "Logged out successfully"));
+        return ApiResponseUtil.success(null, "Logged out successfully", request);
     }
 
     /**
-     * GET /api/auth/me  — returns currently logged-in user info (or 401)
+     * GET /api/auth/me — returns currently logged-in user info (or 401)
      */
     @GetMapping("/me")
     public ResponseEntity<?> me(
@@ -115,81 +111,31 @@ public class AuthController {
             HttpServletRequest request) {
 
         if (userDetails == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
-                    "success", false,
-                    "message", "Not authenticated"
-            ));
+            return ApiResponseUtil.error(
+                    "Not authenticated",
+                    null,
+                    HttpStatus.UNAUTHORIZED,
+                    request
+            );
         }
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Map<String, Object> userData = buildUserData(auth);
-        return ApiResponseUtil.success(userData, "Authenticated", request);
+        return ApiResponseUtil.success(
+                authService.buildUserData(auth),
+                "Authenticated",
+                request
+        );
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     /**
-     * POST /api/auth/register  (PUBLIC — no session required)
-     * Anyone can create an account. Each account gets ROLE_ADMIN so they can
-     * immediately build and manage their own forms.
+     * POST /api/auth/register (PUBLIC — no session required)
      */
     @PostMapping("/register")
     public ResponseEntity<?> register(
             @Valid @RequestBody RegisterUserRequest body,
             HttpServletRequest request) {
 
-        String username = body.getUsername().trim();
-
-        if (userRepository.existsByUsername(username)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "success", false,
-                    "message", "Username '" + username + "' is already taken"
-            ));
-        }
-
-        User user = new User();
-        user.setUsername(username);
-        user.setPassword(passwordEncoder.encode(body.getPassword()));
-        user.setEnabled(true);
-        User savedUser = userRepository.save(user);
-
-        // Assign "Project manager" role by default
-        roleRepository.findByRoleName("Project manager").ifPresent(role -> {
-            com.sttl.formbuilder.entity.UserRole ur = new com.sttl.formbuilder.entity.UserRole();
-            ur.setUser(savedUser);
-            ur.setRole(role);
-            userRoleRepository.save(ur);
-        });
-
-        UserResponseDto dto = new UserResponseDto(
-                savedUser.getId(), savedUser.getUsername(), savedUser.isEnabled(), roleService.getUserRoleName(savedUser), roleService.getCustomRoleId(savedUser));
-
+        UserResponseDto dto = authService.register(body);
         return ApiResponseUtil.success(dto, "Account created successfully", request);
-    }
-
-    private Map<String, Object> buildUserData(Authentication authentication) {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("username", authentication.getName());
-        
-        userRepository.findByUsername(authentication.getName()).ifPresent(user -> {
-            data.put("id", user.getId());
-
-            userRoleRepository.findFirstByUser(user).ifPresent(ur -> {
-                com.sttl.formbuilder.entity.Role customRole = ur.getRole();
-                data.put("customRole", customRole.getRoleName());
-                data.put("canCreateForm", customRole.isCanCreateForm());
-                data.put("canEditForm", customRole.isCanEditForm());
-                data.put("canDeleteForm", customRole.isCanDeleteForm());
-                data.put("canArchiveForm", customRole.isCanArchiveForm());
-                data.put("canViewSubmissions", customRole.isCanViewSubmissions());
-                data.put("canDeleteSubmissions", customRole.isCanDeleteSubmissions());
-            });
-        });
-
-        data.put("roles", authentication.getAuthorities()
-                .stream()
-                .map(GrantedAuthority::getAuthority)
-                .toList());
-        return data;
     }
 }

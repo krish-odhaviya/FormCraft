@@ -16,12 +16,12 @@ export default function RegisterPage() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm]   = useState("");
+  const [confirm, setConfirm] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [showConf, setShowConf] = useState(false);
-  const [error, setError]       = useState("");
-  const [success, setSuccess]   = useState(false);
-  const [loading, setLoading]   = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) router.replace("/");
@@ -46,7 +46,7 @@ export default function RegisterPage() {
       setSuccess(true);
       setTimeout(() => router.replace("/login"), 2000);
     } catch (err) {
-      console.error(err);
+      console.log(err);
       if (err.response?.data?.errors) {
         const msgs = err.response.data.errors.map(e => `${e.field}: ${e.message}`).join("\n");
         setError(`Validation Error:\n${msgs}`);
@@ -63,12 +63,12 @@ export default function RegisterPage() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "#f8fafc", // Light slate background
+      background: "#f8fafc",
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: "1.5rem", position: "relative", overflow: "hidden",
       fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
     }}>
-      
+
       {/* Dynamic Background Elements */}
       <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
         <div style={{ position: "absolute", top: "-10%", right: "-5%", width: 500, height: 500, background: "radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)", borderRadius: "50%", animation: "float 10s ease-in-out infinite" }} />
@@ -81,7 +81,7 @@ export default function RegisterPage() {
         width: "100%", maxWidth: 420,
         background: "rgba(255, 255, 255, 0.7)",
         border: "1px solid rgba(255, 255, 255, 0.8)",
-        borderRadius: 28, 
+        borderRadius: 28,
         backdropFilter: "blur(12px)",
         padding: "3rem 2.5rem",
         boxShadow: "0 20px 40px -15px rgba(0,0,0,0.05), 0 0 0 1px rgba(0,0,0,0.02)",
@@ -89,11 +89,11 @@ export default function RegisterPage() {
 
         {/* Header Section */}
         <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
-          <div style={{ 
-            display: "inline-flex", alignItems: "center", justifyContent: "center", 
-            width: 60, height: 60, borderRadius: 18, 
+          <div style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 60, height: 60, borderRadius: 18,
             background: "#fff",
-            marginBottom: 20, 
+            marginBottom: 20,
             boxShadow: "0 10px 20px rgba(99,102,241,0.15)",
             border: "1px solid rgba(99,102,241,0.1)"
           }}>
@@ -117,7 +117,7 @@ export default function RegisterPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            
+
             {error && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: 12, padding: "12px 16px" }}>
                 <AlertCircle size={16} style={{ color: "#ef4444", flexShrink: 0 }} />
@@ -153,7 +153,7 @@ export default function RegisterPage() {
                 <input
                   type={showPass ? "text" : "password"}
                   value={password}
-                  onChange={e => { setPassword(e.target.value); setError(""); }}
+                  onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
                   style={inputStyle}
@@ -174,7 +174,7 @@ export default function RegisterPage() {
                 <input
                   type={showConf ? "text" : "password"}
                   value={confirm}
-                  onChange={e => { setConfirm(e.target.value); setError(""); }}
+                  onChange={e => setConfirm(e.target.value)}
                   placeholder="••••••••"
                   required
                   style={inputStyle}
@@ -234,7 +234,6 @@ export default function RegisterPage() {
   );
 }
 
-// Sub-styles for cleaner JSX
 const inputStyle = {
   width: "100%", boxSizing: "border-box",
   padding: "12px 16px 12px 48px",
@@ -246,8 +245,8 @@ const inputStyle = {
 };
 
 const eyeButtonStyle = {
-  position: "absolute", right: 12, top: "50%", 
-  transform: "translateY(-50%)", 
-  background: "none", border: "none", 
+  position: "absolute", right: 12, top: "50%",
+  transform: "translateY(-50%)",
+  background: "none", border: "none",
   cursor: "pointer", color: "#94a3b8", padding: 4
 };
