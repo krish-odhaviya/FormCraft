@@ -413,6 +413,7 @@ export default function BuilderPage() {
           maxLength: sanitize(field.validation?.maxLength),
           min: sanitize(field.validation?.min),
           max: sanitize(field.validation?.max),
+          numberFormat: field.validation?.numberFormat || "INTEGER",
           rows: field.validation?.rows || [],
           columns: field.validation?.columns || [],
         },
@@ -757,7 +758,7 @@ export default function BuilderPage() {
                           setDragOverFieldId(null);
                           handleDropOnGroupChild(e, childIndex, field.fieldKey);
                         }}
-                        onClick={(e) => { e.stopPropagation(); setActiveFieldId(child.id); }}
+                        onClick={(e) => { e.stopPropagation(); setActiveFieldId(child.id); e.currentTarget.blur(); }}
                         className={`p-5 rounded-2xl border-2 transition-all duration-200 cursor-pointer bg-white relative ${
                           dragOverFieldId === child.id 
                             ? "border-t-[6px] border-t-indigo-500 border-indigo-200 shadow-lg scale-[1.02] z-30" 
@@ -796,6 +797,24 @@ export default function BuilderPage() {
             </div>
           );
 
+        case "INTEGER": {
+          const fmt = field.validation?.numberFormat || "INTEGER";
+          return (
+            <div className="relative">
+              <input
+                type="number"
+                readOnly
+                step={fmt === "DECIMAL" ? "0.01" : "1"}
+                placeholder={placeholder}
+                className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 shadow-inner pointer-events-none"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                {fmt}
+              </span>
+            </div>
+          );
+        }
+
         default:
           return <div className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 shadow-inner">{placeholder}</div>;
       }
@@ -813,7 +832,7 @@ export default function BuilderPage() {
     <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden selection:bg-indigo-100 selection:text-indigo-900">
 
       {/* ── LEFT SIDEBAR ── */}
-      <aside className="w-[300px] bg-white border-r border-slate-200 flex flex-col shrink-0 z-20 shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
+      <aside className="w-[300px] bg-white border-r border-slate-200 flex flex-col shrink-0 z-20 shadow-[1px_0_10px_rgba(0,0,0,0.02)] h-screen overflow-hidden">
         <div className="p-5 border-b border-slate-100 bg-white">
           <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900 mb-6 transition-colors bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-100">
             <ArrowLeft size={16} /> Dashboard
@@ -941,6 +960,7 @@ export default function BuilderPage() {
                     <div
                       key={field.id}
                       draggable
+                      tabIndex={-1}
                       onDragStart={(e) => handleFieldDragStart(e, realIndex)}
                       onDragOver={(e) => { 
                         e.preventDefault(); 
@@ -954,8 +974,8 @@ export default function BuilderPage() {
                         }
                       }}
                       onDrop={(e) => handleDropOnField(e, realIndex)}
-                      onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); }}
-                      className={`group relative bg-white rounded-[24px] transition-all duration-200 ease-in-out cursor-pointer border-2 ${
+                      onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); e.currentTarget.blur(); }}
+                      className={`group relative bg-white rounded-[24px] transition-all duration-200 ease-in-out cursor-pointer border-2 outline-none ${
                         dragOverFieldId === field.id
                           ? "border-t-[6px] border-t-indigo-500 border-indigo-200 shadow-xl scale-[1.02] z-30"
                           : activeFieldId === field.id
@@ -1008,7 +1028,7 @@ export default function BuilderPage() {
       </main>
 
       {/* ── RIGHT SIDEBAR ── */}
-      <aside className="w-[360px] bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 shadow-[-1px_0_10px_rgba(0,0,0,0.02)]">
+      <aside className="w-[360px] bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 shadow-[-1px_0_10px_rgba(0,0,0,0.02)] h-screen overflow-hidden">
         <div className="p-3 border-b border-slate-100 bg-slate-50/80">
           <div className="flex bg-slate-200/60 p-1.5 rounded-xl">
             <button
@@ -1400,18 +1420,62 @@ export default function BuilderPage() {
                               </div>
                             )}
                             {NUMBER_BASED_TYPES.includes(activeField.fieldType) && (
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-4">
+                                {/* Number Format Selector */}
                                 <div>
-                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Min Value</label>
-                                  <input type="number" value={activeField.validation?.min || ""}
-                                    onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 0" />
+                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">Number Format</label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                      { value: "INTEGER", label: "Integer", desc: "1, 2, 42" },
+                                      { value: "DECIMAL", label: "Decimal", desc: "1.5, 3.14" },
+                                    ].map((opt) => (
+                                      <label
+                                        key={opt.value}
+                                        className={`flex flex-col items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                                          (activeField.validation?.numberFormat || "INTEGER") === opt.value
+                                            ? "border-indigo-600 bg-indigo-50/60 shadow-sm"
+                                            : "border-slate-200 bg-white hover:border-indigo-300"
+                                        }`}
+                                      >
+                                        <input
+                                          type="radio"
+                                          name={`numberFormat_${activeField.id}`}
+                                          value={opt.value}
+                                          checked={(activeField.validation?.numberFormat || "INTEGER") === opt.value}
+                                          onChange={() => updateNestedObject(activeField.id, "validation", "numberFormat", opt.value)}
+                                          className="sr-only"
+                                        />
+                                        <span className={`text-xs font-black ${(activeField.validation?.numberFormat || "INTEGER") === opt.value ? "text-indigo-700" : "text-slate-700"}`}>
+                                          {opt.label}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 mt-0.5 font-medium">{opt.desc}</span>
+                                      </label>
+                                    ))}
+                                  </div>
                                 </div>
-                                <div>
-                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Max Value</label>
-                                  <input type="number" value={activeField.validation?.max || ""}
-                                    onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 100" />
+
+                                {/* Min / Max */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Min Value</label>
+                                    <input
+                                      type="number"
+                                      step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
+                                      value={activeField.validation?.min || ""}
+                                      onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 0"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Max Value</label>
+                                    <input
+                                      type="number"
+                                      step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
+                                      value={activeField.validation?.max || ""}
+                                      onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 100"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             )}

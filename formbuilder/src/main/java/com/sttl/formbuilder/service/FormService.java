@@ -43,11 +43,11 @@ public class FormService {
     public List<Form> getAllForms(String currentUsername) {
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         if (permissionService.canManageSystem(user)) {
             return formRepository.findAll();
         }
-        
+
         return formRepository.findFormsAccessibleToUser(user);
     }
 
@@ -79,10 +79,10 @@ public class FormService {
                 .orElseThrow(() -> new RuntimeException("Form not found"));
 
         User user = currentUsername != null ? userRepository.findByUsername(currentUsername).orElse(null) : null;
-        
-        System.out.println("FormService.getFormWithStructure: formId=" + formId + 
-                           " visibility=" + form.getVisibility() + 
-                           " user=" + (user != null ? user.getUsername() : "ANONYMOUS"));
+
+        System.out.println("FormService.getFormWithStructure: formId=" + formId +
+                " visibility=" + form.getVisibility() +
+                " user=" + (user != null ? user.getUsername() : "ANONYMOUS"));
 
         if (!permissionService.canViewForm(user, form)) {
             System.out.println("  Access Denied by permissionService");
@@ -140,6 +140,8 @@ public class FormService {
                     if (f.getPattern()           != null) validationMap.put("pattern",           f.getPattern());
                     if (f.getValidationMessage() != null) validationMap.put("validationMessage", f.getValidationMessage());
                     if (f.getIsUnique()          != null) validationMap.put("unique",            f.getIsUnique());
+                    // numberFormat: always include for INTEGER fields so view page renders correctly
+                    validationMap.put("numberFormat", f.getNumberFormat() != null ? f.getNumberFormat() : "INTEGER");
                     // ✅ Grid rows and columns
                     if (f.getGridRows() != null && !f.getGridRows().isEmpty())
                         validationMap.put("rows", f.getGridRows());
@@ -182,14 +184,14 @@ public class FormService {
     public Form archiveForm(Long formId, String currentUsername) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new RuntimeException("Form not found"));
-        
+
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (!permissionService.canConfigureForm(user, form)) {
             throw new RuntimeException("Access denied: only owners or builders can archive");
         }
-        
+
         form.setStatus(com.sttl.formbuilder.Enums.FormStatusEnum.ARCHIVED);
         return formRepository.save(form);
     }

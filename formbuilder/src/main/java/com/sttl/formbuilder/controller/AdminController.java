@@ -3,11 +3,8 @@ package com.sttl.formbuilder.controller;
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.UserResponseDto;
-import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.exception.BusinessException;
-import com.sttl.formbuilder.repository.UserRepository;
-import com.sttl.formbuilder.service.PermissionService;
-import com.sttl.formbuilder.service.RoleService;
+import com.sttl.formbuilder.service.AdminService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,90 +20,59 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private final UserRepository userRepository;
-    private final PermissionService permissionService;
-    private final RoleService roleService;
+    private final AdminService adminService;
 
+    /**
+     * GET /api/admin/users
+     * Returns all registered users. Requires system admin role.
+     */
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<List<UserResponseDto>>> getAllUsers(
             @AuthenticationPrincipal UserDetails currentUser,
-            HttpServletRequest httprequest) {
+            HttpServletRequest request) {
 
-        if (currentUser == null) {
-            throw new BusinessException("Authentication required", HttpStatus.UNAUTHORIZED);
-        }
-        User admin = userRepository.findByUsername(currentUser.getUsername())
-                .orElseThrow(() -> new BusinessException("Admin user not found", HttpStatus.NOT_FOUND));
-
-        if (!permissionService.canManageSystem(admin)) {
-            throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
-        }
-
-        List<UserResponseDto> users = userRepository.findAll().stream()
-                .map(u -> new UserResponseDto(u.getId(), u.getUsername(), u.isEnabled(), roleService.getUserRoleName(u), roleService.getCustomRoleId(u)))
-                .toList();
-        return ApiResponseUtil.success(users, "Users fetched successfully", httprequest);
+        assertAuthenticated(currentUser);
+        List<UserResponseDto> users = adminService.getAllUsers(currentUser.getUsername());
+        return ApiResponseUtil.success(users, "Users fetched successfully", request);
     }
 
-
+    /**
+     * POST /api/admin/users/{userId}/custom-role?roleId=
+     * Assigns a custom role to the given user. Requires system admin role.
+     */
     @PostMapping("/users/{userId}/custom-role")
     public ResponseEntity<ApiResponse<UserResponseDto>> updateUserCustomRole(
             @PathVariable Long userId,
             @RequestParam Long roleId,
             @AuthenticationPrincipal UserDetails currentUser,
-            HttpServletRequest httprequest) {
+            HttpServletRequest request) {
 
-        if (currentUser == null) {
-            throw new BusinessException("Authentication required", HttpStatus.UNAUTHORIZED);
-        }
-        User admin = userRepository.findByUsername(currentUser.getUsername())
-                .orElseThrow(() -> new BusinessException("Admin user not found", HttpStatus.NOT_FOUND));
-
-        if (!permissionService.canManageSystem(admin)) {
-            throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
-        }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
-
-        roleService.assignRoleToUser(userId, roleId);
-        
-        UserResponseDto dto = new UserResponseDto(user.getId(), user.getUsername(), user.isEnabled(), roleService.getUserRoleName(user), roleService.getCustomRoleId(user));
-        return ApiResponseUtil.success(dto, "User custom role updated successfully", httprequest);
+        assertAuthenticated(currentUser);
+        UserResponseDto dto = adminService.updateUserRole(currentUser.getUsername(), userId, roleId);
+        return ApiResponseUtil.success(dto, "User custom role updated successfully", request);
     }
 
+    /**
+     * POST /api/admin/users/{userId}/enable?enabled=true|false
+     * Enables or disables a user account. Requires system admin role.
+     */
     @PostMapping("/users/{userId}/enable")
     public ResponseEntity<ApiResponse<UserResponseDto>> toggleUserStatus(
             @PathVariable Long userId,
             @RequestParam boolean enabled,
             @AuthenticationPrincipal UserDetails currentUser,
-            HttpServletRequest httprequest) {
+            HttpServletRequest request) {
 
+        assertAuthenticated(currentUser);
+        UserResponseDto dto = adminService.toggleUserStatus(currentUser.getUsername(), userId, enabled);
+        return ApiResponseUtil.success(dto, "User status updated successfully", request);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void assertAuthenticated(UserDetails currentUser) {
         if (currentUser == null) {
             throw new BusinessException("Authentication required", HttpStatus.UNAUTHORIZED);
         }
-        User admin = userRepository.findByUsername(currentUser.getUsername())
-                .orElseThrow(() -> new BusinessException("Admin user not found", HttpStatus.NOT_FOUND));
-
-        if (!permissionService.canManageSystem(admin)) {
-            throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
-        }
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
-
-        if (user.getId().equals(admin.getId())) {
-            throw new BusinessException("You cannot disable your own account", HttpStatus.FORBIDDEN);
-        }
-
-        if (permissionService.isSystemAdmin(user)) {
-            throw new BusinessException("You cannot disable another administrator", HttpStatus.FORBIDDEN);
-        }
-
-        user.setEnabled(enabled);
-        userRepository.save(user);
-
-        UserResponseDto dto = new UserResponseDto(user.getId(), user.getUsername(), user.isEnabled(), roleService.getUserRoleName(user), roleService.getCustomRoleId(user));
-        return ApiResponseUtil.success(dto, "User status updated successfully", httprequest);
     }
 }

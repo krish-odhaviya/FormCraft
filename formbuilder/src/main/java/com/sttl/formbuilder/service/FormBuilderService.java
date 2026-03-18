@@ -105,7 +105,7 @@ public class FormBuilderService {
             field.setFieldLabel(req.getFieldLabel());
             field.setFieldType(req.getFieldType());
             field.setRequired(req.getRequired() != null ? req.getRequired() : false);
-            field.setConditions(req.getConditions()); 
+            field.setConditions(req.getConditions());
             field.setFieldOrder(i + 1);
 
             // --- Handle Options ---
@@ -146,6 +146,7 @@ public class FormBuilderService {
                 field.setPattern(req.getValidation().getPattern());
                 field.setValidationMessage(req.getValidation().getValidationMessage());
                 field.setIsUnique(req.getValidation().getUnique());
+                field.setNumberFormat(req.getValidation().getNumberFormat());
 
                 if (req.getValidation().getRows() != null) {
                     field.getGridRows().addAll(req.getValidation().getRows());

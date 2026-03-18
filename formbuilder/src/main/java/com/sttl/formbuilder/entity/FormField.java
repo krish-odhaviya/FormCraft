@@ -109,6 +109,13 @@ public class FormField {
     private String validationMessage;
     private Boolean isUnique = false;
 
+    /**
+     * Sub-type for INTEGER fields.
+     * Values: "INTEGER" (whole numbers only), "DECIMAL" (decimal numbers allowed)
+     * Defaults to "INTEGER" when null.
+     */
+    @Column(length = 20)
+    private String numberFormat;
 
 
     @Column(nullable = false, updatable = false)

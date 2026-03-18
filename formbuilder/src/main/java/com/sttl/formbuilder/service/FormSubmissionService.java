@@ -157,12 +157,24 @@ public class FormSubmissionService {
                         errors.put(key, "'" + label + "' must be a valid email address.");
                 }
                 case "INTEGER" -> {
+                    String fmt = field.getNumberFormat() != null
+                            ? field.getNumberFormat().toUpperCase()
+                            : "INTEGER";
                     try {
                         double numVal = Double.parseDouble(val.toString());
+
+                        // Whole numbers only
+                        if ("INTEGER".equals(fmt) && numVal != Math.floor(numVal)) {
+                            errors.put(key, "'" + label + "' must be a whole number (no decimals).");
+                            break;
+                        }
+
+                        // Min / max (applies to both formats)
                         if (field.getMinValue() != null && numVal < field.getMinValue())
-                            errors.put(key, "'" + label + "' must be at least " + field.getMinValue().intValue() + ".");
+                            errors.put(key, "'" + label + "' must be at least " + field.getMinValue() + ".");
                         else if (field.getMaxValue() != null && numVal > field.getMaxValue())
-                            errors.put(key, "'" + label + "' must be at most " + field.getMaxValue().intValue() + ".");
+                            errors.put(key, "'" + label + "' must be at most " + field.getMaxValue() + ".");
+
                     } catch (NumberFormatException e) {
                         errors.put(key, "'" + label + "' must be a valid number.");
                     }
@@ -256,8 +268,21 @@ public class FormSubmissionService {
                     placeholdersList.add("?");
                 }
                 case "INTEGER" -> {
-                    if (val instanceof String s) val = s.trim().isEmpty() ? null : Integer.parseInt(s.trim());
-                    else if (val instanceof Number n) val = n.intValue();
+                    FormField numField = fieldMap.get(key);
+                    String fmt = (numField != null && numField.getNumberFormat() != null)
+                            ? numField.getNumberFormat().toUpperCase()
+                            : "INTEGER";
+                    if (val instanceof String s) {
+                        if (s.trim().isEmpty()) {
+                            val = null;
+                        } else if ("INTEGER".equals(fmt)) {
+                            val = (long) Double.parseDouble(s.trim()); // strip decimals
+                        } else {
+                            val = Double.parseDouble(s.trim());        // keep decimals
+                        }
+                    } else if (val instanceof Number n) {
+                        val = "INTEGER".equals(fmt) ? n.longValue() : n.doubleValue();
+                    }
                     placeholdersList.add("?");
                 }
                 case "STAR_RATING", "LINEAR_SCALE" -> {

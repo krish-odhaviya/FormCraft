@@ -867,20 +867,28 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
         </div>
       );
 
-    // ── Integer ───────────────────────────────────────────────────────────────
-    case "INTEGER":
+    // ── Integer / Decimal ─────────────────────────────────────────────────────
+    case "INTEGER": {
+      const fmt = field.validation?.numberFormat || "INTEGER";
       return (
         <div>
           <FieldLabel />
-          <input type="number" className={inputClass} placeholder={placeholder}
-            value={value || ""} disabled={isDisabled}
+          <input
+            type="number"
+            className={inputClass}
+            placeholder={placeholder}
+            value={value || ""}
+            disabled={isDisabled}
             readOnly={isReadOnly}
             min={validation.min}
             max={validation.max}
-            onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
+            step={fmt === "DECIMAL" ? "any" : "1"}
+            onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)}
+          />
           <FieldError />
         </div>
       );
+    }
 
     // ── Date / Time ───────────────────────────────────────────────────────────
     case "DATE":

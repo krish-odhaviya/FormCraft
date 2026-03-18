@@ -31,12 +31,31 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
 
-    if (password !== confirm) {
-      setError("Passwords do not match.");
+    // Username validation — mirrors backend @Pattern
+    if (username.trim().length < 3) {
+      setError("Username must be at least 3 characters.");
       return;
     }
+    if (username.trim().length > 50) {
+      setError("Username cannot exceed 50 characters.");
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
+      setError("Username can only contain letters, numbers, and underscores.");
+      return;
+    }
+
+    // Password validation — mirrors backend @Pattern
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(password)) {
+      setError("Password must contain at least one letter and one number.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords do not match.");
       return;
     }
 
@@ -138,9 +157,15 @@ export default function RegisterPage() {
                   onChange={e => { setUsername(e.target.value); setError(""); }}
                   placeholder="johndoe"
                   required
+                  maxLength={50}
                   style={inputStyle}
                 />
               </div>
+              {username && !/^[a-zA-Z0-9_]+$/.test(username) && (
+                <p style={{ fontSize: 11, color: "#ef4444", marginTop: 4, marginLeft: 4, fontWeight: 500 }}>
+                  Only letters, numbers, and underscores allowed.
+                </p>
+              )}
             </div>
 
             {/* Input Group: Password */}
@@ -162,6 +187,11 @@ export default function RegisterPage() {
                   {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              {password && !/(?=.*[A-Za-z])(?=.*\d)/.test(password) && (
+                <p style={{ fontSize: 11, color: "#ef4444", marginTop: 4, marginLeft: 4, fontWeight: 500 }}>
+                  Password must contain at least one letter and one number.
+                </p>
+              )}
             </div>
 
             {/* Input Group: Confirm */}

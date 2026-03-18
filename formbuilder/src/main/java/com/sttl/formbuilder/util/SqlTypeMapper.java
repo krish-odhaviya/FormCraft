@@ -12,8 +12,8 @@ public class SqlTypeMapper {
             case "TEXTAREA", "CHECKBOX_GROUP" -> "TEXT";
 
             // Numbers
-            case "INTEGER" -> "INTEGER";
-            case "DECIMAL" -> "NUMERIC";
+            // NUMERIC(20,10) handles INTEGER (truncated at save), DECIMAL, and PERCENTAGE
+            case "INTEGER" -> "NUMERIC(20,10)";
 
             // Dates and Times
             case "DATE" -> "DATE";

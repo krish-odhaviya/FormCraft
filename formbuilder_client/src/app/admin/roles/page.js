@@ -80,8 +80,25 @@ function RolesContent() {
   };
 
   const handleCreateRole = async () => {
-    if (!newRole.roleName?.trim()) {
-      toast.error("Role Name is required");
+    const name = newRole.roleName?.trim();
+    if (!name) {
+      toast.error("Role name is required.");
+      return;
+    }
+    if (name.length < 2) {
+      toast.error("Role name must be at least 2 characters.");
+      return;
+    }
+    if (name.length > 80) {
+      toast.error("Role name cannot exceed 80 characters.");
+      return;
+    }
+    if (!/^[A-Z0-9_]+$/.test(name)) {
+      toast.error("Role name must be uppercase letters, numbers, and underscores only (e.g. PROJECT_MANAGER).");
+      return;
+    }
+    if (newRole.description?.length > 500) {
+      toast.error("Description cannot exceed 500 characters.");
       return;
     }
     setSaving(true);
@@ -146,9 +163,17 @@ function RolesContent() {
             </div>
             <div className="space-y-1">
               <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1">Role Name <span className="text-red-500">*</span></label>
-              <input value={newRole.roleName} onChange={e => setNewRole(r => ({...r, roleName: e.target.value}))}
-                placeholder="Role name (e.g. TEAM_ADMIN)" className={`w-full border rounded-xl px-4 py-3 text-sm outline-none focus:border-indigo-500 ${!newRole.roleName?.trim() ? 'border-red-200 bg-red-50/30' : 'border-slate-200'}`} />
-              {!newRole.roleName?.trim() && <p className="text-[10px] text-red-500 font-semibold">Name is required</p>}
+              <input
+                value={newRole.roleName}
+                onChange={e => setNewRole(r => ({...r, roleName: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "")}))}
+                placeholder="e.g. PROJECT_MANAGER"
+                maxLength={80}
+                className={`w-full border rounded-xl px-4 py-3 text-sm font-mono font-bold outline-none focus:border-indigo-500 ${!newRole.roleName?.trim() ? 'border-red-200 bg-red-50/30' : 'border-slate-200'}`}
+              />
+              {!newRole.roleName?.trim()
+                ? <p className="text-[10px] text-red-500 font-semibold">Name is required</p>
+                : <p className="text-[10px] text-slate-400 font-medium">Uppercase letters, numbers and underscores only</p>
+              }
             </div>
             <textarea value={newRole.description} onChange={e => setNewRole(r => ({...r, description: e.target.value}))}
               placeholder="Description" rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none resize-none focus:border-indigo-500" />

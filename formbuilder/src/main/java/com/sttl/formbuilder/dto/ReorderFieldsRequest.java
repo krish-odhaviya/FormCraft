@@ -1,15 +1,17 @@
 package com.sttl.formbuilder.dto;
 
-import java.util.List;
-
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.List;
 
 @Getter
 @Setter
 public class ReorderFieldsRequest {
 
-    @NotEmpty
+    @NotEmpty(message = "Field IDs list cannot be empty")
+    @Size(max = 500, message = "Cannot reorder more than 500 fields at once")
     private List<Long> fieldIds;
 }

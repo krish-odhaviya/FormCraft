@@ -22,23 +22,33 @@ function UserManagementContent() {
 
   const isSystemAdmin = authUser?.roles?.some(r => r === "ROLE_SYSTEM_ADMIN" || r === "ROLE_ADMIN");
 
-  useEffect(() => {
-    if (authUser && !isSystemAdmin) {
-      router.replace("/");
-    }
-  }, [authUser, isSystemAdmin, router]);
-
   const reload = async () => {
     setLoading(true);
     try {
       const [uRes, rRes] = await Promise.all([api.getAdminUsers(), api.getRoles()]);
       setUsers(uRes.data || []);
       setRoles(rRes.data || []);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) {
+      const status = e?.response?.status;
+      if (status === 403 || status === 401) {
+        router.replace("/");
+      } else {
+        toast.error("Failed to load users.");
+        console.error(e);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => {
+    if (!authUser) return;       // auth still loading — wait
+    if (!isSystemAdmin) {
+      router.replace("/");       // not admin — redirect before any fetch
+      return;
+    }
+    reload();                    // confirmed admin — safe to fetch
+  }, [authUser, isSystemAdmin]);
 
   const openManage = (user) => {
     setManagingUser(user);

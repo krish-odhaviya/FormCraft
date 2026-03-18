@@ -81,8 +81,29 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!form.moduleName?.trim()) {
-      toast.error("Module Name is required");
+    const name = form.moduleName?.trim();
+    if (!name) {
+      toast.error("Module name is required.");
+      return;
+    }
+    if (name.length < 2) {
+      toast.error("Module name must be at least 2 characters.");
+      return;
+    }
+    if (name.length > 120) {
+      toast.error("Module name cannot exceed 120 characters.");
+      return;
+    }
+    if (form.description?.length > 500) {
+      toast.error("Description cannot exceed 500 characters.");
+      return;
+    }
+    if (form.prefix && !form.prefix.startsWith("/")) {
+      toast.error("Prefix must start with / (e.g. /admin/users).");
+      return;
+    }
+    if (form.prefix?.length > 255) {
+      toast.error("Prefix cannot exceed 255 characters.");
       return;
     }
     setSaving(true);
@@ -178,12 +199,18 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
                   onChange={e => setForm(f => ({...f, prefix: e.target.value}))}
                   disabled={form.isParent || form.isSubParent}
                   placeholder={form.isParent || form.isSubParent ? "N/A" : "/admin/reports"} 
+                  maxLength={255}
                   className={`w-full border rounded-2xl px-5 py-3.5 text-sm font-bold outline-none shadow-sm transition-all ${
                     form.isParent || form.isSubParent 
                       ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed italic' 
-                      : 'bg-white border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 text-indigo-600'
+                      : form.prefix && !form.prefix.startsWith("/")
+                        ? 'bg-white border-red-300 focus:border-red-500 focus:ring-4 focus:ring-red-100 text-indigo-600'
+                        : 'bg-white border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 text-indigo-600'
                   }`} 
                 />
+                {form.prefix && !form.prefix.startsWith("/") && !form.isParent && !form.isSubParent && (
+                  <p className="text-[10px] text-red-500 font-semibold ml-1">Prefix must start with /</p>
+                )}
               </div>
             </div>
           </section>

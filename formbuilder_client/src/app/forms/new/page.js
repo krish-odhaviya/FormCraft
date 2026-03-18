@@ -52,6 +52,22 @@ export default function NewFormPage() {
       setError("Please provide a name for your form.");
       return;
     }
+    if (name.trim().length < 3) {
+      setError("Form name must be at least 3 characters.");
+      return;
+    }
+    if (name.trim().length > 150) {
+      setError("Form name cannot exceed 150 characters.");
+      return;
+    }
+    if (!/^[\w\s\-()\.,!?&]+$/.test(name.trim())) {
+      setError("Form name contains invalid characters.");
+      return;
+    }
+    if (description.length > 1000) {
+      setError("Description cannot exceed 1000 characters.");
+      return;
+    }
 
     setError("");
     setLoading(true);
@@ -134,9 +150,14 @@ export default function NewFormPage() {
 
           {/* Form Description Input */}
           <div className="space-y-2">
-            <label htmlFor="form-desc" className="block text-sm font-semibold text-slate-700">
-              Description <span className="text-slate-400 font-normal">(Optional)</span>
-            </label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <label htmlFor="form-desc" className="block text-sm font-semibold text-slate-700">
+                Description <span className="text-slate-400 font-normal">(Optional)</span>
+              </label>
+              <span style={{ fontSize: 11, color: description.length > 1000 ? "#ef4444" : "#94a3b8" }}>
+                {description.length}/1000
+              </span>
+            </div>
             <textarea
               id="form-desc"
               placeholder="Briefly describe what this form is for..."
@@ -144,6 +165,7 @@ export default function NewFormPage() {
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              maxLength={1000}
               disabled={loading}
             />
           </div>
