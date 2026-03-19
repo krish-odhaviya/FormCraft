@@ -33,11 +33,13 @@ function RequestsManagementContent() {
         const res = await api.getPendingRequests();
         setRequests(res.data || []);
       } catch (err) {
-        if (err.response?.status === 403) {
+        const status = err?.response?.status;
+        if (status === 403) {
           toast.error("Access denied: your role does not have permission to view this page.");
           router.replace("/");
         } else {
           console.error("Failed to fetch pending requests:", err);
+          toast.error("Failed to load requests. Please refresh the page.");
         }
       } finally {
         setLoading(false);
@@ -54,7 +56,7 @@ function RequestsManagementContent() {
       toast.success(`Request ${status.toLowerCase()}`);
     } catch (err) {
       console.error("Failed to process request:", err);
-      toast.error("Error processing request.");
+      toast.error(err?.response?.data?.message || "Error processing request.");
     } finally {
       setProcessingId(null);
     }

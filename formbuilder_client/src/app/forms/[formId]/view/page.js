@@ -584,7 +584,9 @@ function FormPageContent() {
                     Submit Access Request
                   </button>
                   {requestStatus === 'error' && (
-                    <p className="text-red-500 text-sm text-center font-medium">Failed to submit request. Please try again.</p>
+                    <p className="text-red-500 text-sm text-center font-medium">
+                      {errorMessage || "Failed to submit request. Please try again."}
+                    </p>
                   )}
                 </div>
               ) : (

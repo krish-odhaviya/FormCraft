@@ -23,8 +23,8 @@ export function FormsProvider({ children }) {
       if (stored) {
         setForms(JSON.parse(stored));
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn("[FormsContext] Failed to load forms from localStorage:", e);
     }
   }, []);
 
@@ -33,8 +33,8 @@ export function FormsProvider({ children }) {
       const updatedForms = typeof updateFn === "function" ? updateFn(prevForms) : updateFn;
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedForms));
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn("[FormsContext] Failed to persist forms to localStorage:", e);
       }
       return updatedForms;
     });

@@ -32,11 +32,13 @@ function MyRequestsContent() {
         const res = await api.getMyRequests();
         setRequests(res.data || []);
       } catch (err) {
-        if (err.response?.status === 403) {
+        const status = err?.response?.status;
+        if (status === 403) {
           toast.error("Access denied: your role does not have permission to view this page.");
           router.replace("/");
         } else {
           console.error("Failed to fetch my requests:", err);
+          toast.error("Failed to load your requests. Please refresh the page.");
         }
       } finally {
         setLoading(false);

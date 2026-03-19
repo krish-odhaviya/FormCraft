@@ -124,7 +124,9 @@ export default function BuilderPage() {
     if (formId) {
       api.getAllPublishedForms(formId)
         .then((res) => setPublishedForms(res?.data || []))
-        .catch(console.error);
+        .catch((err) => {
+          console.warn("Could not load published forms for conditions:", err);
+        });
     }
   }, [formId]);
 
@@ -471,37 +473,6 @@ export default function BuilderPage() {
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
         <div className="animate-spin h-10 w-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full mb-4"></div>
         <p className="text-slate-600 font-medium text-sm tracking-wide">Loading Workspace...</p>
-      </div>
-    );
-  }
-
-  // ── Archived — show only the card, no builder UI in the DOM at all ────────
-  if (isArchived) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 px-6 text-center">
-        <div className="bg-white border border-red-100 rounded-3xl p-10 max-w-md w-full shadow-xl">
-          <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Archive size={36} className="text-red-500" />
-          </div>
-          <h2 className="text-2xl font-black text-slate-900 mb-3 tracking-tight">Form Archived</h2>
-          <p className="text-slate-500 mb-8 leading-relaxed font-medium">
-            This form has been archived and is now in read-only mode. No further changes can be made.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            {/* <Link
-              href={`/forms/${formId}/submissions`}
-              className="inline-flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md"
-            >
-              View Submissions
-            </Link> */}
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center gap-2 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-indigo-600 transition-all shadow-md"
-            >
-              Back to Dashboard
-            </Link>
-          </div>
-        </div>
       </div>
     );
   }
@@ -903,6 +874,25 @@ export default function BuilderPage() {
 
       {/* ── MAIN CANVAS ── */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#F8FAFC]">
+        {isArchived && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+            <div className="bg-white border border-red-100 rounded-3xl p-10 max-w-md w-full text-center shadow-2xl shadow-red-100/40">
+              <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 border-8 border-red-50/50">
+                <Archive size={40} className="text-red-500" />
+              </div>
+              <h2 className="text-2xl font-black text-slate-900 mb-3 tracking-tight">Form Archived</h2>
+              <p className="text-slate-500 mb-8 leading-relaxed font-medium">
+                This form has been archived and is now in read-only mode. No further changes can be made.
+              </p>
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center gap-2 bg-slate-900 text-white px-8 py-3.5 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-95"
+              >
+                Back to Dashboard
+              </Link>
+            </div>
+          </div>
+        )}
         
         <header className="h-[76px] bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-8 shrink-0 z-10 sticky top-0 shadow-sm">
           <div className="flex items-center gap-4">

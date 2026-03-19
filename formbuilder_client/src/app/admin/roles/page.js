@@ -31,48 +31,52 @@ function RolesContent() {
 
   const isSystemAdmin = authUser?.roles?.some(r => r === "ROLE_SYSTEM_ADMIN" || r === "ROLE_ADMIN");
 
-  useEffect(() => {
-    if (authUser && !isSystemAdmin) {
-      router.replace("/");
-    }
-  }, [authUser, isSystemAdmin, router]);
-
   const reload = async () => {
     setLoading(true);
     try {
       const [rRes, mRes] = await Promise.all([api.getRoles(), api.getModules()]);
       setRoles(rRes.data || []);
       setModules(mRes.data || []);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    } catch (e) {
+      const status = e?.response?.status;
+      if (status === 403 || status === 401) {
+        router.replace("/");
+      } else {
+        console.error(e);
+        toast.error("Failed to load roles. Please refresh the page.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => {
+    if (!authUser) return;
+    if (!isSystemAdmin) {
+      router.replace("/");
+      return;
+    }
+    reload();
+  }, [authUser, isSystemAdmin]);
 
   const selectRole = async (role) => {
     setSelectedRole(role);
     try {
       const res = await api.getRoleModules(role.id);
       setSelectedModuleIds(res.data || []);
-    } catch { setSelectedModuleIds([]); }
+    } catch {
+      setSelectedModuleIds([]);
+      toast.error("Failed to load modules for this role. Please try again.");
+    }
   };
 
   const handleSaveRoleConfig = async () => {
     setSaving(true);
     try {
-      // Strip moduleIds from the role object before sending to updateRole.
-      // moduleIds in selectedRole comes from the GET /roles response and reflects
-      // the OLD state — sending it would cause updateRole to overwrite whatever
-      // assignModulesToRole just saved. Module assignment is handled exclusively
-      // by the assignModulesToRole call below.
-      const { moduleIds, ...roleWithoutModules } = selectedRole;
-
-      // Run sequentially — assignModulesToRole first, then updateRole.
-      // Running them in Promise.all caused a race condition where updateRole
-      // (which ran faster) restored the old modules, overwriting the new ones.
-      await api.assignModulesToRole(selectedRole.id, selectedModuleIds);
-      await api.updateRole(selectedRole.id, roleWithoutModules);
-
+      await Promise.all([
+        api.assignModulesToRole(selectedRole.id, selectedModuleIds),
+        api.updateRole(selectedRole.id, selectedRole)
+      ]);
       toast.success("Role configuration saved!");
       reload();
     } catch (e) {

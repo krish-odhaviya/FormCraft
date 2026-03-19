@@ -7,12 +7,22 @@ export const API = axios.create({
   withCredentials: true, // Send session cookie on every request
 });
 
-// ── Global 401 interceptor ───────────────────────────────────────────────────
-// If the backend returns 401 and we're not already on /login, redirect there.
+// ── Global response interceptor ──────────────────────────────────────────────
+// 401 = session expired or not logged in → redirect to login
+// All other errors are passed through for individual pages to handle.
 API.interceptors.response.use(
   (response) => response,
   (error) => {
-    // We handle auth redirection in AuthContext and individual pages
+    const status = error?.response?.status;
+    const isLoginPage = typeof window !== "undefined" &&
+      window.location.pathname === "/login";
+
+    if (status === 401 && !isLoginPage) {
+      // Session expired — redirect to login preserving the current path
+      const redirect = window.location.pathname;
+      window.location.href = `/login?redirect=${encodeURIComponent(redirect)}`;
+    }
+
     return Promise.reject(error);
   }
 );
