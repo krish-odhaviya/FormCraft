@@ -18,20 +18,26 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static com.sttl.formbuilder.service.ModuleAccessService.*;
+
 @Service
 @RequiredArgsConstructor
 public class AccessRequestService {
 
     private final AccessRequestRepository requestRepository;
-    private final FormRepository formRepository;
-    private final UserRepository userRepository;
-    private final PermissionService permissionService;
+    private final FormRepository          formRepository;
+    private final UserRepository          userRepository;
+    private final PermissionService       permissionService;
+    private final ModuleAccessService     moduleAccessService;  // ← ADDED
 
     /**
      * Creates a new access request (VIEW_FORM or CREATE_FORM) for the given user.
+     * Requires: "My Requests" module.
      */
     @Transactional
     public AccessRequestResponseDTO createRequest(String username, AccessRequestDTO dto) {
+        moduleAccessService.assertHasModule(username, MODULE_MY_REQUESTS);  // ← ADDED
+
         User user = resolveUser(username);
 
         AccessRequest request = new AccessRequest();
@@ -63,8 +69,11 @@ public class AccessRequestService {
 
     /**
      * Returns all access requests submitted by the given user.
+     * Requires: "My Requests" module.
      */
     public List<AccessRequestResponseDTO> getMyRequests(String username) {
+        moduleAccessService.assertHasModule(username, MODULE_MY_REQUESTS);  // ← ADDED
+
         User user = resolveUser(username);
         return requestRepository.findByUser(user).stream()
                 .map(this::toDto)
@@ -73,11 +82,19 @@ public class AccessRequestService {
 
     /**
      * Returns pending requests:
-     * - Admins see all pending requests across the system.
-     * - Form owners see pending requests only for forms they own.
+     * - Admins see all pending requests (requires "All Access Requests" module).
+     * - Form owners see pending requests for their forms (requires "Form Request" module).
      */
     public List<AccessRequestResponseDTO> getPendingRequests(String username) {
         User user = resolveUser(username);
+
+        // ── ADDED: module check per caller type ───────────────────────────────
+        if (permissionService.canManageSystem(user)) {
+            moduleAccessService.assertHasModule(username, MODULE_ALL_REQUESTS);
+        } else {
+            moduleAccessService.assertHasModule(username, MODULE_FORM_REQUEST);
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         List<AccessRequest> requests = permissionService.canManageSystem(user)
                 ? requestRepository.findByStatus("PENDING")
@@ -90,8 +107,8 @@ public class AccessRequestService {
 
     /**
      * Approves or rejects an access request.
-     * - Only admins can approve CREATE_FORM requests.
-     * - Form owners/builders can approve VIEW_FORM requests.
+     * - Only admins can approve CREATE_FORM requests (requires "All Access Requests" module).
+     * - Form owners/builders can approve VIEW_FORM requests (requires "Form Request" module).
      */
     @Transactional
     public AccessRequestResponseDTO processRequest(
@@ -109,10 +126,21 @@ public class AccessRequestService {
             if (!permissionService.canManageSystem(processor)) {
                 throw new BusinessException("Only admins can approve creation requests", HttpStatus.FORBIDDEN);
             }
+            moduleAccessService.assertHasModule(processorUsername, MODULE_ALL_REQUESTS);  // ← ADDED
         } else {
             if (!permissionService.canApproveFormRequests(processor, request.getForm())) {
                 throw new BusinessException("Access denied", HttpStatus.FORBIDDEN);
             }
+            // ── ADDED: accept either module — admin or form owner path ────────
+            boolean hasAccess =
+                    moduleAccessService.hasModule(processorUsername, MODULE_ALL_REQUESTS) ||
+                            moduleAccessService.hasModule(processorUsername, MODULE_FORM_REQUEST);
+            if (!hasAccess) {
+                throw new BusinessException(
+                        "Access denied: your role does not include the request management feature",
+                        HttpStatus.FORBIDDEN);
+            }
+            // ─────────────────────────────────────────────────────────────────
         }
 
         request.setStatus(status);

@@ -76,11 +76,8 @@ public class RoleService {
         role.setCanViewSubmissions(dto.isCanViewSubmissions());
         role.setCanDeleteSubmissions(dto.isCanDeleteSubmissions());
         roleRepository.save(role);
-
-        if (dto.getModuleIds() != null) {
-            roleModuleRepository.deleteByRoleId(id);
-            assignModules(role, dto.getModuleIds());
-        }
+        // NOTE: module assignment is handled exclusively by assignModulesToRole()
+        // — do NOT touch modules here to avoid race condition with Promise.all
         return toDTO(role);
     }
 
@@ -110,19 +107,19 @@ public class RoleService {
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
         User currentUser = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new BusinessException("Current user not found", HttpStatus.UNAUTHORIZED));
-        
+
         User targetUser = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("Target user not found", HttpStatus.NOT_FOUND));
-        
+
         // Check if target is self
         if (targetUser.getId().equals(currentUser.getId())) {
             throw new BusinessException("You cannot change your own role", HttpStatus.FORBIDDEN);
         }
-        
+
         // Check if target is already an admin
         boolean isTargetAdmin = userRoleRepository.findByUser(targetUser).stream()
                 .anyMatch(ur -> "SYSTEM_ADMIN".equalsIgnoreCase(ur.getRole().getRoleName()));
-        
+
         if (isTargetAdmin) {
             throw new BusinessException("You cannot change the role of another administrator", HttpStatus.FORBIDDEN);
         }
@@ -162,11 +159,11 @@ public class RoleService {
 
     private void assignModules(Role role, List<Long> moduleIds) {
         boolean isSystemAdmin = "SYSTEM_ADMIN".equalsIgnoreCase(role.getRoleName());
-        
+
         for (Long moduleId : moduleIds) {
             Module module = moduleRepository.findById(moduleId)
                     .orElseThrow(() -> new BusinessException("Module not found: " + moduleId, HttpStatus.NOT_FOUND));
-            
+
             // Block only RESTRICTED modules for non-SYSTEM_ADMIN
             if (!isSystemAdmin && RESTRICTED_MODULES.contains(module.getModuleName())) {
                 continue; // Skip silently or throw error? User said "i dont want to give it"

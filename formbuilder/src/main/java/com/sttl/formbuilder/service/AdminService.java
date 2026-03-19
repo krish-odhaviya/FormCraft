@@ -11,18 +11,23 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+import static com.sttl.formbuilder.service.ModuleAccessService.MODULE_USER_MANAGEMENT;
+
 @Service
 @RequiredArgsConstructor
 public class AdminService {
 
-    private final UserRepository userRepository;
-    private final PermissionService permissionService;
-    private final RoleService roleService;
+    private final UserRepository      userRepository;
+    private final PermissionService   permissionService;
+    private final RoleService         roleService;
+    private final ModuleAccessService moduleAccessService;  // ← ADDED
 
     /**
      * Returns all users. Caller must be a system admin.
+     * Requires: "User Management" module.
      */
     public List<UserResponseDto> getAllUsers(String adminUsername) {
+        moduleAccessService.assertHasModule(adminUsername, MODULE_USER_MANAGEMENT);  // ← ADDED
         User admin = resolveAdmin(adminUsername);
         assertSystemAdmin(admin);
 
@@ -33,9 +38,11 @@ public class AdminService {
 
     /**
      * Assigns a custom role to a user. Caller must be a system admin.
+     * Requires: "User Management" module.
      */
     @Transactional
     public UserResponseDto updateUserRole(String adminUsername, Long userId, Long roleId) {
+        moduleAccessService.assertHasModule(adminUsername, MODULE_USER_MANAGEMENT);  // ← ADDED
         User admin = resolveAdmin(adminUsername);
         assertSystemAdmin(admin);
 
@@ -53,9 +60,11 @@ public class AdminService {
 
     /**
      * Enables or disables a user account. Caller must be a system admin.
+     * Requires: "User Management" module.
      */
     @Transactional
     public UserResponseDto toggleUserStatus(String adminUsername, Long userId, boolean enabled) {
+        moduleAccessService.assertHasModule(adminUsername, MODULE_USER_MANAGEMENT);  // ← ADDED
         User admin = resolveAdmin(adminUsername);
         assertSystemAdmin(admin);
 

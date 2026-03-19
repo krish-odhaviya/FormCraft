@@ -33,7 +33,12 @@ function RequestsManagementContent() {
         const res = await api.getPendingRequests();
         setRequests(res.data || []);
       } catch (err) {
-        console.error("Failed to fetch pending requests:", err);
+        if (err.response?.status === 403) {
+          toast.error("Access denied: your role does not have permission to view this page.");
+          router.replace("/");
+        } else {
+          console.error("Failed to fetch pending requests:", err);
+        }
       } finally {
         setLoading(false);
       }

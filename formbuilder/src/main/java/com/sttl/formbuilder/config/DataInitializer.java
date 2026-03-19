@@ -85,7 +85,7 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         // Project manager — gets forms modules only, but with delete and archive permissions
-        Role projectManager = findOrCreateRole("Project manager", "Access to project management", true,
+        Role projectManager = findOrCreateRole("PROJECT_MANAGER", "Access to project management", true,
                                                true, true, true, true, true, true);
         if (roleModuleRepository.findByRole(projectManager).isEmpty()) {
             for (Module m : formsModules) {

@@ -17,16 +17,16 @@ import {
 export default function NewFormPage() {
   const router = useRouter();
   const { addForm } = useForms();
-  const { user } = useAuth();
+  const { user, hasModule } = useAuth();
   
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Permission Check
+  // Permission Check — uses hasModule which reads from the DB-assigned menu
   const isAdmin = user?.role === "ADMIN";
-  const canCreate = isAdmin || user?.canCreateForm;
+  const canCreate = isAdmin || hasModule("Create New Form");
 
   if (!canCreate) {
     return (
@@ -81,7 +81,9 @@ export default function NewFormPage() {
       router.push(`/forms/${form.id}/builder`);
     } catch (err) {
       console.error(err);
-      if (err.response?.data?.errors) {
+      if (err.response?.status === 403) {
+        setError("Access denied: your role does not have permission to create forms.");
+      } else if (err.response?.data?.errors) {
         const msgs = err.response.data.errors.map(e => `${e.field}: ${e.message}`).join("\n");
         setError(`Validation Error:\n${msgs}`);
       } else {

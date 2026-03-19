@@ -127,7 +127,7 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto no-scrollbar">
       <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl my-auto flex flex-col overflow-hidden border border-white/20">
-        
+
         {/* Modal Header */}
         <div className="px-8 py-6 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -146,7 +146,7 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
 
         {/* Modal Content */}
         <div className="p-8 space-y-10 overflow-y-auto custom-scrollbar max-h-[70vh]">
-          
+
           {/* Section: General */}
           <section>
             <SectionHeader icon={Layers} title="General Information" subtitle="Module Identity & Context" />
@@ -155,21 +155,21 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
                   Module Name <span className="text-red-500">*</span>
                 </label>
-                <input 
-                  value={form.moduleName} 
-                  onChange={e => setForm(f => ({...f, moduleName: e.target.value}))}
-                  placeholder="e.g. System Dashboard" 
-                  className={`w-full bg-white border rounded-2xl px-5 py-3.5 text-sm font-bold outline-none shadow-sm transition-all focus:ring-4 focus:ring-indigo-100 ${!form.moduleName?.trim() ? 'border-red-200' : 'border-slate-200 focus:border-indigo-500'}`} 
+                <input
+                  value={form.moduleName}
+                  onChange={e => setForm(f => ({ ...f, moduleName: e.target.value }))}
+                  placeholder="e.g. System Dashboard"
+                  className={`w-full bg-white border rounded-2xl px-5 py-3.5 text-sm font-bold outline-none shadow-sm transition-all focus:ring-4 focus:ring-indigo-100 ${!form.moduleName?.trim() ? 'border-red-200' : 'border-slate-200 focus:border-indigo-500'}`}
                 />
               </div>
               <div className="space-y-2">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Description</label>
-                <textarea 
-                  value={form.description || ""} 
-                  onChange={e => setForm(f => ({...f, description: e.target.value}))}
-                  rows={2} 
-                  placeholder="What is this module for?" 
-                  className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-medium outline-none resize-none shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all" 
+                <textarea
+                  value={form.description || ""}
+                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                  rows={2}
+                  placeholder="What is this module for?"
+                  className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-medium outline-none resize-none shadow-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all"
                 />
               </div>
             </div>
@@ -181,9 +181,9 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
             <div className="grid grid-cols-2 gap-6 bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100">
               <div className="space-y-2">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Parent Module</label>
-                <select 
-                  value={form.parentId || ""} 
-                  onChange={e => setForm(f => ({...f, parentId: e.target.value ? Number(e.target.value) : null}))}
+                <select
+                  value={form.parentId || ""}
+                  onChange={e => setForm(f => ({ ...f, parentId: e.target.value ? Number(e.target.value) : null }))}
                   className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold outline-none shadow-sm hover:border-indigo-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all appearance-none"
                 >
                   <option value="">None (Top Level)</option>
@@ -194,19 +194,18 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
               </div>
               <div className="space-y-2">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Route Prefix</label>
-                <input 
-                  value={form.prefix || ""} 
-                  onChange={e => setForm(f => ({...f, prefix: e.target.value}))}
+                <input
+                  value={form.prefix || ""}
+                  onChange={e => setForm(f => ({ ...f, prefix: e.target.value }))}
                   disabled={form.isParent || form.isSubParent}
-                  placeholder={form.isParent || form.isSubParent ? "N/A" : "/admin/reports"} 
+                  placeholder={form.isParent || form.isSubParent ? "N/A" : "/admin/reports"}
                   maxLength={255}
-                  className={`w-full border rounded-2xl px-5 py-3.5 text-sm font-bold outline-none shadow-sm transition-all ${
-                    form.isParent || form.isSubParent 
-                      ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed italic' 
-                      : form.prefix && !form.prefix.startsWith("/")
-                        ? 'bg-white border-red-300 focus:border-red-500 focus:ring-4 focus:ring-red-100 text-indigo-600'
-                        : 'bg-white border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 text-indigo-600'
-                  }`} 
+                  className={`w-full border rounded-2xl px-5 py-3.5 text-sm font-bold outline-none shadow-sm transition-all ${form.isParent || form.isSubParent
+                    ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed italic'
+                    : form.prefix && !form.prefix.startsWith("/")
+                      ? 'bg-white border-red-300 focus:border-red-500 focus:ring-4 focus:ring-red-100 text-indigo-600'
+                      : 'bg-white border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 text-indigo-600'
+                    }`}
                 />
                 {form.prefix && !form.prefix.startsWith("/") && !form.isParent && !form.isSubParent && (
                   <p className="text-[10px] text-red-500 font-semibold ml-1">Prefix must start with /</p>
@@ -219,23 +218,23 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
           <section>
             <SectionHeader icon={Settings} title="Functional Configuration" subtitle="Access & Type Settings" />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Toggle 
-                label="Is Parent" 
+              <Toggle
+                label="Is Parent"
                 sublabel="Container for sub-menus"
-                checked={form.isParent} 
-                onChange={val => setForm(f => ({...f, isParent: val, isSubParent: val ? false : f.isSubParent, prefix: val ? "" : f.prefix}))} 
+                checked={form.isParent}
+                onChange={val => setForm(f => ({ ...f, isParent: val, isSubParent: val ? false : f.isSubParent, prefix: val ? "" : f.prefix }))}
               />
-              <Toggle 
-                label="Is Sub-Parent" 
+              <Toggle
+                label="Is Sub-Parent"
                 sublabel="Nested container"
-                checked={form.isSubParent} 
-                onChange={val => setForm(f => ({...f, isSubParent: val, isParent: val ? false : f.isParent, prefix: val ? "" : f.prefix}))} 
+                checked={form.isSubParent}
+                onChange={val => setForm(f => ({ ...f, isSubParent: val, isParent: val ? false : f.isParent, prefix: val ? "" : f.prefix }))}
               />
-              <Toggle 
-                label="Active Status" 
+              <Toggle
+                label="Active Status"
                 sublabel="Visible in sidebar"
-                checked={form.active} 
-                onChange={val => setForm(f => ({...f, active: val}))} 
+                checked={form.active}
+                onChange={val => setForm(f => ({ ...f, active: val }))}
               />
             </div>
           </section>
@@ -262,11 +261,10 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
                       key={ico.id}
                       type="button"
                       onClick={() => setForm(f => ({ ...f, iconCss: ico.id }))}
-                      className={`flex flex-col items-center justify-center gap-2 p-3.5 rounded-[1.25rem] transition-all border group relative ${
-                        isSelected
-                          ? "bg-white text-indigo-600 border-indigo-500 shadow-xl shadow-indigo-100 scale-105 z-10"
-                          : "bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:shadow-md"
-                      }`}
+                      className={`flex flex-col items-center justify-center gap-2 p-3.5 rounded-[1.25rem] transition-all border group relative ${isSelected
+                        ? "bg-white text-indigo-600 border-indigo-500 shadow-xl shadow-indigo-100 scale-105 z-10"
+                        : "bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:shadow-md"
+                        }`}
                     >
                       <IconComp size={22} strokeWidth={isSelected ? 2.5 : 2} />
                       <span className={`text-[8px] font-black uppercase tracking-tight transition-colors ${isSelected ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-500'}`}>
@@ -282,8 +280,8 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
 
         {/* Modal Footer */}
         <div className="px-8 py-6 bg-slate-50/80 border-t border-slate-200/50 flex gap-4">
-          <button 
-            onClick={handleSave} 
+          <button
+            onClick={handleSave}
             disabled={saving}
             className="flex-1 bg-slate-900 text-white py-4 rounded-2xl text-sm font-black uppercase tracking-[0.15em] hover:bg-indigo-600 hover:shadow-2xl hover:shadow-indigo-200 transition-all active:scale-[0.98] disabled:bg-slate-300 disabled:pointer-events-none group"
           >
@@ -292,8 +290,8 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
               {initialData?.id ? "Update Module" : "Create Module"}
             </div>
           </button>
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="px-8 border border-slate-200 text-slate-600 py-4 rounded-2xl text-sm font-black uppercase tracking-[0.15em] hover:bg-white hover:text-slate-900 hover:border-slate-300 transition-all active:scale-[0.98]"
           >
             Cancel
@@ -321,19 +319,44 @@ function ModulesContent() {
 
   const reload = async () => {
     setLoading(true);
-    try { const res = await api.getModules(); setModules(res.data || []); }
-    catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    try {
+      const res = await api.getModules();
+      setModules(res.data || []);
+    } catch (e) {
+      if (e?.response?.status === 403) {
+        toast.error("Access denied. You don't have permission to view modules.");
+        router.replace("/");
+      } else if (e?.response?.status === 401) {
+        toast.error("Session expired. Please log in again.");
+        router.replace("/login");
+      } else if (e?.response?.status >= 500) {
+        toast.error("Server error. Please try again later.");
+      } else if (e?.code === "ERR_NETWORK") {
+        toast.error("Network error. Check your connection.");
+      } else {
+        toast.error(e?.response?.data?.message || "Failed to load modules.");
+      }
+      console.error("[reload]", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => {
+    if (!authUser) return;          // still loading auth
+    if (!isSystemAdmin) {
+      router.replace("/");
+      return;                       // don't call reload at all
+    }
+    reload();                       // only runs if authorized
+  }, [authUser, isSystemAdmin]);
 
   const handleDelete = async (id) => {
     if (!confirm("Delete this module?")) return;
-    try { 
-      await api.deleteModule(id); 
+    try {
+      await api.deleteModule(id);
       toast.success("Module deleted");
-      reload(); 
+      reload();
     }
     catch { toast.error("Failed to delete"); }
   };

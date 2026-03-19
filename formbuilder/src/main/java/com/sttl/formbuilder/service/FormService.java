@@ -24,23 +24,30 @@ import com.sttl.formbuilder.repository.FormRepository;
 @Service
 public class FormService {
 
-    private final FormRepository formRepository;
+    private final FormRepository      formRepository;
     private final FormFieldRepository formFieldRepository;
-    private final UserRepository userRepository;
-    private final PermissionService permissionService;
+    private final UserRepository      userRepository;
+    private final PermissionService   permissionService;
+    private final ModuleAccessService moduleAccessService;  // ← ADDED
 
     public FormService(FormRepository formRepository,
                        FormFieldRepository formFieldRepository,
                        UserRepository userRepository,
-                       PermissionService permissionService) {
-        this.formRepository = formRepository;
+                       PermissionService permissionService,
+                       ModuleAccessService moduleAccessService) {  // ← ADDED
+        this.formRepository      = formRepository;
         this.formFieldRepository = formFieldRepository;
-        this.userRepository = userRepository;
-        this.permissionService = permissionService;
+        this.userRepository      = userRepository;
+        this.permissionService   = permissionService;
+        this.moduleAccessService = moduleAccessService;  // ← ADDED
     }
 
-    /** Returns forms the user has access to manage (Owner or Admin or Builder). */
+    /** Returns forms the user has access to manage (Owner or Admin or Builder).
+     *  Requires: "Form Vault" module.
+     */
     public List<Form> getAllForms(String currentUsername) {
+        moduleAccessService.assertHasModule(currentUsername, ModuleAccessService.MODULE_FORM_VAULT);  // ← ADDED
+
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -51,8 +58,12 @@ public class FormService {
         return formRepository.findFormsAccessibleToUser(user);
     }
 
-    /** Creates a form tagged with the current user as owner. */
+    /** Creates a form tagged with the current user as owner.
+     *  Requires: "Create New Form" module.
+     */
     public Form createForm(String name, String description, String currentUsername) {
+        moduleAccessService.assertHasModule(currentUsername, ModuleAccessService.MODULE_CREATE_FORM);  // ← ADDED
+
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -142,7 +153,7 @@ public class FormService {
                     if (f.getIsUnique()          != null) validationMap.put("unique",            f.getIsUnique());
                     // numberFormat: always include for INTEGER fields so view page renders correctly
                     validationMap.put("numberFormat", f.getNumberFormat() != null ? f.getNumberFormat() : "INTEGER");
-                    // ✅ Grid rows and columns
+                    // Grid rows and columns
                     if (f.getGridRows() != null && !f.getGridRows().isEmpty())
                         validationMap.put("rows", f.getGridRows());
                     if (f.getGridColumns() != null && !f.getGridColumns().isEmpty())
@@ -156,19 +167,18 @@ public class FormService {
                     if (f.getDefaultValue() != null) uiMap.put("defaultValue",  f.getDefaultValue());
                     if (f.getReadOnly()     != null) uiMap.put("readOnly",      f.getReadOnly());
                     if (f.getIsHidden()     != null) uiMap.put("hidden",        f.getIsHidden());
-                    // ✅ Star rating
+                    // Star rating
                     if (f.getMaxStars()     != null) uiMap.put("maxStars",      f.getMaxStars());
-                    // ✅ Linear scale
+                    // Linear scale
                     if (f.getScaleMin()     != null) uiMap.put("scaleMin",      f.getScaleMin());
                     if (f.getScaleMax()     != null) uiMap.put("scaleMax",      f.getScaleMax());
                     if (f.getLowLabel()     != null) uiMap.put("lowLabel",      f.getLowLabel());
                     if (f.getHighLabel()    != null) uiMap.put("highLabel",     f.getHighLabel());
-                    // ✅ File upload
+                    // File upload
                     if (f.getMaxFileSizeMb() != null) uiMap.put("maxFileSizeMb", f.getMaxFileSizeMb());
                     if (f.getAcceptedFileTypes() != null && !f.getAcceptedFileTypes().isEmpty())
                         uiMap.put("acceptedFileTypes", f.getAcceptedFileTypes());
-
-                    //foreign key
+                    // Foreign key dropdown
                     if (f.getSourceTable()         != null) uiMap.put("sourceTable",         f.getSourceTable());
                     if (f.getSourceColumn()        != null) uiMap.put("sourceColumn",        f.getSourceColumn());
                     if (f.getSourceDisplayColumn() != null) uiMap.put("sourceDisplayColumn", f.getSourceDisplayColumn());
@@ -181,6 +191,7 @@ public class FormService {
         response.setFields(fieldDtos);
         return response;
     }
+
     public Form archiveForm(Long formId, String currentUsername) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new RuntimeException("Form not found"));

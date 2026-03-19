@@ -25,7 +25,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { toast } from "react-hot-toast";
 
 function DashboardContent() {
-  const { user, logout } = useAuth();
+  const { user, logout, hasModule } = useAuth();
   const router = useRouter();
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,8 +33,8 @@ function DashboardContent() {
   const [activeTab, setActiveTab] = useState("ALL"); // ALL, LIVE, SHARED, DRAFTS, ARCHIVED
 
   const isAdmin = user?.role === "ADMIN";
-  const canCreate = isAdmin || user?.canCreateForm;
-  const canEditAny = isAdmin || user?.canEditForm;
+  const canCreate    = isAdmin || hasModule("Create New Form");
+  const canEditAny   = isAdmin || user?.canEditForm;
   const canArchiveAny = isAdmin || user?.canArchiveForm;
   const canViewSubsAny = isAdmin || user?.canViewSubmissions;
 
@@ -44,8 +44,13 @@ function DashboardContent() {
         const response = await api.getAllForms();
         setForms(response?.data || []);
       } catch (err) {
-        console.error("Failed to fetch forms:", err);
-        setForms([]);
+        if (err.response?.status === 403) {
+          toast.error("Access denied: your role does not have permission to view forms.");
+          router.replace("/login");
+        } else {
+          console.error("Failed to fetch forms:", err);
+          setForms([]);
+        }
       } finally {
         setLoading(false);
       }

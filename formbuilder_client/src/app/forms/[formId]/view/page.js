@@ -289,6 +289,19 @@ function FormPageContent() {
     let customErrors = {};
     const fieldsToValidate = formPages[currentPage] || [];
 
+    // ── Number format validation — INTEGER must be whole number ──────────────
+    fieldsToValidate.forEach((field) => {
+      if (field.fieldType !== "INTEGER") return;
+      const fmt = field.validation?.numberFormat || "INTEGER";
+      if (fmt !== "INTEGER") return; // DECIMAL allows anything
+      const val = visibleValues[field.fieldKey];
+      if (val === null || val === undefined || String(val).trim() === "") return;
+      const num = Number(val);
+      if (!isNaN(num) && num !== Math.floor(num)) {
+        customErrors[field.fieldKey] = `'${field.fieldLabel}' must be a whole number (no decimals).`;
+      }
+    });
+
     fieldsToValidate.forEach((field) => {
       if (!field.conditions) return;
       let cond;
@@ -465,9 +478,19 @@ function FormPageContent() {
         const errorsMap = {};
         err.response.data.errors.forEach((e) => { errorsMap[e.field] = e.message; });
         setFieldErrors(errorsMap);
+        // Scroll to first field with error, or to top to show the summary banner
         const firstKey = Object.keys(errorsMap)[0];
         const el = document.getElementById(`field_${firstKey}`);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          // field element not found — scroll to top so summary banner is visible
+          if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      } else if (err.response?.status === 400 && err.response.data?.message) {
+        // Single message error (e.g. BusinessException)
+        setErrorMessage(err.response.data.message);
+        setMessage("error");
       } else {
         const msg = err.response?.data?.message || "Submission Failed. Please try again.";
         setErrorMessage(msg);
@@ -882,7 +905,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
             readOnly={isReadOnly}
             min={validation.min}
             max={validation.max}
-            step={fmt === "DECIMAL" ? "any" : "1"}
+            step="any"
             onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)}
           />
           <FieldError />

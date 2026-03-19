@@ -48,8 +48,16 @@ function MenuItem({ item, depth = 0, isCollapsed }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const hasChildren = item.children && item.children.length > 0;
-  const isActive = item.prefix && pathname === item.prefix;
-  const isGroupActive = hasChildren && item.children.some(c => c.prefix && pathname.startsWith(c.prefix));
+
+  // Exact match for "/" prefix, startsWith for all other paths
+  const matchesPrefix = (prefix) => {
+    if (!prefix) return false;
+    if (prefix === "/") return pathname === "/";
+    return pathname === prefix || pathname.startsWith(prefix + "/");
+  };
+
+  const isActive = matchesPrefix(item.prefix);
+  const isGroupActive = hasChildren && item.children.some(c => matchesPrefix(c.prefix));
 
   // Auto-open if a child is active
   useEffect(() => {
@@ -125,7 +133,7 @@ export default function Sidebar() {
 
   return (
     <aside 
-      className={`min-h-screen bg-white border-r border-slate-100 flex flex-col shadow-sm transition-all duration-300 ease-in-out ${
+      className={`h-screen bg-white border-r border-slate-100 flex flex-col shadow-sm transition-all duration-300 ease-in-out sticky top-0 ${
         isCollapsed ? "w-20" : "w-64"
       }`}
     >

@@ -60,10 +60,19 @@ function RolesContent() {
   const handleSaveRoleConfig = async () => {
     setSaving(true);
     try {
-      await Promise.all([
-        api.assignModulesToRole(selectedRole.id, selectedModuleIds),
-        api.updateRole(selectedRole.id, selectedRole)
-      ]);
+      // Strip moduleIds from the role object before sending to updateRole.
+      // moduleIds in selectedRole comes from the GET /roles response and reflects
+      // the OLD state — sending it would cause updateRole to overwrite whatever
+      // assignModulesToRole just saved. Module assignment is handled exclusively
+      // by the assignModulesToRole call below.
+      const { moduleIds, ...roleWithoutModules } = selectedRole;
+
+      // Run sequentially — assignModulesToRole first, then updateRole.
+      // Running them in Promise.all caused a race condition where updateRole
+      // (which ran faster) restored the old modules, overwriting the new ones.
+      await api.assignModulesToRole(selectedRole.id, selectedModuleIds);
+      await api.updateRole(selectedRole.id, roleWithoutModules);
+
       toast.success("Role configuration saved!");
       reload();
     } catch (e) {

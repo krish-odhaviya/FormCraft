@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
 import { 
   History, 
   Clock, 
@@ -21,6 +22,7 @@ import Link from "next/link";
 
 function MyRequestsContent() {
   const { user } = useAuth();
+  const router = useRouter();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +32,12 @@ function MyRequestsContent() {
         const res = await api.getMyRequests();
         setRequests(res.data || []);
       } catch (err) {
-        console.error("Failed to fetch my requests:", err);
+        if (err.response?.status === 403) {
+          toast.error("Access denied: your role does not have permission to view this page.");
+          router.replace("/");
+        } else {
+          console.error("Failed to fetch my requests:", err);
+        }
       } finally {
         setLoading(false);
       }
