@@ -7,7 +7,26 @@ import {
   ArrowLeft, Plus, Pencil, Trash2, Loader2, ChevronRight, X, Check,
   LayoutDashboard, FileText, Users, Shield, Settings, Bell, Mail, Inbox,
   PlusCircle, History, Search, Lock, Layers, Briefcase, ClipboardList,
-  BarChart3, Globe, Database
+  BarChart3, Globe, Database,
+  // Forms & Documents
+  FormInput, FilePlus, FileCheck, FileSearch, FolderOpen, FolderKanban,
+  Paperclip, BookOpen, BookMarked, Notebook, ScrollText, Receipt,
+  // People & Teams
+  UserPlus, UserCheck, UserCircle, UsersRound, Contact, Building2,
+  // Analytics & Reports
+  BarChart2, LineChart, PieChart, TrendingUp, TrendingDown, Activity,
+  // Actions & Workflow
+  Workflow, GitBranch, Send, Share2, Download, Upload, RefreshCw,
+  CheckCircle2, XCircle, AlertCircle, Clock, CalendarDays,
+  // System & Config
+  Server, Terminal, Code2, Cpu, HardDrive, Key, Fingerprint,
+  ToggleLeft, Sliders, Wrench, Package, Plug,
+  // Communication
+  MessageSquare, MessageCircle, PhoneCall, Video,
+  // Finance
+  DollarSign, CreditCard, Wallet, ShoppingCart, Tag,
+  // Navigation & Layout
+  LayoutGrid, List, Table2, Kanban, Map, Home, Compass
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -15,24 +34,109 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "react-hot-toast";
 
 const AVAILABLE_ICONS = [
-  { id: "layout", component: LayoutDashboard, label: "Dashboard" },
-  { id: "file-text", component: FileText, label: "Forms" },
-  { id: "users", component: Users, label: "Users" },
-  { id: "shield", component: Shield, label: "Security" },
-  { id: "settings", component: Settings, label: "Settings" },
-  { id: "bell", component: Bell, label: "Alerts" },
-  { id: "mail", component: Mail, label: "Email" },
-  { id: "inbox", component: Inbox, label: "Inbox" },
-  { id: "plus-circle", component: PlusCircle, label: "Create" },
-  { id: "history", component: History, label: "History" },
-  { id: "search", component: Search, label: "Search" },
-  { id: "lock", component: Lock, label: "Admin" },
-  { id: "layers", component: Layers, label: "Modules" },
-  { id: "briefcase", component: Briefcase, label: "Work" },
-  { id: "clipboard-list", component: ClipboardList, label: "Logs" },
-  { id: "bar-chart", component: BarChart3, label: "Reports" },
-  { id: "globe", component: Globe, label: "Global" },
-  { id: "database", component: Database, label: "Data" },
+  // ── Dashboard & Layout ────────────────────────────────────────────────────
+  { id: "layout",         component: LayoutDashboard, label: "Dashboard" },
+  { id: "layout-grid",    component: LayoutGrid,      label: "Grid" },
+  { id: "home",           component: Home,            label: "Home" },
+  { id: "list",           component: List,            label: "List" },
+  { id: "table",          component: Table2,          label: "Table" },
+  { id: "kanban",         component: Kanban,          label: "Kanban" },
+
+  // ── Forms & Documents ────────────────────────────────────────────────────
+  { id: "file-text",      component: FileText,        label: "Forms" },
+  { id: "form-input",     component: FormInput,       label: "Form" },
+  { id: "file-plus",      component: FilePlus,        label: "New File" },
+  { id: "file-check",     component: FileCheck,       label: "Approved" },
+  { id: "file-search",    component: FileSearch,      label: "Find File" },
+  { id: "folder",         component: FolderOpen,      label: "Folder" },
+  { id: "folder-kanban",  component: FolderKanban,    label: "Projects" },
+  { id: "book-open",      component: BookOpen,        label: "Docs" },
+  { id: "book-marked",    component: BookMarked,      label: "Guide" },
+  { id: "scroll-text",    component: ScrollText,      label: "Logs" },
+  { id: "receipt",        component: Receipt,         label: "Receipt" },
+  { id: "clipboard-list", component: ClipboardList,   label: "Checklist" },
+  { id: "notebook",       component: Notebook,        label: "Notes" },
+
+  // ── People & Teams ────────────────────────────────────────────────────────
+  { id: "users",          component: Users,           label: "Users" },
+  { id: "users-round",    component: UsersRound,      label: "Team" },
+  { id: "user-plus",      component: UserPlus,        label: "Add User" },
+  { id: "user-check",     component: UserCheck,       label: "Verified" },
+  { id: "user-circle",    component: UserCircle,      label: "Profile" },
+  { id: "contact",        component: Contact,         label: "Contacts" },
+  { id: "building",       component: Building2,       label: "Company" },
+
+  // ── Analytics & Reports ───────────────────────────────────────────────────
+  { id: "bar-chart",      component: BarChart3,       label: "Reports" },
+  { id: "bar-chart-2",    component: BarChart2,       label: "Bar" },
+  { id: "line-chart",     component: LineChart,       label: "Line" },
+  { id: "pie-chart",      component: PieChart,        label: "Pie" },
+  { id: "trending-up",    component: TrendingUp,      label: "Growth" },
+  { id: "trending-down",  component: TrendingDown,    label: "Decline" },
+  { id: "activity",       component: Activity,        label: "Activity" },
+
+  // ── Workflow & Actions ────────────────────────────────────────────────────
+  { id: "workflow",       component: Workflow,        label: "Workflow" },
+  { id: "git-branch",     component: GitBranch,       label: "Branch" },
+  { id: "send",           component: Send,            label: "Send" },
+  { id: "share",          component: Share2,          label: "Share" },
+  { id: "download",       component: Download,        label: "Export" },
+  { id: "upload",         component: Upload,          label: "Import" },
+  { id: "refresh",        component: RefreshCw,       label: "Refresh" },
+  { id: "check-circle",   component: CheckCircle2,    label: "Done" },
+  { id: "alert-circle",   component: AlertCircle,     label: "Alerts" },
+  { id: "clock",          component: Clock,           label: "Time" },
+  { id: "calendar",       component: CalendarDays,    label: "Calendar" },
+
+  // ── Communication ─────────────────────────────────────────────────────────
+  { id: "mail",           component: Mail,            label: "Email" },
+  { id: "inbox",          component: Inbox,           label: "Inbox" },
+  { id: "bell",           component: Bell,            label: "Alerts" },
+  { id: "message",        component: MessageSquare,   label: "Messages" },
+  { id: "chat",           component: MessageCircle,   label: "Chat" },
+  { id: "phone",          component: PhoneCall,       label: "Calls" },
+  { id: "video",          component: Video,           label: "Video" },
+
+  // ── Security & System ─────────────────────────────────────────────────────
+  { id: "shield",         component: Shield,          label: "Security" },
+  { id: "lock",           component: Lock,            label: "Admin" },
+  { id: "key",            component: Key,             label: "Access" },
+  { id: "fingerprint",    component: Fingerprint,     label: "Auth" },
+  { id: "server",         component: Server,          label: "Server" },
+  { id: "cpu",            component: Cpu,             label: "System" },
+  { id: "hard-drive",     component: HardDrive,       label: "Storage" },
+  { id: "terminal",       component: Terminal,        label: "Console" },
+  { id: "code",           component: Code2,           label: "Code" },
+
+  // ── Config & Tools ────────────────────────────────────────────────────────
+  { id: "settings",       component: Settings,        label: "Settings" },
+  { id: "sliders",        component: Sliders,         label: "Config" },
+  { id: "wrench",         component: Wrench,          label: "Tools" },
+  { id: "package",        component: Package,         label: "Packages" },
+  { id: "plug",           component: Plug,            label: "Integrations" },
+  { id: "toggle",         component: ToggleLeft,      label: "Toggle" },
+  { id: "layers",         component: Layers,          label: "Modules" },
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  { id: "search",         component: Search,          label: "Search" },
+  { id: "history",        component: History,         label: "History" },
+  { id: "globe",          component: Globe,           label: "Global" },
+  { id: "map",            component: Map,             label: "Map" },
+  { id: "compass",        component: Compass,         label: "Navigate" },
+  { id: "plus-circle",    component: PlusCircle,      label: "Create" },
+
+  // ── Finance ───────────────────────────────────────────────────────────────
+  { id: "dollar",         component: DollarSign,      label: "Finance" },
+  { id: "credit-card",    component: CreditCard,      label: "Payments" },
+  { id: "wallet",         component: Wallet,          label: "Wallet" },
+  { id: "cart",           component: ShoppingCart,    label: "Orders" },
+  { id: "tag",            component: Tag,             label: "Tags" },
+
+  // ── General ───────────────────────────────────────────────────────────────
+  { id: "briefcase",      component: Briefcase,       label: "Work" },
+  { id: "database",       component: Database,        label: "Data" },
+  { id: "paperclip",      component: Paperclip,       label: "Attach" },
+  { id: "plus",           component: Plus,            label: "Add" },
 ];
 
 function Toggle({ label, sublabel, checked, onChange, disabled }) {

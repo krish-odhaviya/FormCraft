@@ -96,7 +96,7 @@ public class DataInitializer implements CommandLineRunner {
 
     private void assignRolesToExistingUsers() {
         Optional<Role> sysAdminRole = roleRepository.findByRoleName("SYSTEM_ADMIN");
-        Optional<Role> projectManagerRole = roleRepository.findByRoleName("Project manager");
+        Optional<Role> projectManagerRole = roleRepository.findByRoleName("PROJECT_MANAGER");
         Optional<Role> formsManagerRole = roleRepository.findByRoleName("FORMS_MANAGER");
 
         for (User user : userRepository.findAll()) {

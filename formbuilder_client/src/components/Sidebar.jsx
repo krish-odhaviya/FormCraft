@@ -12,33 +12,124 @@ import {
   Menu, ChevronLeft, PanelLeftClose, PanelLeftOpen,
   History, LogOut, Settings, Bell, Mail, Search,
   Lock, Layers, Briefcase, ClipboardList, BarChart3,
-  Globe, Database, Plus
+  Globe, Database, Plus,
+  // New icons added
+  LayoutGrid, Home, List, Table2, Kanban,
+  FormInput, FilePlus, FileCheck, FileSearch, FolderOpen, FolderKanban,
+  BookOpen, BookMarked, ScrollText, Receipt, Notebook, Paperclip,
+  UsersRound, UserPlus, UserCheck, UserCircle, Contact, Building2,
+  BarChart2, LineChart, PieChart, TrendingUp, TrendingDown, Activity,
+  Workflow, GitBranch, Send, Share2, Download, Upload, RefreshCw,
+  CheckCircle2, AlertCircle, Clock, CalendarDays,
+  MessageSquare, MessageCircle, PhoneCall, Video,
+  Key, Fingerprint, Server, Cpu, HardDrive, Terminal, Code2,
+  Sliders, Wrench, Package, Plug, ToggleLeft,
+  DollarSign, CreditCard, Wallet, ShoppingCart, Tag,
+  Map, Compass, UserCheck as UserCk,
 } from "lucide-react";
 
 // Map icon strings from backend to Lucide components
+// Keys must match exactly the 'id' values in AVAILABLE_ICONS in admin/modules/page.js
 const ICON_MAP = {
+  // Dashboard & Layout
+  "layout":         <LayoutDashboard size={18} />,
+  "layout-grid":    <LayoutGrid size={18} />,
+  "home":           <Home size={18} />,
+  "list":           <List size={18} />,
+  "table":          <Table2 size={18} />,
+  "kanban":         <Kanban size={18} />,
+  // Forms & Documents
   "file-text":      <FileText size={18} />,
-  "plus-circle":    <PlusCircle size={18} />,
+  "form-input":     <FormInput size={18} />,
+  "file-plus":      <FilePlus size={18} />,
+  "file-check":     <FileCheck size={18} />,
+  "file-search":    <FileSearch size={18} />,
+  "folder":         <FolderOpen size={18} />,
+  "folder-kanban":  <FolderKanban size={18} />,
+  "book-open":      <BookOpen size={18} />,
+  "book-marked":    <BookMarked size={18} />,
+  "scroll-text":    <ScrollText size={18} />,
+  "receipt":        <Receipt size={18} />,
+  "clipboard-list": <ClipboardList size={18} />,
+  "notebook":       <Notebook size={18} />,
+  // People & Teams
+  "users":          <Users size={18} />,
+  "users-round":    <UsersRound size={18} />,
+  "user-plus":      <UserPlus size={18} />,
+  "user-check":     <UserCheck size={18} />,
+  "user-circle":    <UserCircle size={18} />,
+  "contact":        <Contact size={18} />,
+  "building":       <Building2 size={18} />,
+  // Analytics & Reports
+  "bar-chart":      <BarChart3 size={18} />,
+  "bar-chart-2":    <BarChart2 size={18} />,
+  "line-chart":     <LineChart size={18} />,
+  "pie-chart":      <PieChart size={18} />,
+  "trending-up":    <TrendingUp size={18} />,
+  "trending-down":  <TrendingDown size={18} />,
+  "activity":       <Activity size={18} />,
+  // Workflow & Actions
+  "workflow":       <Workflow size={18} />,
+  "git-branch":     <GitBranch size={18} />,
+  "send":           <Send size={18} />,
+  "share":          <Share2 size={18} />,
+  "download":       <Download size={18} />,
+  "upload":         <Upload size={18} />,
+  "refresh":        <RefreshCw size={18} />,
+  "check-circle":   <CheckCircle2 size={18} />,
+  "alert-circle":   <AlertCircle size={18} />,
+  "clock":          <Clock size={18} />,
+  "calendar":       <CalendarDays size={18} />,
+  // Communication
+  "mail":           <Mail size={18} />,
+  "inbox":          <Inbox size={18} />,
+  "bell":           <Bell size={18} />,
+  "message":        <MessageSquare size={18} />,
+  "chat":           <MessageCircle size={18} />,
+  "phone":          <PhoneCall size={18} />,
+  "video":          <Video size={18} />,
+  // Security & System
   "shield":         <Shield size={18} />,
+  "lock":           <Lock size={18} />,
+  "key":            <Key size={18} />,
+  "fingerprint":    <Fingerprint size={18} />,
+  "server":         <Server size={18} />,
+  "cpu":            <Cpu size={18} />,
+  "hard-drive":     <HardDrive size={18} />,
+  "terminal":       <Terminal size={18} />,
+  "code":           <Code2 size={18} />,
+  // Config & Tools
+  "settings":       <Settings size={18} />,
+  "sliders":        <Sliders size={18} />,
+  "wrench":         <Wrench size={18} />,
+  "package":        <Package size={18} />,
+  "plug":           <Plug size={18} />,
+  "toggle":         <ToggleLeft size={18} />,
+  "layers":         <Layers size={18} />,
+  // Navigation
+  "search":         <Search size={18} />,
+  "history":        <History size={18} />,
+  "globe":          <Globe size={18} />,
+  "map":            <Map size={18} />,
+  "compass":        <Compass size={18} />,
+  "plus-circle":    <PlusCircle size={18} />,
+  // Finance
+  "dollar":         <DollarSign size={18} />,
+  "credit-card":    <CreditCard size={18} />,
+  "wallet":         <Wallet size={18} />,
+  "cart":           <ShoppingCart size={18} />,
+  "tag":            <Tag size={18} />,
+  // General
+  "briefcase":      <Briefcase size={18} />,
+  "database":       <Database size={18} />,
+  "paperclip":      <Paperclip size={18} />,
+  "plus":           <Plus size={18} />,
+  // Legacy keys for backwards compatibility
   "layout-list":    <LayoutList size={18} />,
   "users-cog":      <Users size={18} />,
   "user-cog":       <UserCog size={18} />,
-  "inbox":          <Inbox size={18} />,
-  "layout":         <LayoutDashboard size={18} />,
-  "history":        <History size={18} />,
-  "settings":       <Settings size={18} />,
-  "bell":           <Bell size={18} />,
-  "mail":           <Mail size={18} />,
-  "search":         <Search size={18} />,
-  "lock":           <Lock size={18} />,
-  "layers":         <Layers size={18} />,
-  "briefcase":      <Briefcase size={18} />,
-  "clipboard-list": <ClipboardList size={18} />,
-  "bar-chart":      <BarChart3 size={18} />,
-  "globe":          <Globe size={18} />,
-  "database":       <Database size={18} />,
-  "plus":           <Plus size={18} />,
 };
+
 
 function getIcon(name) {
   return ICON_MAP[name] || <LayoutDashboard size={18} />;
@@ -49,7 +140,7 @@ function MenuItem({ item, depth = 0, isCollapsed }) {
   const [open, setOpen] = useState(false);
   const hasChildren = item.children && item.children.length > 0;
 
-  // Exact match for "/" prefix, startsWith for all other paths
+  // Exact match for "/" to prevent it matching every route
   const matchesPrefix = (prefix) => {
     if (!prefix) return false;
     if (prefix === "/") return pathname === "/";

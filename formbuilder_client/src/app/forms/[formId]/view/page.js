@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense } from "react";
+import { useEffect, useState, useMemo, Suspense, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api/formService";
 import {
@@ -16,6 +16,7 @@ import { toast } from "react-hot-toast";
 // Condition evaluator
 // ─────────────────────────────────────────────────────────────────────────────
 function evaluateConditions(field, formValues) {
+
   if (!field.conditions) return { visible: true, disabled: false };
   let cond;
   try { cond = typeof field.conditions === "string" ? JSON.parse(field.conditions) : field.conditions; }
@@ -63,6 +64,7 @@ function evaluateFormula(formula, formValues) {
 }
 
 function FormPageContent() {
+
   const { formId } = useParams();
   const searchParams = useSearchParams();
   const isPreview = searchParams.get("preview") === "true";
@@ -84,6 +86,7 @@ function FormPageContent() {
   const [requestReason, setRequestReason] = useState("");
   const [requestStatus, setRequestStatus] = useState(null); // 'pending', 'success', 'error'
   const [errorMessage, setErrorMessage] = useState("");
+  const scrollToFieldKey = useRef(null); // field to scroll to after a page navigation
   const { showToast } = useForms();
 
   const formPages = useMemo(() => {
@@ -255,6 +258,22 @@ function FormPageContent() {
     }
     if (formId) fetchFields().catch(() => { });
   }, [formId]);
+
+  // ── Scroll to error field after page navigation ───────────────────────────
+  // When backend errors reference a field on a different page, we change page
+  // then rely on this effect to scroll once the new page has rendered.
+  useEffect(() => {
+    if (scrollToFieldKey.current) {
+      const key = scrollToFieldKey.current;
+      scrollToFieldKey.current = null; // clear immediately to avoid re-firing
+      const el = document.getElementById(`field_${key}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else {
+        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [currentPage]); // runs every time currentPage changes
 
   const handleChange = (key, value) => {
     setFormValues((prev) => ({ ...prev, [key]: value }));
@@ -473,22 +492,36 @@ function FormPageContent() {
         if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch (err) {
-      console.error(err);
+      console.warn("[Form submit]", err?.response?.data || err.message);
       if (err.response?.status === 400 && Array.isArray(err.response.data?.errors)) {
         const errorsMap = {};
         err.response.data.errors.forEach((e) => { errorsMap[e.field] = e.message; });
         setFieldErrors(errorsMap);
-        // Scroll to first field with error, or to top to show the summary banner
-        const firstKey = Object.keys(errorsMap)[0];
-        const el = document.getElementById(`field_${firstKey}`);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        // Find which page the first errored field is on
+        const firstErrorKey = Object.keys(errorsMap)[0];
+        let targetPage = currentPage;
+        for (let p = 0; p < formPages.length; p++) {
+          if (formPages[p].some(f => f.fieldKey === firstErrorKey)) {
+            targetPage = p;
+            break;
+          }
+        }
+
+        if (targetPage !== currentPage) {
+          // Store the field key so the useEffect scrolls to it after page renders
+          scrollToFieldKey.current = firstErrorKey;
+          setCurrentPage(targetPage);
         } else {
-          // field element not found — scroll to top so summary banner is visible
-          if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+          // Error field is on current page — scroll immediately
+          const el = document.getElementById(`field_${firstErrorKey}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          } else {
+            if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+          }
         }
       } else if (err.response?.status === 400 && err.response.data?.message) {
-        // Single message error (e.g. BusinessException)
         setErrorMessage(err.response.data.message);
         setMessage("error");
       } else {
@@ -517,7 +550,7 @@ function FormPageContent() {
       setRequestStatus('success');
       setAccessRequested(true);
     } catch (err) {
-      console.error(err);
+      console.warn("[Access request]", err?.response?.data || err.message);
       if (err.response?.data?.message) {
         setErrorMessage(err.response.data.message);
       } else {
@@ -584,9 +617,7 @@ function FormPageContent() {
                     Submit Access Request
                   </button>
                   {requestStatus === 'error' && (
-                    <p className="text-red-500 text-sm text-center font-medium">
-                      {errorMessage || "Failed to submit request. Please try again."}
-                    </p>
+                    <p className="text-red-500 text-sm text-center font-medium">Failed to submit request. Please try again.</p>
                   )}
                 </div>
               ) : (
