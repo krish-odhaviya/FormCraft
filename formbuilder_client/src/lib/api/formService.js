@@ -1,9 +1,17 @@
-import { API } from "./axios";
-
-API.interceptors.response.use((response) => response.data);
+/**
+ * api — central service layer for all backend calls.
+ *
+ * Rules:
+ *  - Every call goes through the shared `API` axios instance (never raw fetch).
+ *  - The BASE_URL lives in axios.js — never hardcode localhost here.
+ *  - The response.data unwrap interceptor is already registered in axios.js,
+ *    so callers receive the envelope object: { success, message, data, ... }.
+ *    Access the payload with .data on the result.
+ */
+import { API, BASE_URL } from "./axios";
 
 export const api = {
-  // ── Auth ─────────────────────────────────────────────────────────────────
+  // ── Auth ──────────────────────────────────────────────────────────────────
   login: (username, password) =>
     API.post("/auth/login", { username, password }),
 
@@ -16,56 +24,124 @@ export const api = {
 
   // ── User Management (admin only) ──────────────────────────────────────────
   getAdminUsers: () => API.get("/admin/users"),
-  updateUserRole: (userId, role) => API.post(`/admin/users/${userId}/role?role=${role}`),
-  toggleUserStatus: (userId, enabled) => API.post(`/admin/users/${userId}/enable?enabled=${enabled}`),
+
+  /** Assign a custom role to a user */
+  assignRoleToUser: (roleId, userId) =>
+    API.post(`/admin/users/${userId}/custom-role?roleId=${roleId}`),
+
+  toggleUserStatus: (userId, enabled) =>
+    API.post(`/admin/users/${userId}/enable?enabled=${enabled}`),
 
   // ── Access Requests ───────────────────────────────────────────────────────
   createAccessRequest: (formId, type, reason) =>
     API.post("/requests", { formId, type, reason }),
-  getMyRequests: () => API.get("/requests/my"),
-  getPendingRequests: () => API.get("/requests/pending"),
-  processRequest: (requestId, status, role) =>
-    API.post(`/requests/${requestId}/process?status=${status}${role ? `&role=${role}` : ""}`),
 
+  getMyRequests: () => API.get("/requests/my"),
+
+  getPendingRequests: () => API.get("/requests/pending"),
+
+  processRequest: (requestId, status, role) =>
+    API.post(
+      `/requests/${requestId}/process?status=${status}${role ? `&role=${role}` : ""}`
+    ),
 
   // ── Forms ─────────────────────────────────────────────────────────────────
   getAllForms: () => API.get("/forms"),
-  getAllPublishedForms: (excludeFormId) => API.get(`/forms/published-list${excludeFormId ? `?excludeFormId=${excludeFormId}` : ''}`),
 
-  getSubmissions: (formId) => API.get(`/forms/${formId}/submissions`),
-  deleteSubmission: (formId, submissionId) =>
-    API.delete(`/forms/${formId}/submissions/${submissionId}`),
-  deleteSubmissionsBulk: (formId, submissionIds) =>
-    API.post(`/forms/${formId}/submissions/bulk-delete`, submissionIds),
+  getAllPublishedForms: (excludeFormId) =>
+    API.get(
+      `/forms/published-list${excludeFormId ? `?excludeFormId=${excludeFormId}` : ""}`
+    ),
+
   getForm: (formId) => API.get(`/forms/${formId}`),
-  createForm: (name, description) =>
-    API.post("/forms", { name, description }),
+
+  createForm: (name, description) => API.post("/forms", { name, description }),
 
   submitForm: (formId, values) =>
     API.post("/forms/submit", { formId, values }),
 
-  saveDraft: (formId, fields) =>
-    API.post(`/forms/${formId}/draft`, fields),
+  saveDraft: (formId, fields) => API.post(`/forms/${formId}/draft`, fields),
 
   publishForm: (formId) => API.post(`/forms/${formId}/publish`),
 
   archiveForm: (formId) => API.post(`/forms/${formId}/archive`),
 
-  // ── Form Visibility & Permissions ──────────────────────────────────────────
+  // ── Submissions ───────────────────────────────────────────────────────────
+  /**
+   * Paginated submissions — replaces the raw fetch() in submissions/page.jsx.
+   * Spring expects 0-based page index; this method converts from 1-based.
+   */
+  getSubmissionsPaged: (formId, { page = 1, size = 10, search = "", sortBy = "id", sortDir = "desc" } = {}) =>
+    API.get(`/forms/${formId}/submissions`, {
+      params: {
+        page: page > 0 ? page - 1 : 0,
+        size,
+        search,
+        sort: `${sortBy},${sortDir}`,
+      },
+    }),
+
+  deleteSubmission: (formId, submissionId) =>
+    API.delete(`/forms/${formId}/submissions/${submissionId}`),
+
+  deleteSubmissionsBulk: (formId, submissionIds) =>
+    API.post(`/forms/${formId}/submissions/bulk-delete`, submissionIds),
+
+  /**
+   * Export submissions as a file (csv | pdf | word).
+   * Returns a raw Response so the caller can blob() it.
+   * Uses native fetch with credentials because we need access to the
+   * raw binary stream — axios converts everything to JSON by default.
+   */
+  exportSubmissions: (formId, { search = "", format = "csv" } = {}) =>
+    fetch(
+      `${BASE_URL}/forms/${formId}/submissions/export?search=${encodeURIComponent(search)}&format=${format}`,
+      { credentials: "include" }
+    ),
+
+  /**
+   * Lookup data for LOOKUP_DROPDOWN fields.
+   * Replaces the raw fetch() in view/page.js.
+   */
+  getLookupData: (table, valueColumn, labelColumn) =>
+    API.get("/forms/lookup", {
+      params: { table, valueColumn, labelColumn },
+    }),
+
+  // ── Form Visibility & Permissions ─────────────────────────────────────────
   updateVisibility: (formId, visibility) =>
     API.post(`/forms/${formId}/visibility?visibility=${visibility}`),
-  
+
   getPermissions: (formId) => API.get(`/forms/${formId}/permissions`),
-  
+
   addPermission: (formId, username, role) =>
     API.post(`/forms/${formId}/permissions?username=${username}&role=${role}`),
-  
+
   removePermission: (formId, permissionId) =>
     API.delete(`/forms/${formId}/permissions/${permissionId}`),
 
-  // Optional (if still needed)
+  // ── Form Builder ──────────────────────────────────────────────────────────
   reorderFields: (formId, fieldIds) =>
     API.post(`/forms/${formId}/fields/reorder`, { fieldIds }),
+
+  // ── File Upload ───────────────────────────────────────────────────────────
+  /**
+   * Upload a file. Returns { status, url, filename }.
+   * Uses native fetch (multipart/form-data) — axios can do this too but
+   * native fetch is simpler for FormData.
+   */
+  uploadFile: (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return fetch(`${BASE_URL}/forms/upload`, {
+      method: "POST",
+      credentials: "include",
+      body: fd,
+    }).then((res) => {
+      if (!res.ok) throw new Error("Upload failed");
+      return res.json();
+    });
+  },
 
   // ── Dynamic Menu (sidebar) ────────────────────────────────────────────────
   getUserMenu: () => API.get("/menu"),
@@ -82,7 +158,6 @@ export const api = {
   updateRole: (id, data) => API.put(`/roles/${id}`, data),
   deleteRole: (id) => API.delete(`/roles/${id}`),
   getRoleModules: (roleId) => API.get(`/roles/${roleId}/modules`),
-  assignModulesToRole: (roleId, moduleIds) => API.post(`/roles/${roleId}/modules`, { moduleIds }),
-  assignRoleToUser: (roleId, userId) => API.post(`/admin/users/${userId}/custom-role?roleId=${roleId}`),
+  assignModulesToRole: (roleId, moduleIds) =>
+    API.post(`/roles/${roleId}/modules`, { moduleIds }),
 };
-

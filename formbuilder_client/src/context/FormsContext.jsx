@@ -1,113 +1,67 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-} from "react";
+/**
+ * FormsContext
+ *
+ * Changes from original:
+ * 1. Removed localStorage persistence — the server is the source of truth.
+ *    Persisting server data in localStorage caused stale-data bugs (e.g. a
+ *    form deleted on the server still appeared after a page refresh).
+ * 2. Removed showToast / dismissToast / toasts — the app uses react-hot-toast
+ *    everywhere. Having a second toast system caused duplicate notifications
+ *    and confused which one to call. All toast calls now go through
+ *    `import { toast } from "react-hot-toast"`.
+ */
+
+import { createContext, useContext, useState, useCallback } from "react";
 
 const FormsContext = createContext(null);
 
-const STORAGE_KEY = "formbuilder_forms";
-
 export function FormsProvider({ children }) {
   const [forms, setForms] = useState([]);
-  const [toasts, setToasts] = useState([]);
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setForms(JSON.parse(stored));
-      }
-    } catch (e) {
-      console.warn("[FormsContext] Failed to load forms from localStorage:", e);
-    }
+  /** Add a newly created form to local state (avoids a full re-fetch). */
+  const addForm = useCallback((form) => {
+    setForms((prev) => [
+      { ...form, localCreatedAt: new Date().toISOString() },
+      ...prev,
+    ]);
   }, []);
 
-  const persistForms = useCallback((updateFn) => {
-    setForms((prevForms) => {
-      const updatedForms = typeof updateFn === "function" ? updateFn(prevForms) : updateFn;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedForms));
-      } catch (e) {
-        console.warn("[FormsContext] Failed to persist forms to localStorage:", e);
-      }
-      return updatedForms;
-    });
+  /** Patch a specific form in local state. */
+  const updateForm = useCallback((formId, updates) => {
+    setForms((prev) =>
+      prev.map((f) => (f.id === formId ? { ...f, ...updates } : f))
+    );
   }, []);
 
-  const addForm = useCallback(
-    (form) => {
-      persistForms((prevForms) => [
-        { ...form, localCreatedAt: new Date().toISOString() },
-        ...prevForms,
-      ]);
-    },
-    [persistForms]
-  );
-
-  const updateForm = useCallback(
-    (formId, updates) => {
-      persistForms((prevForms) =>
-        prevForms.map((f) => (f.id === formId ? { ...f, ...updates } : f))
-      );
-    },
-    [persistForms]
-  );
-
+  /** Look up a form by id (accepts string or number). */
   const getForm = useCallback(
-    (formId) => forms.find((f) => f.id === Number(formId) || f.id === formId),
+    (formId) =>
+      forms.find((f) => f.id === Number(formId) || f.id === formId),
     [forms]
   );
 
-  const setFormFromServer = useCallback(
-    (serverForm) => {
-      persistForms((prevForms) => {
-        const existing = prevForms.find((f) => f.id === serverForm.id);
-
-        const formWithMeta = {
-          ...serverForm,
-          localCreatedAt:
-            existing?.localCreatedAt || new Date().toISOString(),
-        };
-
-        return existing
-          ? prevForms.map((f) => (f.id === serverForm.id ? formWithMeta : f))
-          : [formWithMeta, ...prevForms];
-      });
-    },
-    [persistForms]
-  );
-
-  const showToast = useCallback((message, type = "success") => {
-    const id = Date.now();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  }, []);
-
-  const dismissToast = useCallback((id) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+  /**
+   * Upsert a form received from the server into local state.
+   * Used by the form builder after fetching the latest form data.
+   */
+  const setFormFromServer = useCallback((serverForm) => {
+    setForms((prev) => {
+      const existing = prev.find((f) => f.id === serverForm.id);
+      const formWithMeta = {
+        ...serverForm,
+        localCreatedAt: existing?.localCreatedAt ?? new Date().toISOString(),
+      };
+      return existing
+        ? prev.map((f) => (f.id === serverForm.id ? formWithMeta : f))
+        : [formWithMeta, ...prev];
+    });
   }, []);
 
   return (
     <FormsContext.Provider
-      value={{
-        forms,
-        addForm,
-        updateForm,
-
-        getForm,
-        setFormFromServer,
-        toasts,
-        showToast,
-        dismissToast,
-      }}
+      value={{ forms, addForm, updateForm, getForm, setFormFromServer }}
     >
       {children}
     </FormsContext.Provider>

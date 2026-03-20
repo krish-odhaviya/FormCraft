@@ -8,60 +8,21 @@ import {
   ArrowLeft, Loader2, Database, FileSpreadsheet,
   Trash2, Star, SlidersHorizontal, LayoutGrid,
   Grid3x3, Upload, CheckSquare, Link2, Search, X,
-  FileText, FileDown, ChevronDown,
-  ShieldAlert
+  FileText, FileDown, ChevronDown, ShieldAlert,
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "react-hot-toast";
 
-// ── Custom styles for react-data-table-component ──────────────────────────────
+// ── Table styles ──────────────────────────────────────────────────────────────
 const tableCustomStyles = {
-  headRow: {
-    style: {
-      backgroundColor: "#f8fafc",
-      borderBottom: "1px solid #e2e8f0",
-      minHeight: "48px",
-    },
-  },
-  headCells: {
-    style: {
-      fontSize: "11px",
-      fontWeight: "700",
-      color: "#64748b",
-      textTransform: "uppercase",
-      letterSpacing: "0.05em",
-      paddingLeft: "24px",
-      paddingRight: "24px",
-    },
-  },
-  rows: {
-    style: {
-      minHeight: "56px",
-      borderBottom: "1px solid #f1f5f9",
-      "&:hover": { backgroundColor: "#f8fafc" },
-    },
-  },
-  cells: {
-    style: {
-      paddingLeft: "24px",
-      paddingRight: "24px",
-      fontSize: "13px",
-      color: "#334155",
-    },
-  },
+  headRow:   { style: { backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0", minHeight: "48px" } },
+  headCells: { style: { fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", paddingLeft: "24px", paddingRight: "24px" } },
+  rows:      { style: { minHeight: "56px", borderBottom: "1px solid #f1f5f9", "&:hover": { backgroundColor: "#f8fafc" } } },
+  cells:     { style: { paddingLeft: "24px", paddingRight: "24px", fontSize: "13px", color: "#334155" } },
   pagination: {
-    style: {
-      borderTop: "1px solid #e2e8f0",
-      backgroundColor: "#ffffff",
-      color: "#64748b",
-      fontSize: "13px",
-    },
-    pageButtonsStyle: {
-      borderRadius: "8px",
-      color: "#6366f1",
-      fill: "#6366f1",
-    },
+    style:          { borderTop: "1px solid #e2e8f0", backgroundColor: "#ffffff", color: "#64748b", fontSize: "13px" },
+    pageButtonsStyle: { borderRadius: "8px", color: "#6366f1", fill: "#6366f1" },
   },
 };
 
@@ -69,28 +30,28 @@ export default function SubmissionsPage() {
   const { formId } = useParams();
   const { user } = useAuth();
 
-  const [loading,     setLoading]     = useState(true);
-  const [error,       setError]       = useState("");
-  const [columns,     setColumns]     = useState([]);
-  const [rows,        setRows]        = useState([]);
-  const [totalRows,   setTotalRows]   = useState(0);
-  const [page,        setPage]        = useState(1);     // 1-based (react-data-table default)
-  const [perPage,     setPerPage]     = useState(10);
-  const [sortBy,      setSortBy]      = useState("id");
-  const [sortDir,     setSortDir]     = useState("desc");
-  const [search,      setSearch]      = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [exporting,   setExporting]   = useState(null); // stores format being exported
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [expanded,    setExpanded]    = useState({});
+  const [loading,               setLoading]               = useState(true);
+  const [error,                 setError]                 = useState("");
+  const [columns,               setColumns]               = useState([]);
+  const [rows,                  setRows]                   = useState([]);
+  const [totalRows,             setTotalRows]             = useState(0);
+  const [page,                  setPage]                  = useState(1);
+  const [perPage,               setPerPage]               = useState(10);
+  const [sortBy,                setSortBy]                = useState("id");
+  const [sortDir,               setSortDir]               = useState("desc");
+  const [search,                setSearch]                = useState("");
+  const [searchInput,           setSearchInput]           = useState("");
+  const [exporting,             setExporting]             = useState(null);
+  const [showExportMenu,        setShowExportMenu]        = useState(false);
+  const [expanded,              setExpanded]              = useState({});
   const [resetPaginationToggle, setResetPaginationToggle] = useState(false);
-  const [selectedRows, setSelectedRows] = useState([]);
-  const [clearSelectionToggle, setClearSelectionToggle] = useState(false);
-  const [canDelete,           setCanDelete]           = useState(false);
+  const [selectedRows,          setSelectedRows]          = useState([]);
+  const [clearSelectionToggle,  setClearSelectionToggle]  = useState(false);
+  const [canDelete,             setCanDelete]             = useState(false);
 
   const debounceRef = useRef(null);
 
-  // Permission Check
+  // Lightweight permission check — real auth is enforced server-side
   const isAdmin = user?.role === "ADMIN";
   const canViewSubs = isAdmin || user?.canViewSubmissions;
 
@@ -111,64 +72,49 @@ export default function SubmissionsPage() {
     );
   }
 
-  // ── Fetch one page of submissions from backend ──────────────────────────────
+  // ── Fetch one page of submissions ─────────────────────────────────────────
+  // Previously used raw fetch() with a hardcoded localhost URL.
+  // Now goes through api.getSubmissionsPaged() defined in formService.js.
   const fetchSubmissions = useCallback(async (pg, size, srch, sb, sd) => {
     setLoading(true);
     try {
-      // Check form is published/archived first (also serves as a permission check)
+      // Permission check via form metadata
       let formRes;
       try {
         formRes = await api.getForm(formId);
       } catch (fErr) {
-        if (fErr.response?.status === 403) {
-          setError("FORBIDDEN");
-          return;
-        }
+        if (fErr.response?.status === 403) { setError("FORBIDDEN"); return; }
         throw fErr;
       }
 
       const status = formRes.data?.status;
       setCanDelete(formRes.data?.canDeleteSubmissions || false);
+
       if (status !== "PUBLISHED" && status !== "ARCHIVED") {
         setError("This form is not in a state that allows viewing submissions.");
         return;
       }
 
-      // Fetch paginated submissions (Spring Pageable expects 0-based page and sort=field,dir)
-      const springPage = pg > 0 ? pg - 1 : 0;
-      const res = await fetch(
-        `http://localhost:9090/api/forms/${formId}/submissions?page=${springPage}&size=${size}&search=${encodeURIComponent(srch)}&sort=${sb},${sd}`,
-        { credentials: "include" }
-      );
-      
-      if (res.status === 403) {
-        setError("FORBIDDEN");
-        return;
-      }
-      
-      const json = await res.json();
-      const payload = json.data || {};
+      // All fetch logic now goes through the centralized api — no localhost URL
+      const res = await api.getSubmissionsPaged(formId, {
+        page: pg, size, search: srch, sortBy: sb, sortDir: sd,
+      });
 
+      const payload = res.data || {};
       setColumns(payload.columns || []);
       setRows(payload.rows || []);
       setTotalRows(payload.totalElements || 0);
     } catch (err) {
-      console.error(err);
-      if (err.name === 'SyntaxError') {
-          // Likely got HTML (redirect) or empty/bad response
-          setError("Failed to parse server response.");
-      } else {
-          setError(err.message || "Failed to load submissions.");
-      }
+      if (err.response?.status === 403) { setError("FORBIDDEN"); return; }
+      setError(err.message || "Failed to load submissions.");
     } finally {
       setLoading(false);
     }
   }, [formId]);
 
-  // Initial load
   useEffect(() => {
     if (formId) fetchSubmissions(page, perPage, search, sortBy, sortDir);
-  }, [formId]);
+  }, [formId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── react-data-table callbacks ────────────────────────────────────────────
   const handlePageChange = (newPage) => {
@@ -188,7 +134,7 @@ export default function SubmissionsPage() {
     setSortBy(key);
     setSortDir(dir);
     setPage(1);
-    setResetPaginationToggle(!resetPaginationToggle);
+    setResetPaginationToggle((t) => !t);
     fetchSubmissions(1, perPage, search, key, dir);
   };
 
@@ -196,11 +142,11 @@ export default function SubmissionsPage() {
   const handleSearchChange = (e) => {
     const val = e.target.value;
     setSearchInput(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
+    clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setSearch(val);
       setPage(1);
-      setResetPaginationToggle(!resetPaginationToggle);
+      setResetPaginationToggle((t) => !t);
       fetchSubmissions(1, perPage, val, sortBy, sortDir);
     }, 400);
   };
@@ -209,7 +155,7 @@ export default function SubmissionsPage() {
     setSearchInput("");
     setSearch("");
     setPage(1);
-    setResetPaginationToggle(!resetPaginationToggle);
+    setResetPaginationToggle((t) => !t);
     fetchSubmissions(1, perPage, "", sortBy, sortDir);
   };
 
@@ -218,81 +164,65 @@ export default function SubmissionsPage() {
     if (!window.confirm("Are you sure you want to delete this submission?")) return;
     try {
       await api.deleteSubmission(formId, submissionId);
-      // Remove the deleted ID from selected rows if it was checked
-      setSelectedRows(prev => prev.filter(row => row.id !== submissionId));
+      setSelectedRows((prev) => prev.filter((r) => r.id !== submissionId));
       fetchSubmissions(page, perPage, search, sortBy, sortDir);
       toast.success("Submission deleted.");
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error("Failed to delete submission.");
     }
   };
 
   const handleBulkDelete = async () => {
     if (selectedRows.length === 0) return;
-    if (!window.confirm(`Are you sure you want to delete ${selectedRows.length} selected submission(s)?`)) return;
-
+    if (!window.confirm(`Delete ${selectedRows.length} selected submission(s)?`)) return;
     try {
-      const idsToDelete = selectedRows.map(row => row.id);
-      await api.deleteSubmissionsBulk(formId, idsToDelete);
-      
-      setClearSelectionToggle(!clearSelectionToggle);
+      await api.deleteSubmissionsBulk(formId, selectedRows.map((r) => r.id));
+      setClearSelectionToggle((t) => !t);
       setSelectedRows([]);
       fetchSubmissions(page, perPage, search, sortBy, sortDir);
-      toast.success(`${idsToDelete.length} submissions deleted.`);
-    } catch (err) {
-      console.error(err);
+      toast.success(`${selectedRows.length} submissions deleted.`);
+    } catch {
       toast.error("Failed to bulk delete submissions.");
     }
   };
 
-  const handleRowSelected = useCallback(state => {
+  const handleRowSelected = useCallback((state) => {
     setSelectedRows(state.selectedRows);
   }, []);
 
-  // ── File Export — calls backend /export endpoint ───────────────────────────
+  // ── Export — now uses api.exportSubmissions() instead of raw fetch() ──────
   const handleExport = async (format = "csv") => {
     setExporting(format);
     setShowExportMenu(false);
     try {
-      const res = await fetch(
-        `http://localhost:9090/api/forms/${formId}/submissions/export?search=${encodeURIComponent(search)}&format=${format}`,
-        { credentials: "include" }
-      );
+      const res = await api.exportSubmissions(formId, { search, format });
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      
-      let ext = "csv";
-      if (format === "pdf") ext = "pdf";
-      if (format === "word") ext = "docx";
-
-      a.download = `submissions_form_${formId}.${ext}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `submissions_form_${formId}.${format === "word" ? "docx" : format}`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
+    } catch {
       toast.error(`Failed to export ${format.toUpperCase()}.`);
     } finally {
       setExporting(null);
     }
   };
 
-  // ── Grid expand toggle ────────────────────────────────────────────────────
+  // ── Expand toggles ────────────────────────────────────────────────────────
   const toggleExpand = (rowId, fieldKey) => {
     const key = `${rowId}_${fieldKey}`;
-    setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // ── Cell renderer ─────────────────────────────────────────────────────────
+  // ── Cell renderer (unchanged) ─────────────────────────────────────────────
   const formatCellValue = (value, fieldType, rowId, fieldKey) => {
     if (value === null || value === undefined)
       return <span className="text-slate-300 select-none">—</span>;
 
     switch (fieldType?.toUpperCase()) {
-
       case "BOOLEAN":
         return value ? (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-700 rounded-md text-xs font-semibold">
@@ -305,7 +235,8 @@ export default function SubmissionsPage() {
       case "CHECKBOX_GROUP": {
         try {
           const parsed = typeof value === "string" ? JSON.parse(value) : value;
-          if (!Array.isArray(parsed) || parsed.length === 0) return <span className="text-slate-300">—</span>;
+          if (!Array.isArray(parsed) || parsed.length === 0)
+            return <span className="text-slate-300">—</span>;
           return (
             <div className="flex flex-wrap gap-1">
               {parsed.map((item, i) => (
@@ -343,7 +274,7 @@ export default function SubmissionsPage() {
       }
 
       case "FILE_UPLOAD": {
-        if (!value || value === "") return <span className="text-slate-300">—</span>;
+        if (!value) return <span className="text-slate-300">—</span>;
         const filename = String(value).split("/").pop();
         return (
           <a href={String(value)} download target="_blank" rel="noopener noreferrer"
@@ -363,8 +294,7 @@ export default function SubmissionsPage() {
           const entries = Object.entries(parsed);
           return (
             <div>
-              <button onClick={() => toggleExpand(rowId, fieldKey)}
-                className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+              <button onClick={() => toggleExpand(rowId, fieldKey)} className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800">
                 <LayoutGrid size={13} />
                 {isExpanded ? "Hide" : `View ${entries.length} row${entries.length !== 1 ? "s" : ""}`}
               </button>
@@ -393,8 +323,7 @@ export default function SubmissionsPage() {
           const totalChecked = entries.reduce((acc, [, cols]) => acc + (Array.isArray(cols) ? cols.length : 0), 0);
           return (
             <div>
-              <button onClick={() => toggleExpand(rowId, fieldKey)}
-                className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+              <button onClick={() => toggleExpand(rowId, fieldKey)} className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800">
                 <Grid3x3 size={13} />
                 {isExpanded ? "Hide" : `${totalChecked} selection${totalChecked !== 1 ? "s" : ""}`}
               </button>
@@ -405,7 +334,9 @@ export default function SubmissionsPage() {
                       <span className="text-slate-600 font-medium block mb-1">{row}</span>
                       <div className="flex flex-wrap gap-1">
                         {Array.isArray(cols) && cols.length > 0
-                          ? cols.map((col, j) => <span key={j} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-xs">{col}</span>)
+                          ? cols.map((col, j) => (
+                              <span key={j} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-xs">{col}</span>
+                            ))
                           : <span className="text-slate-400 italic">None selected</span>}
                       </div>
                     </div>
@@ -433,45 +364,48 @@ export default function SubmissionsPage() {
     }
   };
 
-  // ── Build react-data-table columns from field definitions ─────────────────
+  // ── Table columns ─────────────────────────────────────────────────────────
   const tableColumns = [
     {
       name: "# ID",
-      selector: row => row.id,
+      selector: (row) => row.id,
       sortable: true,
       sortField: "id",
       width: "80px",
-      cell: row => <span className="text-sm font-medium text-slate-400">{row.id}</span>,
+      cell: (row) => <span className="text-sm font-medium text-slate-400">{row.id}</span>,
     },
-    ...columns.map(col => ({
+    ...columns.map((col) => ({
       name: (
         <div className="flex items-center gap-1.5">
           {getColumnIcon(col.fieldType)}
           {col.fieldLabel}
         </div>
       ),
-      selector: row => row[col.fieldKey],
+      selector: (row) => row[col.fieldKey],
       sortable: true,
       sortField: col.fieldKey,
-      cell: row => formatCellValue(row[col.fieldKey], col.fieldType, row.id, col.fieldKey),
+      cell: (row) => formatCellValue(row[col.fieldKey], col.fieldType, row.id, col.fieldKey),
       style: { minWidth: "160px" },
     })),
-    // Only show Actions column if user can delete
-    ...(canDelete ? [{
-      name: "Actions",
-      right: "true",
-      width: "80px",
-      cell: row => (
-        <button onClick={() => handleDelete(row.id)}
-          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          title="Delete Submission">
-          <Trash2 size={16} />
-        </button>
-      ),
-    }] : []),
+    ...(canDelete
+      ? [{
+          name: "Actions",
+          right: "true",
+          width: "80px",
+          cell: (row) => (
+            <button
+              onClick={() => handleDelete(row.id)}
+              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Delete Submission"
+            >
+              <Trash2 size={16} />
+            </button>
+          ),
+        }]
+      : []),
   ];
 
-  // ── Loading / Error ───────────────────────────────────────────────────────
+  // ── Error state ───────────────────────────────────────────────────────────
   if (error) {
     const isForbidden = error === "FORBIDDEN";
     return (
@@ -483,10 +417,7 @@ export default function SubmissionsPage() {
           {isForbidden ? "Access Denied" : "No Data Available"}
         </h2>
         <p className="text-slate-500 max-w-sm mb-8 leading-relaxed">
-          {isForbidden 
-            ? "You don't have permission to view submissions for this form."
-            : error
-          }
+          {isForbidden ? "You don't have permission to view submissions for this form." : error}
         </p>
         <Link href="/" className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-50 transition-all shadow-sm">
           Return to Dashboard
@@ -515,68 +446,54 @@ export default function SubmissionsPage() {
             </p>
           </div>
 
-            {/* Action buttons */}
-            <div className="flex items-center gap-3">
-              {selectedRows.length > 0 && (
-                <button
-                  onClick={handleBulkDelete}
-                  className="flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm animate-in fade-in"
-                >
-                  <Trash2 size={16} /> Delete Selected ({selectedRows.length})
-                </button>
-              )}
+          <div className="flex items-center gap-3">
+            {selectedRows.length > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                className="flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm"
+              >
+                <Trash2 size={16} /> Delete Selected ({selectedRows.length})
+              </button>
+            )}
 
-              <Link href={`/forms/${formId}/view`}
-                className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm">
-                <Database size={16} className="text-indigo-600" /> Fill Form
-              </Link>
-            
+            <Link
+              href={`/forms/${formId}/view`}
+              className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm"
+            >
+              <Database size={16} className="text-indigo-600" /> Fill Form
+            </Link>
+
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
                 disabled={exporting !== null}
                 className="flex items-center gap-2 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-70 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm"
               >
                 {exporting ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Exporting {exporting.toUpperCase()}...
-                  </>
+                  <><Loader2 size={16} className="animate-spin" /> Exporting {exporting.toUpperCase()}...</>
                 ) : (
-                  <>
-                    <FileDown size={16} /> Export Data <ChevronDown size={14} className={`transition-transform duration-200 ${showExportMenu ? "rotate-180" : ""}`} />
-                  </>
+                  <><FileDown size={16} /> Export Data <ChevronDown size={14} className={`transition-transform duration-200 ${showExportMenu ? "rotate-180" : ""}`} /></>
                 )}
               </button>
 
               {showExportMenu && !exporting && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-10" 
-                    onClick={() => setShowExportMenu(false)}
-                  ></div>
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-20 animate-in fade-in slide-in-from-top-2">
-                    <button 
-                      onClick={() => handleExport("csv")}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <FileSpreadsheet size={16} className="text-green-600" /> 
-                      <span className="font-medium">Export as CSV</span>
-                    </button>
-                    <button 
-                      onClick={() => handleExport("pdf")}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <FileText size={16} className="text-red-500" /> 
-                      <span className="font-medium">Export as PDF</span>
-                    </button>
-                    <button 
-                      onClick={() => handleExport("word")}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                    >
-                      <FileText size={16} className="text-blue-600" /> 
-                      <span className="font-medium">Export as Word</span>
-                    </button>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-20">
+                    {[
+                      { format: "csv",  label: "Export as CSV",  Icon: FileSpreadsheet, color: "text-green-600" },
+                      { format: "pdf",  label: "Export as PDF",  Icon: FileText,         color: "text-red-500" },
+                      { format: "word", label: "Export as Word", Icon: FileText,         color: "text-blue-600" },
+                    ].map(({ format, label, Icon, color }) => (
+                      <button
+                        key={format}
+                        onClick={() => handleExport(format)}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        <Icon size={16} className={color} />
+                        <span className="font-medium">{label}</span>
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
@@ -586,8 +503,6 @@ export default function SubmissionsPage() {
 
         {/* Table card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-
-          {/* Search bar */}
           <div className="p-4 border-b border-slate-100">
             <div className="relative max-w-sm">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -606,7 +521,6 @@ export default function SubmissionsPage() {
             </div>
           </div>
 
-          {/* DataTable */}
           <DataTable
             columns={tableColumns}
             data={rows}
@@ -628,7 +542,6 @@ export default function SubmissionsPage() {
                 </p>
               </div>
             }
-            // ── Server-side pagination ──────────────────────────────────────
             pagination
             paginationServer
             paginationTotalRows={totalRows}
@@ -638,12 +551,10 @@ export default function SubmissionsPage() {
             paginationRowsPerPageOptions={[10, 25, 50, 100]}
             onChangePage={handlePageChange}
             onChangeRowsPerPage={handlePerRowsChange}
-            // ── Server-side sorting ─────────────────────────────────────────
             sortServer
             onSort={handleSort}
             defaultSortFieldId={1}
             defaultSortAsc={false}
-            // ── Styling & Selection ─────────────────────────────────────────
             customStyles={tableCustomStyles}
             selectableRows={canDelete}
             onSelectedRowsChange={handleRowSelected}
@@ -672,12 +583,12 @@ function parseJsonbValue(value) {
 
 function getColumnIcon(fieldType) {
   switch (fieldType?.toUpperCase()) {
-    case "STAR_RATING":    return <Star size={12} className="text-amber-400" />;
-    case "LINEAR_SCALE":  return <SlidersHorizontal size={12} className="text-indigo-400" />;
-    case "FILE_UPLOAD":   return <Upload size={12} className="text-slate-400" />;
-    case "MC_GRID":       return <LayoutGrid size={12} className="text-indigo-400" />;
-    case "TICK_BOX_GRID": return <Grid3x3 size={12} className="text-indigo-400" />;
-    case "CHECKBOX_GROUP":return <CheckSquare size={12} className="text-indigo-400" />;
+    case "STAR_RATING":     return <Star size={12} className="text-amber-400" />;
+    case "LINEAR_SCALE":   return <SlidersHorizontal size={12} className="text-indigo-400" />;
+    case "FILE_UPLOAD":    return <Upload size={12} className="text-slate-400" />;
+    case "MC_GRID":        return <LayoutGrid size={12} className="text-indigo-400" />;
+    case "TICK_BOX_GRID":  return <Grid3x3 size={12} className="text-indigo-400" />;
+    case "CHECKBOX_GROUP": return <CheckSquare size={12} className="text-indigo-400" />;
     case "LOOKUP_DROPDOWN":return <Link2 size={12} className="text-indigo-400" />;
     default: return null;
   }
