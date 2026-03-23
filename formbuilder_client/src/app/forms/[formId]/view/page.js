@@ -3,7 +3,6 @@
 // Changes from original:
 // 1. Replaced raw fetch("http://localhost:9090/api/forms/lookup?...") with api.getLookupData()
 // 2. Replaced raw fetch("http://localhost:9090/api/forms/upload", ...) with api.uploadFile()
-// 3. Removed two stray console.log(res) calls
 // All other logic is preserved exactly.
 
 import { useEffect, useState, useMemo, Suspense, useRef } from "react";

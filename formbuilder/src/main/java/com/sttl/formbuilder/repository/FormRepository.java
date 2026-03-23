@@ -17,7 +17,7 @@ public interface FormRepository extends JpaRepository<Form, Long> {
 
     List<Form> findByVisibility(com.sttl.formbuilder.Enums.VisibilityType visibility);
 
-    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT f FROM Form f WHERE f.owner = :user OR f.visibility = com.sttl.formbuilder.Enums.VisibilityType.LINK OR EXISTS (SELECT 1 FROM FormPermission p WHERE p.form = f AND p.user = :user)")
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT f FROM Form f WHERE f.owner = :user OR f.visibility = com.sttl.formbuilder.Enums.VisibilityType.PUBLIC OR f.visibility = com.sttl.formbuilder.Enums.VisibilityType.LINK OR EXISTS (SELECT 1 FROM FormPermission p WHERE p.form = f AND p.user = :user)")
     List<Form> findFormsAccessibleToUser(@org.springframework.data.repository.query.Param("user") User user);
 
     boolean existsByNameAndOwner(String name, User owner);

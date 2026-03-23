@@ -29,7 +29,9 @@ API.interceptors.response.use(
       typeof window !== "undefined" &&
       window.location.pathname === "/login";
 
-    if (status === 401 && !isLoginPage) {
+    const isAuthMe = error?.config?.url?.includes("/auth/me");
+
+    if (status === 401 && !isLoginPage && !isAuthMe) {
       const redirect = encodeURIComponent(window.location.pathname);
       window.location.href = `/login?redirect=${redirect}`;
     }

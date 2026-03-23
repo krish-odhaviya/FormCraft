@@ -93,10 +93,10 @@ export default function BuilderPage() {
   const formId = Array.isArray(params.formId) ? params.formId[0] : params.formId;
 
   const { user } = useAuth();
-  const { getForm, setFormFromServer, showToast } = useForms();
+  const { getForm, setFormFromServer } = useForms();
   const form = getForm(formId);
 
-  const isOwnerOrAdmin = user?.role === 'ADMIN' || (form && form.ownerId === user?.id);
+  const isOwnerOrAdmin = user?.customRole === 'SYSTEM_ADMIN' || (form && form.ownerId === user?.id);
 
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
@@ -1945,82 +1945,86 @@ export default function BuilderPage() {
                     <p className="text-xs font-medium text-slate-500 mt-0.5">Manage specific user access roles</p>
                   </div>
                 </div>
-
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Username / Email</label>
-                    <div className="relative">
-                      <UserPlus size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Type username..."
-                        value={newPermissionUser}
-                        onChange={(e) => setNewPermissionUser(e.target.value)}
-                        className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all shadow-inner"
-                      />
+            {/* 1. Add Permission Input — ONLY for Owner/Admin */}
+            {isOwnerOrAdmin && (
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Username / Email</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                      <UserPlus size={18} />
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-[1fr_auto] gap-3">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Select Role</label>
-                      <select
-                        value={newPermissionRole}
-                        onChange={(e) => setNewPermissionRole(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all shadow-inner"
-                      >
-                        <option value="VIEWER">Viewer</option>
-                        <option value="BUILDER">Builder</option>
-                      </select>
-                    </div>
-                    <div className="flex items-end">
-                      <button 
-                        disabled={isAddingPermission || !newPermissionUser}
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          if (!newPermissionUser || isAddingPermission) return;
-                          
-                          setIsAddingPermission(true);
-                          try {
-                            const response = await api.addPermission(formId, newPermissionUser, newPermissionRole);
-                            
-                            // Success path
-                            setNewPermissionUser("");
-                            showToast(`Permission granted to ${newPermissionUser} successfully!`, "success");
-                            
-                            // Refresh permissions list
-                            const resp = await api.getPermissions(formId);
-                            setPermissions(resp.data || []);
-                          } catch (err) {
-                            console.error("Failed to add permission", err);
-                            
-                            // Robust error message extraction
-                            const errorMsg = err.response?.data?.message 
-                              || err.response?.data?.error 
-                              || err.message 
-                              || "Failed to add permission. Please try again.";
-                            
-                            showToast(errorMsg, "error");
-                          } finally {
-                            setIsAddingPermission(false);
-                          }
-                        }}
-                        className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 h-[42px] min-w-[100px] ${
-                          isAddingPermission || !newPermissionUser 
-                            ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none" 
-                            : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
-                        }`}
-                      >
-                        {isAddingPermission ? (
-                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                          <Plus size={18} strokeWidth={2.5} />
-                        )} 
-                        {isAddingPermission ? "Adding..." : "Add"}
-                      </button>
-                    </div>
+                    <input
+                      type="text"
+                      className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none font-medium placeholder:text-slate-400"
+                      placeholder="Type username..."
+                      value={newPermissionUser}
+                      onChange={(e) => setNewPermissionUser(e.target.value)}
+                    />
                   </div>
                 </div>
+
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1.5 block">Select Role</label>
+                    <select
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                      value={newPermissionRole}
+                      onChange={(e) => setNewPermissionRole(e.target.value)}
+                    >
+                      <option value="VIEWER">Viewer</option>
+                      <option value="BUILDER">Builder</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={async () => {
+                        if (!newPermissionUser) return;
+                        setIsAddingPermission(true);
+                        try {
+                          await api.addPermission(formId, newPermissionUser, newPermissionRole);
+                          
+                          // Success path
+                          setNewPermissionUser("");
+                          toast.success(`Permission granted to ${newPermissionUser} successfully!`);
+                          
+                          // Refresh permissions list
+                          const resp = await api.getPermissions(formId);
+                          setPermissions(resp.data || []);
+                        } catch (err) {
+                          console.error("Failed to add permission", err);
+                          
+                          // Robust error message extraction
+                          const errorMsg = err.response?.data?.message 
+                            || err.response?.data?.error 
+                            || err.message 
+                            || "Failed to add permission. Please try again.";
+                          
+                          toast.error(errorMsg);
+                        } finally {
+                          setIsAddingPermission(false);
+                        }
+                      }}
+                      disabled={isAddingPermission || !newPermissionUser}
+                      className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 h-[42px] min-w-[100px] ${
+                        isAddingPermission || !newPermissionUser 
+                          ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none" 
+                          : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
+                      }`}
+                    >
+                      {isAddingPermission ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Plus size={16} />
+                          <span>Add</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Active Permissions</label>
@@ -2029,10 +2033,12 @@ export default function BuilderPage() {
                     <div className="flex items-center justify-between p-3.5 bg-slate-100/80 border border-slate-200/80 rounded-xl">
                       <div className="flex items-center gap-3.5">
                         <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-black text-slate-600 uppercase shadow-inner">
-                          YOU
+                          {user?.id === form?.ownerId ? "YOU" : (form?.ownerName?.charAt(0) || "?")}
                         </div>
                         <div>
-                          <p className="text-sm font-extrabold text-slate-900 leading-tight">You (Owner)</p>
+                          <p className="text-sm font-extrabold text-slate-900 leading-tight">
+                            {user?.id === form?.ownerId ? "You (Owner)" : `${form?.ownerName} (Owner)`}
+                          </p>
                           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Full Access</p>
                         </div>
                       </div>
@@ -2054,19 +2060,21 @@ export default function BuilderPage() {
                             </div>
                           </div>
                         </div>
-                        <button 
-                          onClick={async () => {
-                            try {
-                              await api.removePermission(formId, p.id);
-                              setPermissions(prev => prev.filter(x => x.id !== p.id));
-                            } catch (err) {
-                              console.error("Failed to remove permission", err);
-                            }
-                          }}
-                          className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-xl transition-all opacity-0 group-hover:opacity-100 hover:scale-110 shadow-sm"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {isOwnerOrAdmin && (
+                          <button 
+                            onClick={async () => {
+                              try {
+                                await api.removePermission(formId, p.id);
+                                setPermissions(prev => prev.filter(x => x.id !== p.id));
+                              } catch (err) {
+                                console.error("Failed to remove permission", err);
+                              }
+                            }}
+                            className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-xl transition-all opacity-0 group-hover:opacity-100 hover:scale-110 shadow-sm"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     ))}
 

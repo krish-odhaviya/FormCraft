@@ -32,7 +32,7 @@ function DashboardContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("ALL"); // ALL, LIVE, SHARED, DRAFTS, ARCHIVED
 
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.customRole === "SYSTEM_ADMIN" || user?.roles?.includes("ROLE_SYSTEM_ADMIN");
   const canCreate = isAdmin || user?.canCreateForm;
   const canEditAny = isAdmin || user?.canEditForm;
   const canArchiveAny = isAdmin || user?.canArchiveForm;

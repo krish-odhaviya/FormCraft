@@ -206,7 +206,7 @@ public class FormController {
         User user = userRepository.findByUsername(currentUser.getUsername())
                 .orElseThrow(() -> new BusinessException("Session user not found", org.springframework.http.HttpStatus.UNAUTHORIZED));
 
-        if (!permissionService.canConfigureForm(user, form)) {
+        if (!permissionService.isOwnerOrAdmin(user, form)) {
             return ApiResponseUtil.error("Access denied", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
         }
 
@@ -238,7 +238,7 @@ public class FormController {
         User grantor = userRepository.findByUsername(currentUser.getUsername())
                 .orElseThrow(() -> new BusinessException("Session user not found", org.springframework.http.HttpStatus.UNAUTHORIZED));
 
-        if (!permissionService.canConfigureForm(grantor, form)) {
+        if (!permissionService.isOwnerOrAdmin(grantor, form)) {
             return ApiResponseUtil.error("Access denied", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
         }
 
@@ -262,7 +262,7 @@ public class FormController {
                 .orElseThrow(() -> new RuntimeException("Form not found"));
         User user = userRepository.findByUsername(currentUser.getUsername()).orElseThrow();
 
-        if (!permissionService.canConfigureForm(user, form)) {
+        if (!permissionService.isOwnerOrAdmin(user, form)) {
             return ApiResponseUtil.error("Access denied", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
         }
 

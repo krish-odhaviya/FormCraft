@@ -75,11 +75,11 @@ public class SecurityConfig {
                         // ── Public Form View/Submit Endpoints ──────────────────────────────
                         // (Internal logic in Service/PermissionService should handle visibility)
                         .requestMatchers(HttpMethod.GET, "/api/forms/lookup", "/api/forms/published-list").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/forms/[0-9]+").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/forms/[0-9]+/view").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/forms/[0-9]+/published").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/forms/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/forms/*/view").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/forms/*/published").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/forms/submit").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/forms/[0-9]+/evaluate").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/forms/*/evaluate").permitAll()
                         
                         // Final fallback for GET forms (just in case)
                         .requestMatchers(HttpMethod.GET, "/api/forms/**").permitAll()

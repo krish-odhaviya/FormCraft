@@ -52,7 +52,7 @@ export default function SubmissionsPage() {
   const debounceRef = useRef(null);
 
   // Lightweight permission check — real auth is enforced server-side
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.customRole === "SYSTEM_ADMIN" || user?.roles?.includes("ROLE_SYSTEM_ADMIN");
   const canViewSubs = isAdmin || user?.canViewSubmissions;
 
   if (!canViewSubs) {

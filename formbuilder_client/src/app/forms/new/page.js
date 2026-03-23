@@ -25,7 +25,7 @@ export default function NewFormPage() {
   const [loading, setLoading] = useState(false);
 
   // Permission Check — uses hasModule which reads from the DB-assigned menu
-  const isAdmin = user?.role === "ADMIN";
+  const isAdmin = user?.customRole === "SYSTEM_ADMIN" || user?.roles?.includes("ROLE_SYSTEM_ADMIN");
   const canCreate = isAdmin || hasModule("Create New Form");
 
   if (!canCreate) {
