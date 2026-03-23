@@ -65,35 +65,37 @@ public class SecurityConfig {
                 )
                 .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
-                        // ── Public Access (CORS, Auth, Static) ───────────────────────────
+                        // ── CORS pre-flight ───────────────────────────────────────────────
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/login", "/api/auth/logout", "/api/auth/register").permitAll()
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/api/forms/upload", "/api/forms/files/**").permitAll()
-                        .requestMatchers("/api/debug/**").permitAll()
 
-                        // ── Public Form View/Submit Endpoints ──────────────────────────────
-                        // (Internal logic in Service/PermissionService should handle visibility)
-                        .requestMatchers(HttpMethod.GET, "/api/forms/lookup", "/api/forms/published-list").permitAll()
+                        // ── Auth endpoints ────────────────────────────────────────────────
+                        .requestMatchers("/api/auth/login", "/api/auth/logout", "/api/auth/register").permitAll()
+
+                        // ── Swagger / OpenAPI docs (dev only) ─────────────────────────────
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+
+                        // ── File upload / download (auth enforced inside service) ──────────
+                        .requestMatchers("/api/forms/upload", "/api/forms/files/**").authenticated()
+
+                        // ── Public form view & submission ─────────────────────────────────
+                        // Visibility (PUBLIC / PRIVATE / LINK) is enforced in PermissionService
+                        .requestMatchers(HttpMethod.GET, "/api/forms/lookup").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/forms/published-list").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/forms/code/**").permitAll()   // new: get by formCode
                         .requestMatchers(HttpMethod.GET, "/api/forms/*").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/forms/*/view").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/forms/*/published").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/forms/submit").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/forms/*/evaluate").permitAll()
-                        
-                        // Final fallback for GET forms (just in case)
-                        .requestMatchers(HttpMethod.GET, "/api/forms/**").permitAll()
 
                         // ── Admin-only system management ──────────────────────────────────
-                        .requestMatchers(HttpMethod.GET, "/api/modules", "/api/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/roles", "/api/roles/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
-                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/modules", "/api/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/modules", "/api/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.GET,    "/api/modules", "/api/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.POST,   "/api/modules", "/api/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/api/modules", "/api/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/modules", "/api/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/roles", "/api/roles/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/roles", "/api/roles/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/roles", "/api/roles/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.GET,    "/api/roles",   "/api/roles/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.POST,   "/api/roles",   "/api/roles/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/api/roles",   "/api/roles/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/roles",   "/api/roles/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
+                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
 
                         // ── Everything else requires a valid session ───────────────────────
                         .anyRequest().authenticated()

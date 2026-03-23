@@ -113,7 +113,7 @@ public class FormBuilderController {
                     null, HttpStatus.FORBIDDEN, request);
         }
 
-        schemaService.publishForm(formId);
+        schemaService.publishForm(formId, currentUser.getUsername());
         return ApiResponseUtil.success("Published successfully", "Form published successfully", request);
     }
 

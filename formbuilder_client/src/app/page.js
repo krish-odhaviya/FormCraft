@@ -300,7 +300,7 @@ function DashboardContent() {
                     </Link>
                   )}
                   <Link
-                    href={`/forms/${form.id}/view`}
+                    href={`/forms/${form.code || form.id}/view`}
                     className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-100"
                     title="Live View"
                   >

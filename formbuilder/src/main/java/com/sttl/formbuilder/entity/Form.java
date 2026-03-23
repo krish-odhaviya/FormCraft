@@ -11,6 +11,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "forms")
@@ -21,6 +22,13 @@ public class Form {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Human-readable, URL-safe, unique code for this form (e.g. "contact-us-v1").
+     * Immutable after creation. Used in public-facing URLs.
+     */
+    @Column(unique = true, nullable = false, updatable = false, length = 100)
+    private String code;
 
     @Column(nullable = false, length = 150)
     private String name;
@@ -62,6 +70,19 @@ public class Form {
     private List<FormField> fields = new ArrayList<>();
 
     private LocalDateTime publishedAt;
+
+    /** Versions of the field definitions for this form. */
+    @OneToMany(mappedBy = "form", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("versionNumber DESC")
+    private List<FormVersion> versions = new ArrayList<>();
+
+    @PrePersist
+    public void generateCode() {
+        if (this.code == null || this.code.isBlank()) {
+            // Default: a short UUID-based code, can be overridden by caller
+            this.code = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        }
+    }
 
     public void addField(FormField field) {
         fields.add(field);

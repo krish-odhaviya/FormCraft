@@ -87,7 +87,7 @@ public class FormSubmissionController {
     }
 
     /**
-     * GET /api/forms/{formId}/submissions/export?search=&format=csv|pdf|word
+     * GET /api/forms/{formId}/submissions/export?search=&format=csv|pdf|word|xlsx
      * Downloads all matching submissions as a file.
      */
     @GetMapping("/{formId}/submissions/export")

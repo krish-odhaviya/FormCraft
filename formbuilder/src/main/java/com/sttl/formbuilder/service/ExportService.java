@@ -4,6 +4,10 @@ import com.sttl.formbuilder.dto.SubmissionsResponse;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFRow;
+import org.apache.poi.xssf.usermodel.XSSFCell;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -23,14 +27,18 @@ import java.nio.charset.StandardCharsets;
 @Service
 public class ExportService {
 
+    /** Characters that trigger formula injection in spreadsheet applications. */
+    private static final String[] FORMULA_PREFIXES = {"=", "+", "-", "@", "\t", "\r"};
+
     /**
-     * Exports submission data to the requested format (csv, pdf, word).
+     * Exports submission data to the requested format (csv, pdf, word, xlsx).
      */
     public ResponseEntity<byte[]> export(SubmissionsResponse data, String format) {
         try {
             return switch (format.toLowerCase()) {
                 case "pdf"  -> exportPdf(data);
                 case "word" -> exportWord(data);
+                case "xlsx" -> exportXlsx(data);
                 default     -> exportCsv(data);
             };
         } catch (Exception e) {
@@ -52,7 +60,7 @@ public class ExportService {
 
         // Data rows
         for (var row : data.getRows()) {
-            csv.append(row.getOrDefault("id", ""));
+            csv.append(escapeCsv(String.valueOf(row.getOrDefault("id", ""))));
             for (var col : data.getColumns()) {
                 Object val = row.get(col.getFieldKey());
                 csv.append(",").append(escapeCsv(val == null ? "" : String.valueOf(val)));
@@ -60,8 +68,53 @@ public class ExportService {
             csv.append("\n");
         }
 
-        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
-        return buildResponse(bytes, "text/csv", "submissions.csv");
+        // UTF-8 BOM for Excel compatibility
+        byte[] bom = new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
+        byte[] content = csv.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = new byte[bom.length + content.length];
+        System.arraycopy(bom, 0, bytes, 0, bom.length);
+        System.arraycopy(content, 0, bytes, bom.length, content.length);
+
+        return buildResponse(bytes, "text/csv;charset=UTF-8", "submissions.csv");
+    }
+
+    // ── XLSX ──────────────────────────────────────────────────────────────────
+
+    private ResponseEntity<byte[]> exportXlsx(SubmissionsResponse data) throws Exception {
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            XSSFSheet sheet = workbook.createSheet("Submissions");
+
+            // Header
+            XSSFRow headerRow = sheet.createRow(0);
+            XSSFCell idHeader = headerRow.createCell(0);
+            idHeader.setCellValue("ID");
+            int col = 1;
+            for (var column : data.getColumns()) {
+                XSSFCell cell = headerRow.createCell(col++);
+                cell.setCellValue(column.getFieldLabel());
+            }
+
+            // Data rows
+            int rowNum = 1;
+            for (var row : data.getRows()) {
+                XSSFRow dataRow = sheet.createRow(rowNum++);
+                dataRow.createCell(0).setCellValue(String.valueOf(row.getOrDefault("id", "")));
+                int colIdx = 1;
+                for (var column : data.getColumns()) {
+                    Object val = row.get(column.getFieldKey());
+                    XSSFCell cell = dataRow.createCell(colIdx++);
+                    cell.setCellValue(val == null ? "" : String.valueOf(val));
+                }
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return buildResponse(
+                    out.toByteArray(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "submissions.xlsx"
+            );
+        }
     }
 
     // ── PDF ───────────────────────────────────────────────────────────────────
@@ -150,9 +203,27 @@ public class ExportService {
         return new ResponseEntity<>(bytes, headers, HttpStatus.OK);
     }
 
+    /**
+     * Escapes a CSV value and prevents CSV/formula injection.
+     * <ul>
+     *   <li>Wraps commas, quotes and newlines in double-quotes.</li>
+     *   <li>Prefixes formula-injection characters (=, +, -, @) with a single quote
+     *       so spreadsheet applications do not execute them as formulas.</li>
+     * </ul>
+     */
     private String escapeCsv(String value) {
-        if (value == null) return "";
-        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+        if (value == null || value.isEmpty()) return "";
+
+        // CSV injection prevention: prefix formula indicators with '
+        for (String prefix : FORMULA_PREFIXES) {
+            if (value.startsWith(prefix)) {
+                value = "'" + value;
+                break;
+            }
+        }
+
+        // Standard CSV escaping
+        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }
         return value;

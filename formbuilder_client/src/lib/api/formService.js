@@ -55,10 +55,20 @@ export const api = {
 
   getForm: (formId) => API.get(`/forms/${formId}`),
 
+  getFormByCode: (code) => API.get(`/forms/code/${code}`),
+
   createForm: (name, description) => API.post("/forms", { name, description }),
 
   submitForm: (formId, values) =>
     API.post("/forms/submit", { formId, values }),
+
+  getFormVersions: (formId) => API.get(`/forms/${formId}/versions`),
+
+  getFormVersion: (formId, versionId) => API.get(`/forms/${formId}/versions/${versionId}`),
+
+  createFormVersion: (formId) => API.post(`/forms/${formId}/versions`),
+
+  activateFormVersion: (formId, versionId) => API.post(`/forms/${formId}/versions/${versionId}/activate`),
 
   saveDraft: (formId, fields) => API.post(`/forms/${formId}/draft`, fields),
 

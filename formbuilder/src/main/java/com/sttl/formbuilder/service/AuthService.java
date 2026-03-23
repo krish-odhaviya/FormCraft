@@ -61,8 +61,8 @@ public class AuthService {
         user.setEnabled(true);
         User savedUser = userRepository.save(user);
 
-        // Assign "Project manager" role by default
-        roleRepository.findByRoleName("Project manager").ifPresent(role -> {
+        // Assign "PROJECT_MANAGER" role by default
+        roleRepository.findByRoleName("PROJECT_MANAGER").ifPresent(role -> {
             UserRole ur = new UserRole();
             ur.setUser(savedUser);
             ur.setRole(role);

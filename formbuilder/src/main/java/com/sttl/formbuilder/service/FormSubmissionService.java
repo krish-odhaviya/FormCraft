@@ -6,21 +6,31 @@ import com.sttl.formbuilder.Enums.FormStatusEnum;
 import com.sttl.formbuilder.dto.FieldDto;
 import com.sttl.formbuilder.dto.PagedSubmissionsResponse;
 import com.sttl.formbuilder.dto.SubmissionsResponse;
-import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.entity.Form;
+import com.sttl.formbuilder.entity.FormField;
+import com.sttl.formbuilder.entity.FormSubmissionMeta;
+import com.sttl.formbuilder.entity.FormSubmissionMeta.SubmissionStatus;
+import com.sttl.formbuilder.entity.FormVersion;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.exception.ValidationException;
 import com.sttl.formbuilder.repository.FormRepository;
+import com.sttl.formbuilder.repository.FormSubmissionMetaRepository;
+import com.sttl.formbuilder.repository.FormVersionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
+import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sttl.formbuilder.dto.internal.FormRuleDTO;
 
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -33,6 +43,8 @@ public class FormSubmissionService {
     private final FormRepository formRepository;
     private final JdbcTemplate jdbcTemplate;
     private final RuleEngineService ruleEngineService;
+    private final FormSubmissionMetaRepository submissionMetaRepository;
+    private final FormVersionRepository formVersionRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -350,11 +362,34 @@ public class FormSubmissionService {
 
         if (columnsList.isEmpty()) throw new BusinessException("No valid columns provided.", HttpStatus.BAD_REQUEST);
 
+        // ── Resolve active version ────────────────────────────────────────────
+        Optional<FormVersion> activeVersion = formVersionRepository.findByFormIdAndIsActive(formId, true);
+
+        // ── Append metadata columns ───────────────────────────────────────────
+        columnsList.add("is_draft");
+        placeholdersList.add("?");
+        argumentsList.add(false);
+
+        columnsList.add("form_version_id");
+        placeholdersList.add("?");
+        argumentsList.add(activeVersion.map(FormVersion::getId).orElse(null));
+
         String sql = "INSERT INTO " + tableName
                 + " (" + String.join(", ", columnsList) + ")"
-                + " VALUES (" + String.join(", ", placeholdersList) + ")";
+                + " VALUES (" + String.join(", ", placeholdersList) + ") RETURNING id";
 
-        jdbcTemplate.update(sql, argumentsList.toArray());
+        // ── Execute INSERT and capture generated row ID safely ───────────────────
+        Long newRowId = jdbcTemplate.queryForObject(sql, Long.class, argumentsList.toArray());
+
+        // ── Write to form_submission_meta ──────────────────────────────────────
+        FormSubmissionMeta meta = new FormSubmissionMeta();
+        meta.setForm(form);
+        activeVersion.ifPresent(meta::setFormVersion);
+        meta.setStatus(SubmissionStatus.SUBMITTED);
+        meta.setDataRowId(newRowId);
+        meta.setSubmittedAt(LocalDateTime.now());
+        submissionMetaRepository.save(meta);
+
         ruleEngineService.executePostSubmissionWorkflows(form.getFields(), values);
     }
 

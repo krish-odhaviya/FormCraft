@@ -201,7 +201,10 @@ export default function SubmissionsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `submissions_form_${formId}.${format === "word" ? "docx" : format}`;
+      let ext = format;
+      if (format === "word") ext = "docx";
+      if (format === "xlsx") ext = "xlsx";
+      a.download = `submissions_form_${formId}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -482,6 +485,7 @@ export default function SubmissionsPage() {
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-20">
                     {[
                       { format: "csv",  label: "Export as CSV",  Icon: FileSpreadsheet, color: "text-green-600" },
+                      { format: "xlsx", label: "Export as Excel",Icon: FileSpreadsheet, color: "text-emerald-600" },
                       { format: "pdf",  label: "Export as PDF",  Icon: FileText,         color: "text-red-500" },
                       { format: "word", label: "Export as Word", Icon: FileText,         color: "text-blue-600" },
                     ].map(({ format, label, Icon, color }) => (

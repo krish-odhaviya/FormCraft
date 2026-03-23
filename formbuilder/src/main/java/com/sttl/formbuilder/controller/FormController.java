@@ -77,10 +77,23 @@ public class FormController {
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        // currentUser is null for the public /view endpoint (handled by SecurityConfig)
-        System.out.println("Fetching form structure for ID: " + formId + " | User: " + (currentUser != null ? currentUser.getUsername() : "anonymous"));
         String username = currentUser != null ? currentUser.getUsername() : null;
         FormDetailsResponse response = formService.getFormWithStructure(formId, username);
+        return ApiResponseUtil.success(response, "Form fetched successfully", request);
+    }
+
+    // ── GET /api/forms/code/{code} — public form view by form code ────────────
+    @GetMapping("/code/{code}")
+    public ResponseEntity<ApiResponse<FormDetailsResponse>> getFormByCode(
+            @PathVariable String code,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
+
+        String username = currentUser != null ? currentUser.getUsername() : null;
+        Form form = formRepository.findByCode(code)
+                .orElseThrow(() -> new com.sttl.formbuilder.exception.BusinessException(
+                        "Form not found for code: " + code, org.springframework.http.HttpStatus.NOT_FOUND));
+        FormDetailsResponse response = formService.getFormWithStructure(form.getId(), username);
         return ApiResponseUtil.success(response, "Form fetched successfully", request);
     }
 
@@ -172,8 +185,6 @@ public class FormController {
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        System.out.println("Updating visibility for form " + formId + " to " + visibility + " by " + (currentUser != null ? currentUser.getUsername() : "anonymous"));
-
         if (currentUser == null) {
             return ApiResponseUtil.error("Unauthorized", null, org.springframework.http.HttpStatus.UNAUTHORIZED, request);
         }
@@ -183,16 +194,15 @@ public class FormController {
         User user = userRepository.findByUsername(currentUser.getUsername()).orElseThrow();
 
         if (!permissionService.isOwnerOrAdmin(user, form)) {
-            System.out.println("Access denied for user " + user.getUsername() + " (not owner/admin) on form " + formId);
             return ApiResponseUtil.error("Access denied: only owner or admin can change visibility", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
         }
 
         form.setVisibility(visibility);
         formRepository.save(form);
-        System.out.println("Visibility updated successfully for form " + formId);
 
         return ApiResponseUtil.success(null, "Visibility updated successfully", request);
     }
+
 
     // ── GET /api/forms/{formId}/permissions ──────────────────────────────────
     @GetMapping("/{formId}/permissions")

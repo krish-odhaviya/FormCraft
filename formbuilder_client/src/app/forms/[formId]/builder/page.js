@@ -513,7 +513,7 @@ export default function BuilderPage() {
             </Link>
           )}
           {isForbidden && (
-            <Link href={`/forms/${formId}/view`} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg active:scale-95">
+            <Link href={`/forms/${form?.code || formId}/view`} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg active:scale-95">
               View Live Form
             </Link>
           )}
@@ -912,6 +912,9 @@ export default function BuilderPage() {
             </div>
           </div>
           <div className="flex items-center gap-3.5">
+            <Link href={`/forms/${formId}/versions`} className="hidden sm:flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 px-4 py-2.5 rounded-xl transition-all border border-transparent hover:border-indigo-100">
+              <GitBranch size={18} /> Versions
+            </Link>
             <Link href={`/forms/${formId}/view?preview=true`} className="hidden sm:flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-4 py-2.5 rounded-xl transition-all border border-transparent hover:border-slate-200">
               <ClipboardList size={18} /> Preview
             </Link>

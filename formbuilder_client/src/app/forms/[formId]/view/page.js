@@ -8,6 +8,7 @@
 import { useEffect, useState, useMemo, Suspense, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api/formService";
+import { evaluateFormula } from "@/lib/formulaEvaluator";
 import {
   Loader2, Send, CheckCircle2, AlertCircle,
   ChevronDown, Star, Upload, LayoutTemplate, Lock,
@@ -50,18 +51,6 @@ function evaluateConditions(field, formValues) {
   }
 }
 
-function evaluateFormula(formula, formValues) {
-  if (!formula) return "";
-  try {
-    const expression = formula.replace(/\{([^}]+)\}/g, (_, key) => {
-      const val = Number(formValues[key]);
-      return isNaN(val) ? 0 : val;
-    });
-    // eslint-disable-next-line no-new-func
-    const result = Function(`"use strict"; return (${expression})`)();
-    return isNaN(result) ? "" : String(Math.round(result * 100) / 100);
-  } catch { return ""; }
-}
 
 // ── Main form component ───────────────────────────────────────────────────────
 function FormPageContent() {
@@ -186,7 +175,12 @@ function FormPageContent() {
   useEffect(() => {
     async function fetchFields() {
       try {
-        const res = await api.getForm(formId);
+        let res;
+        if (isNaN(formId)) {
+          res = await api.getFormByCode(formId);
+        } else {
+          res = await api.getForm(formId);
+        }
         // console.log removed — was leaking full API response to browser console
         setFormDetails(res.data);
         setFormFromServer(res.data);
