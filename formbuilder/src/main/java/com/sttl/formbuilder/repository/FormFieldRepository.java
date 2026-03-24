@@ -9,11 +9,11 @@ import java.util.UUID;
 
 public interface FormFieldRepository extends JpaRepository<FormField, UUID> {
 
-    List<FormField> findByFormIdAndIsDeletedFalseOrderByFieldOrder(UUID formId);
+    List<FormField> findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(UUID formVersionId);
 
-    boolean existsByFormIdAndFieldKeyAndIsDeletedFalse(UUID formId, String fieldKey);
+    boolean existsByFormVersionIdAndFieldKeyAndIsDeletedFalse(UUID formVersionId, String fieldKey);
 
-    void deleteByForm_Id(UUID formId);
+    void deleteByFormVersion_Id(UUID formVersionId);
 
-    void deleteAllByForm_Id(UUID formId);
+    void deleteAllByFormVersion_Id(UUID formVersionId);
 }

@@ -53,14 +53,14 @@ export const api = {
       `/forms/published-list${excludeFormId ? `?excludeFormId=${excludeFormId}` : ""}`
     ),
 
-  getForm: (formId) => API.get(`/forms/${formId}`),
+  getForm: (formId, isDraft = false) => API.get(`/forms/${formId}?isDraft=${isDraft}`),
 
-  getFormByCode: (code) => API.get(`/forms/code/${code}`),
+  getFormByCode: (code, isDraft = false) => API.get(`/forms/code/${code}?isDraft=${isDraft}`),
 
   createForm: (name, description) => API.post("/forms", { name, description }),
 
-  submitForm: (formId, values) =>
-    API.post("/forms/submit", { formId, values }),
+  submitForm: (formId, values, formVersionId) =>
+    API.post("/forms/submit", { formId, values, formVersionId }),
 
   getFormVersions: (formId) => API.get(`/forms/${formId}/versions`),
 

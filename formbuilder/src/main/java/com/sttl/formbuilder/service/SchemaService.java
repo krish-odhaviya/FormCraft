@@ -45,21 +45,26 @@ public class SchemaService {
             Form form = formRepository.findById(formId)
                     .orElseThrow(() -> new RuntimeException("Form not found"));
 
-            List<FormField> fields = fieldRepository.findByFormIdAndIsDeletedFalseOrderByFieldOrder(formId);
+            // 1. Get the draft working copy version
+            FormVersion draftVersion = formVersionService.getOrCreateDraftVersion(formId, publishedBy);
+
+            // 2. Resolve fields for the draft
+            List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(draftVersion.getId());
             if (fields.isEmpty()) {
                 throw new RuntimeException("No fields defined — add at least one field before publishing");
             }
 
-            // ── Validate field keys against reserved words ──────────────────
+            // 3. Validate field keys against reserved words
             for (FormField f : fields) {
                 if (LAYOUT_TYPES.contains(f.getFieldType())) continue;
                 String key = f.getFieldKey().toLowerCase();
-                if (RESERVED_COLUMNS.contains(key)) {
+                if (RESERVED_COLUMNS.contains(key) || key.trim().isEmpty()) {
                     throw new RuntimeException(
-                            "Field key '" + f.getFieldKey() + "' is a reserved SQL keyword and cannot be used.");
+                            "Field key '" + f.getFieldKey() + "' is invalid or reserved and cannot be used.");
                 }
             }
 
+            // 4. Generate/alter the physical table
             String tableName = form.getTableName();
             boolean isNewTable = tableName == null || tableName.isEmpty();
 
@@ -71,17 +76,23 @@ public class SchemaService {
                 alterTable(tableName, fields);
             }
 
-            // ── Create a version snapshot ─────────────────────────────────
-            FormVersion version = formVersionService.createSnapshot(formId, publishedBy);
-            formVersionService.activateVersion(version.getId(), publishedBy);
+            // 5. Update definitionJson snapshot for the draft
+            formVersionService.updateDefinitionJson(draftVersion);
 
-            // ── Mark form as PUBLISHED ────────────────────────────────────
+            // 6. Activate the version (this also drops drafts and sets isDraftWorkingCopy=false)
+            formVersionService.activateVersion(draftVersion.getId(), publishedBy);
+
+            // 7. Mark form as PUBLISHED
             form.setStatus(FormStatusEnum.PUBLISHED);
             form.setPublishedAt(LocalDateTime.now());
             formRepository.save(form);
 
+            // 8. Create a fresh blank working copy for future edits (cloning fields)
+            FormVersion newDraft = formVersionService.getOrCreateDraftVersion(formId, publishedBy);
+            formVersionService.cloneFields(draftVersion, newDraft);
+
         } catch (Exception e) {
-            e.printStackTrace(); // Log on server console
+            e.printStackTrace();
             throw new RuntimeException("Publish failed: " + e.getMessage(), e);
         }
     }

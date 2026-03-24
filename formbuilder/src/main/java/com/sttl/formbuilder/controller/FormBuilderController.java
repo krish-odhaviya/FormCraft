@@ -9,10 +9,13 @@ import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormRepository;
+import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.repository.UserRepository;
 import com.sttl.formbuilder.service.FormBuilderService;
+import com.sttl.formbuilder.service.FormVersionService;
 import com.sttl.formbuilder.service.PermissionService;
 import com.sttl.formbuilder.service.SchemaService;
+import com.sttl.formbuilder.entity.FormVersion;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,8 @@ public class FormBuilderController {
     private final FormBuilderService formBuilderService;
     private final SchemaService schemaService;
     private final FormRepository formRepository;
+    private final FormFieldRepository fieldRepository;
+    private final FormVersionService formVersionService;
     private final UserRepository userRepository;
     private final PermissionService permissionService;
 
@@ -63,12 +68,12 @@ public class FormBuilderController {
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        Form form = formRepository.findByIdWithFields(formId)
+        assertAuthenticated(currentUser);
+        Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
-        List<FormField> fields = form.getFields().stream()
-                .filter(f -> !f.getIsDeleted())
-                .collect(Collectors.toList());
+        FormVersion draft = formVersionService.getOrCreateDraftVersion(formId, currentUser.getUsername());
+        List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(draft.getId());
 
         return ApiResponseUtil.success(fields, "Fields fetched successfully", request);
     }

@@ -26,15 +26,8 @@ public interface FormRepository extends JpaRepository<Form, UUID> {
 
     boolean existsByNameAndOwner(String name, User owner);
 
-    @Query("SELECT f FROM Form f LEFT JOIN FETCH f.fields WHERE f.id = :id")
-    Optional<Form> findByIdWithFields(@Param("id") UUID id);
-
     List<Form> findAllByStatus(FormStatusEnum formStatusEnum);
 
     /** Find by immutable form code. */
     Optional<Form> findByCode(String code);
-
-    /** Find by code with fields eagerly fetched. */
-    @Query("SELECT f FROM Form f LEFT JOIN FETCH f.fields WHERE f.code = :code")
-    Optional<Form> findByCodeWithFields(@Param("code") String code);
 }

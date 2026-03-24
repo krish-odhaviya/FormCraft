@@ -54,6 +54,9 @@ public class FormVersion {
     @Column(nullable = false)
     private Boolean isActive = false;
 
+    @Column(nullable = false)
+    private Boolean isDraftWorkingCopy = false;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

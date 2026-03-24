@@ -1,6 +1,7 @@
 package com.sttl.formbuilder.controller;
 
 import com.sttl.formbuilder.common.ApiResponseUtil;
+import com.sttl.formbuilder.dto.ActivateVersionResult;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormVersion;
 import com.sttl.formbuilder.entity.User;
@@ -101,8 +102,8 @@ public class FormVersionController {
         }
 
         try {
-            FormVersion version = formVersionService.createSnapshot(formId, currentUser.getUsername());
-            return ApiResponseUtil.success(toMap(version), "Version snapshot created", request);
+            FormVersion version = formVersionService.getOrCreateDraftVersion(formId, currentUser.getUsername());
+            return ApiResponseUtil.success(toMap(version), "Draft version created/resolved", request);
         } catch (BusinessException e) {
             return ApiResponseUtil.error(e.getMessage(), null, e.getStatus(), request);
         }
@@ -125,8 +126,10 @@ public class FormVersionController {
         }
 
         try {
-            FormVersion version = formVersionService.activateVersion(versionId, currentUser.getUsername());
-            return ApiResponseUtil.success(toMap(version), "Version activated", request);
+            ActivateVersionResult result = formVersionService.activateVersion(versionId, currentUser.getUsername());
+            Map<String, Object> response = toMap(result.getVersion());
+            response.put("draftsDropped", result.getDraftsDropped());
+            return ApiResponseUtil.success(response, "Version activated", request);
         } catch (BusinessException e) {
             return ApiResponseUtil.error(e.getMessage(), null, e.getStatus(), request);
         }
@@ -139,6 +142,7 @@ public class FormVersionController {
         m.put("id",            v.getId());
         m.put("versionNumber", v.getVersionNumber());
         m.put("isActive",      v.getIsActive());
+        m.put("isDraftWorkingCopy", v.getIsDraftWorkingCopy());
         m.put("createdBy",     v.getCreatedBy());
         m.put("createdAt",     v.getCreatedAt());
         m.put("activatedAt",   v.getActivatedAt());

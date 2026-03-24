@@ -179,9 +179,9 @@ function FormPageContent() {
         // UUIDs are typically 36 characters. Short codes are 6. 
         // We check for the presence of dashes often found in UUIDs, or length > 10.
         if (formId.length > 10 || formId.includes("-")) {
-          res = await api.getForm(formId);
+          res = await api.getForm(formId, isPreview);
         } else {
-          res = await api.getFormByCode(formId);
+          res = await api.getFormByCode(formId, isPreview);
         }
         // console.log removed — was leaking full API response to browser console
         setFormDetails(res.data);
@@ -386,7 +386,7 @@ function FormPageContent() {
     }
 
     try {
-      await api.submitForm(formId, visibleValues);
+      await api.submitForm(formId, visibleValues, formDetails.formVersionId);
       if (formDetails.canViewSubmissions) {
         toast.success("Form submitted successfully!");
         router.push(`/forms/${formId}/submissions`);
@@ -396,7 +396,11 @@ function FormPageContent() {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch (err) {
-      if (err.response?.status === 400 && Array.isArray(err.response.data?.errors)) {
+      if (err.response?.status === 409) {
+        setErrorMessage("This form has been updated by the owner. Please reload the page to get the latest version.");
+        setMessage("version_conflict");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else if (err.response?.status === 400 && Array.isArray(err.response.data?.errors)) {
         const errorsMap = {};
         err.response.data.errors.forEach((e) => { errorsMap[e.field] = e.message; });
         setFieldErrors(errorsMap);
@@ -563,6 +567,19 @@ function FormPageContent() {
                   Return Home
                 </button>
               </div>
+            </div>
+          )}
+
+          {message === "version_conflict" && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6">
+                <AlertCircle size={32} className="text-amber-500" />
+              </div>
+              <h1 className="text-2xl font-black text-slate-900 mb-3">Form Updated</h1>
+              <p className="text-slate-500 mb-8 max-w-sm">This form has been updated while you were filling it out. Please reload to use the latest version.</p>
+              <button onClick={() => window.location.reload()} className="bg-indigo-600 text-white px-8 py-3 rounded-2xl text-sm font-bold hover:bg-indigo-700 transition-all">
+                Reload Form
+              </button>
             </div>
           )}
 

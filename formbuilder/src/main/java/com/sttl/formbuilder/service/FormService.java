@@ -12,6 +12,7 @@ import com.sttl.formbuilder.dto.FieldDto;
 import com.sttl.formbuilder.dto.VersionDto;
 import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.exception.BusinessException;
+import com.sttl.formbuilder.repository.FormSubmissionMetaRepository;
 import com.sttl.formbuilder.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -25,22 +26,28 @@ import com.sttl.formbuilder.repository.FormRepository;
 @Service
 public class FormService {
 
-    private final FormRepository      formRepository;
-    private final FormFieldRepository formFieldRepository;
-    private final UserRepository      userRepository;
-    private final PermissionService   permissionService;
-    private final ModuleAccessService moduleAccessService;  // ← ADDED
+    private final FormRepository              formRepository;
+    private final FormFieldRepository         formFieldRepository;
+    private final UserRepository              userRepository;
+    private final PermissionService           permissionService;
+    private final ModuleAccessService         moduleAccessService;
+    private final FormVersionService          formVersionService;
+    private final FormSubmissionMetaRepository submissionMetaRepository;
 
     public FormService(FormRepository formRepository,
                        FormFieldRepository formFieldRepository,
                        UserRepository userRepository,
                        PermissionService permissionService,
-                       ModuleAccessService moduleAccessService) {  // ← ADDED
+                       ModuleAccessService moduleAccessService,
+                       FormVersionService formVersionService,
+                       FormSubmissionMetaRepository submissionMetaRepository) {
         this.formRepository      = formRepository;
         this.formFieldRepository = formFieldRepository;
         this.userRepository      = userRepository;
         this.permissionService   = permissionService;
-        this.moduleAccessService = moduleAccessService;  // ← ADDED
+        this.moduleAccessService = moduleAccessService;
+        this.formVersionService  = formVersionService;
+        this.submissionMetaRepository = submissionMetaRepository;
     }
 
     /** Returns forms the user has access to manage (Owner or Admin or Builder).
@@ -86,18 +93,18 @@ public class FormService {
      * Pass currentUsername=null for public access (form fill),
      * or a real username to enforce ownership.
      */
-    public FormDetailsResponse getFormWithStructure(UUID formId, String currentUsername) {
+    public FormDetailsResponse getFormWithStructure(UUID formId, String currentUsername, boolean isDraft) {
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new RuntimeException("Form not found"));
+                .orElseThrow(() -> new BusinessException("Form not found", org.springframework.http.HttpStatus.NOT_FOUND));
 
         User user = currentUsername != null ? userRepository.findByUsername(currentUsername).orElse(null) : null;
 
         System.out.println("FormService.getFormWithStructure: formId=" + formId +
+                " isDraft=" + isDraft +
                 " visibility=" + form.getVisibility() +
                 " user=" + (user != null ? user.getUsername() : "ANONYMOUS"));
 
         if (!permissionService.canViewForm(user, form)) {
-            System.out.println("  Access Denied by permissionService");
             if (user == null) {
                 throw new BusinessException("Authentication required to view this form", HttpStatus.UNAUTHORIZED);
             } else {
@@ -115,15 +122,40 @@ public class FormService {
         response.setVisibility(form.getVisibility() != null ? form.getVisibility().name() : "PUBLIC");
         response.setTableName(form.getTableName());
         response.setPublishedAt(form.getPublishedAt());
-        response.setCanEdit(permissionService.canConfigureForm(user, form));
+        // 2. Resolve appropriate version and Fields
+        com.sttl.formbuilder.entity.FormVersion version;
+        boolean canEdit = permissionService.canConfigureForm(user, form);
+        
+        if (isDraft && canEdit) {
+            version = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+        } else {
+            version = formVersionService.getActiveVersion(formId).orElse(null);
+            // Fallback to draft ONLY if no active version exists and user is owner
+            if (version == null && canEdit && currentUsername != null) {
+                version = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+            }
+        }
+
+        List<FormField> fields = new ArrayList<>();
+        if (version != null) {
+            fields = formFieldRepository
+                    .findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(version.getId());
+            response.setFormVersionId(version.getId());
+        }
+
+        // Add hasLiveSubmissions check
+        response.setHasLiveSubmissions(submissionMetaRepository.existsLiveSubmissions(formId));
+        
+        // Populate active version number if it exists
+        formVersionService.getActiveVersion(formId).ifPresent(v -> 
+            response.setActiveVersionNumber(v.getVersionNumber())
+        );
+
+        response.setCanEdit(canEdit);
         response.setCanViewSubmissions(permissionService.canViewSubmissions(user, form));
         response.setCanDeleteSubmissions(user != null && (permissionService.canManageSystem(user) || permissionService.canDeleteSubmissions(user, form)));
         response.setOwnerName(form.getOwner() != null ? form.getOwner().getUsername() : "Unknown");
         response.setOwnerId(form.getOwner() != null ? form.getOwner().getId() : null);
-
-        // 2. Fetch Fields for this form
-        List<FormField> fields = formFieldRepository
-                .findByFormIdAndIsDeletedFalseOrderByFieldOrder(form.getId());
 
         // 3. Map Entities to FieldDto with Nested Maps
         List<FieldDto> fieldDtos = fields.stream()

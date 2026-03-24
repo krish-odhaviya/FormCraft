@@ -23,6 +23,12 @@ public interface FormSubmissionMetaRepository extends JpaRepository<FormSubmissi
     @Query("UPDATE FormSubmissionMeta m SET m.isDeleted = true WHERE m.form.id = :formId AND m.dataRowId = :dataRowId")
     void softDeleteByDataRowId(@Param("formId") UUID formId, @Param("dataRowId") UUID dataRowId);
 
-    /** Count non-deleted submissions for a form. */
     long countByFormIdAndIsDeletedFalseAndStatus(UUID formId, SubmissionStatus status);
+
+    @Modifying
+    @Query("DELETE FROM FormSubmissionMeta m WHERE m.form.id = :formId AND m.status = com.sttl.formbuilder.entity.FormSubmissionMeta.SubmissionStatus.DRAFT")
+    int deleteAllDraftsByFormId(@Param("formId") UUID formId);
+
+    @Query("SELECT (count(m) > 0) FROM FormSubmissionMeta m WHERE m.form.id = :formId AND m.status = com.sttl.formbuilder.entity.FormSubmissionMeta.SubmissionStatus.SUBMITTED AND m.isDeleted = false")
+    boolean existsLiveSubmissions(@Param("formId") UUID formId);
 }

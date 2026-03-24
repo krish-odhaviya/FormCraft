@@ -62,14 +62,6 @@ public class Form {
     @Column(unique = true)
     private String tableName;
 
-    @OneToMany(
-            mappedBy = "form",
-            cascade = CascadeType.ALL
-    )
-    @org.hibernate.annotations.SQLRestriction("is_deleted = false")
-    @OrderBy("fieldOrder ASC")
-    private List<FormField> fields = new ArrayList<>();
-
     private LocalDateTime publishedAt;
 
     /** Versions of the field definitions for this form. */
@@ -81,17 +73,7 @@ public class Form {
     public void generateCode() {
         if (this.code == null || this.code.isBlank()) {
             // Default: a short UUID-based code, can be overridden by caller
-            this.code = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+            this.code = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         }
-    }
-
-    public void addField(FormField field) {
-        fields.add(field);
-        field.setForm(this);
-    }
-
-    public void removeField(FormField field) {
-        fields.remove(field);
-        field.setForm(null);
     }
 }

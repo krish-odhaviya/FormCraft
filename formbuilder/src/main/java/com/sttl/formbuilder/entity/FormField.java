@@ -13,7 +13,7 @@ import java.util.List;
 @Table(
         name = "form_fields",
         uniqueConstraints = @UniqueConstraint(
-                columnNames = {"form_id", "field_key"}
+                columnNames = {"form_version_id", "field_key"}
         )
 )
 @Getter
@@ -26,8 +26,8 @@ public class FormField {
     private java.util.UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "form_id", nullable = false)
-    private Form form;
+    @JoinColumn(name = "form_version_id", nullable = false)
+    private FormVersion formVersion;
 
     @Column(name = "field_key", nullable = false, length = 100)
     private String fieldKey;

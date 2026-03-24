@@ -5,7 +5,9 @@ import com.sttl.formbuilder.dto.AddFieldRequest;
 import com.sttl.formbuilder.dto.ReorderFieldsRequest;
 import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.exception.BusinessException;
+import com.sttl.formbuilder.entity.FormVersion;
 import com.sttl.formbuilder.repository.FormFieldRepository;
+import com.sttl.formbuilder.repository.FormSubmissionMetaRepository;
 import com.sttl.formbuilder.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
@@ -30,6 +32,8 @@ public class FormBuilderService {
     private final FormRepository formRepository;
     private final UserRepository userRepository;
     private final PermissionService permissionService;
+    private final FormVersionService formVersionService;
+    private final FormSubmissionMetaRepository submissionMetaRepository;
 
     public FormField addField(UUID formId, AddFieldRequest request, String currentUsername) {
 
@@ -44,8 +48,10 @@ public class FormBuilderService {
             throw new BusinessException("Access denied: only owners or builders can modify fields", HttpStatus.FORBIDDEN);
         }
 
-        if (fieldRepository.existsByFormIdAndFieldKeyAndIsDeletedFalse(
-                formId, request.getFieldKey())) {
+        FormVersion draft = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+
+        if (fieldRepository.existsByFormVersionIdAndFieldKeyAndIsDeletedFalse(
+                draft.getId(), request.getFieldKey())) {
 
             throw new BusinessException(
                     "Field already exists",
@@ -54,7 +60,7 @@ public class FormBuilderService {
         }
 
         FormField field = new FormField();
-        field.setForm(form);
+        field.setFormVersion(draft);
         field.setFieldKey(request.getFieldKey());
         field.setParentId(request.getParentId());
         field.setFieldLabel(request.getFieldLabel());
@@ -77,28 +83,27 @@ public class FormBuilderService {
             throw new BusinessException("Access denied: only owners or builders can save draft", HttpStatus.FORBIDDEN);
         }
 
-        // Soft delete all existing fields for a fresh update
-        List<FormField> existingFields = fieldRepository.findByFormIdAndIsDeletedFalseOrderByFieldOrder(formId);
+        // Architecture Decision 11.1: Forms with live submissions cannot be modified
+        if (submissionMetaRepository.existsLiveSubmissions(formId)) {
+            throw new BusinessException("This form has live submissions and cannot be modified", HttpStatus.CONFLICT);
+        }
+
+        FormVersion draftVersion = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+
+        // Soft delete all existing fields for THIS version
+        List<FormField> existingFields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(draftVersion.getId());
         for(FormField f: existingFields) {
             f.setIsDeleted(true);
-            // Append a unique suffix to the fieldKey to avoid unique constraint violation on (form_id, field_key)
-            // while preserving the original key in some form if needed (though it's usually just for column mapping).
-            String suffix = "_del_" + System.currentTimeMillis();
-            if (f.getFieldKey().length() + suffix.length() > 100) {
-                f.setFieldKey(f.getFieldKey().substring(0, 100 - suffix.length()) + suffix);
-            } else {
-                f.setFieldKey(f.getFieldKey() + suffix);
-            }
+            f.setFieldKey(f.getFieldKey() + "_del_" + System.currentTimeMillis());
         }
         fieldRepository.saveAll(existingFields);
         fieldRepository.flush();
 
+        List<FormField> newFields = new ArrayList<>();
         for (int i = 0; i < fieldRequests.size(); i++) {
             AddFieldRequest req = fieldRequests.get(i);
-
             FormField field = new FormField();
-
-            field.setForm(form);
+            field.setFormVersion(draftVersion);
 
             // --- Basic Fields ---
             field.setFieldKey(req.getFieldKey());
@@ -111,10 +116,7 @@ public class FormBuilderService {
 
             // --- Handle Options ---
             if (req.getOptions() != null && !req.getOptions().isEmpty()) {
-                if (field.getOptions() == null) {
-                    field.setOptions(new ArrayList<>());
-                }
-                field.getOptions().addAll(req.getOptions());
+                field.setOptions(new ArrayList<>(req.getOptions()));
             }
 
             if (req.getUiConfig() != null) {
@@ -138,7 +140,6 @@ public class FormBuilderService {
                 }
             }
 
-            // --- Map Grid rows/columns from validation ---
             if (req.getValidation() != null) {
                 field.setMinLength(req.getValidation().getMinLength());
                 field.setMaxLength(req.getValidation().getMaxLength());
@@ -156,11 +157,9 @@ public class FormBuilderService {
                     field.getGridColumns().addAll(req.getValidation().getColumns());
                 }
             }
-
-            form.getFields().add(field);
+            newFields.add(field);
         }
-
-        formRepository.save(form);
+        fieldRepository.saveAll(newFields);
     }
 
     public void reorderFields(UUID formId, ReorderFieldsRequest request, String currentUsername) {
@@ -181,8 +180,9 @@ public class FormBuilderService {
             );
         }
 
+        FormVersion draft = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
         List<FormField> fields =
-                fieldRepository.findByFormIdAndIsDeletedFalseOrderByFieldOrder(formId);
+                fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(draft.getId());
 
         for (int i = 0; i < request.getFieldIds().size(); i++) {
             UUID id = request.getFieldIds().get(i);

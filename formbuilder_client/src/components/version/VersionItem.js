@@ -32,7 +32,12 @@ export function VersionItem({ version, formId, isActivateLoading, onActivateClic
                 Active Live
               </span>
             )}
-            {!version.isActive && (
+            {version.isDraftWorkingCopy && (
+              <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200/50 rounded-md animate-pulse">
+                DRAFT WORKING COPY
+              </span>
+            )}
+            {!version.isActive && !version.isDraftWorkingCopy && (
               <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 border border-slate-200/50 rounded-md">
                 Inactive
               </span>

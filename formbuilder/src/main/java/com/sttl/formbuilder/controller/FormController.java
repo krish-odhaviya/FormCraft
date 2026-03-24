@@ -8,6 +8,8 @@ import com.sttl.formbuilder.dto.CreateFormRequest;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.repository.FormRepository;
 import com.sttl.formbuilder.service.FormService;
+import com.sttl.formbuilder.service.FormVersionService;
+import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -38,6 +40,8 @@ public class FormController {
     private final FormService formService;
     private final FormRepository formRepository;
     private final PermissionService permissionService;
+    private final FormVersionService formVersionService;
+    private final FormFieldRepository formFieldRepository;
     private final UserRepository userRepository;
     private final FormPermissionRepository permissionRepository;
 
@@ -74,11 +78,12 @@ public class FormController {
     @GetMapping("/{formId}")
     public ResponseEntity<ApiResponse<FormDetailsResponse>> getForm(
             @PathVariable java.util.UUID formId,
+            @RequestParam(defaultValue = "false") boolean isDraft,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
         String username = currentUser != null ? currentUser.getUsername() : null;
-        FormDetailsResponse response = formService.getFormWithStructure(formId, username);
+        FormDetailsResponse response = formService.getFormWithStructure(formId, username, isDraft);
         return ApiResponseUtil.success(response, "Form fetched successfully", request);
     }
 
@@ -86,6 +91,7 @@ public class FormController {
     @GetMapping("/code/{code}")
     public ResponseEntity<ApiResponse<FormDetailsResponse>> getFormByCode(
             @PathVariable String code,
+            @RequestParam(defaultValue = "false") boolean isDraft,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -93,7 +99,7 @@ public class FormController {
         Form form = formRepository.findByCode(code)
                 .orElseThrow(() -> new com.sttl.formbuilder.exception.BusinessException(
                         "Form not found for code: " + code, org.springframework.http.HttpStatus.NOT_FOUND));
-        FormDetailsResponse response = formService.getFormWithStructure(form.getId(), username);
+        FormDetailsResponse response = formService.getFormWithStructure(form.getId(), username, isDraft);
         return ApiResponseUtil.success(response, "Form fetched successfully", request);
     }
 
@@ -137,10 +143,14 @@ public class FormController {
                     m.put("formId", f.getId());
                     m.put("formName", f.getName());
                     m.put("tableName", f.getTableName());
-                    List<Map<String, String>> fieldOptions = f.getFields().stream()
-                            .filter(field -> !field.getIsDeleted())
-                            .map(field -> Map.of("key", field.getFieldKey(), "label", field.getFieldLabel()))
-                            .collect(Collectors.toList());
+                    
+                    List<Map<String, String>> fieldOptions = formVersionService.getActiveVersion(f.getId())
+                            .map(v -> formFieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(v.getId())
+                                    .stream()
+                                    .map(field -> Map.of("key", field.getFieldKey(), "label", field.getFieldLabel()))
+                                    .collect(Collectors.toList()))
+                            .orElse(List.of());
+                                    
                     m.put("fields", fieldOptions);
                     return m;
                 })

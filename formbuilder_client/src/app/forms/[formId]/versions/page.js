@@ -60,8 +60,15 @@ export default function VersionsPage() {
     if (!activatingVersion) return;
     setIsActivatingLoading(true);
     try {
-      await api.activateFormVersion(formId, activatingVersion.id);
-      toast.success(`Version ${activatingVersion.versionNumber} is now active.`);
+      const res = await api.activateFormVersion(formId, activatingVersion.id);
+      const { draftsDropped, draftsCount } = res.data || {};
+      
+      if (draftsDropped) {
+        toast.success(`Version ${activatingVersion.versionNumber} is now active. ${draftsCount} temporary drafts were dropped.`, { duration: 5000 });
+      } else {
+        toast.success(`Version ${activatingVersion.versionNumber} is now active.`);
+      }
+      
       setActivatingVersion(null);
       fetchVersions();
     } catch (err) {
@@ -153,6 +160,7 @@ export default function VersionsPage() {
         isOpen={!!activatingVersion}
         versionNumber={activatingVersion?.versionNumber}
         isActivating={isActivatingLoading}
+        isDraftWorkingCopy={activatingVersion?.isDraftWorkingCopy}
         onClose={() => setActivatingVersion(null)}
         onConfirm={handleActivateConfirm}
       />

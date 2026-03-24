@@ -57,7 +57,7 @@ public class FormSubmissionController {
                     null, HttpStatus.FORBIDDEN, request);
         }
 
-        formSubmissionService.submit(submitRequest.getFormId(), submitRequest.getValues());
+        formSubmissionService.submit(submitRequest);
         return ApiResponseUtil.success("Submitted successfully", "Form submitted successfully", request);
     }
 

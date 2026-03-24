@@ -133,7 +133,7 @@ export default function BuilderPage() {
   useEffect(() => {
     const fetchForm = async () => {
       try {
-        const formRes = await api.getForm(formId);
+        const formRes = await api.getForm(formId, true);
         
         if (formRes.data.canEdit === false) {
            setErrorState({ status: 403, message: "You do not have permission to edit this form." });
@@ -473,6 +473,28 @@ export default function BuilderPage() {
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50">
         <div className="animate-spin h-10 w-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full mb-4"></div>
         <p className="text-slate-600 font-medium text-sm tracking-wide">Loading Workspace...</p>
+      </div>
+    );
+  }
+
+  if (form?.hasLiveSubmissions) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 px-6 text-center">
+        <div className="w-24 h-24 bg-amber-100 rounded-full flex items-center justify-center mb-6 shadow-sm border border-amber-200">
+          <Lock size={48} className="text-amber-600" />
+        </div>
+        <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-3">Form Locked</h2>
+        <p className="text-slate-500 max-w-md mb-10 text-lg leading-relaxed">
+          This form has live submissions and cannot be modified to prevent data corruption.
+        </p>
+        <div className="flex gap-4">
+          <Link href="/" className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all">
+            Back to Dashboard
+          </Link>
+          <Link href={`/forms/${form.id}/submissions`} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md">
+            View Submissions
+          </Link>
+        </div>
       </div>
     );
   }
@@ -891,6 +913,13 @@ export default function BuilderPage() {
                 Back to Dashboard
               </Link>
             </div>
+          </div>
+        )}
+
+        {form?.status === 'PUBLISHED' && (
+          <div className="bg-indigo-600 text-white px-4 py-2 flex items-center justify-center gap-3 text-sm font-bold shadow-lg shrink-0 z-30">
+            <ShieldCheck size={18} />
+            <span>You are editing a DRAFT. Live version (v{form.activeVersionNumber}) remains unchanged until you Publish.</span>
           </div>
         )}
         

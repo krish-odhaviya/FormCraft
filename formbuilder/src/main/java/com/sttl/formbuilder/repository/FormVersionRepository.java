@@ -19,6 +19,8 @@ public interface FormVersionRepository extends JpaRepository<FormVersion, UUID> 
 
     Optional<FormVersion> findByFormIdAndIsActive(UUID formId, Boolean isActive);
 
+    Optional<FormVersion> findByFormIdAndIsActiveAndIsDraftWorkingCopy(UUID formId, Boolean isActive, Boolean isDraftWorkingCopy);
+
     Optional<FormVersion> findFirstByFormIdOrderByVersionNumberDesc(UUID formId);
 
     /** Deactivate ALL versions for a form (used before activating a new one). */
@@ -28,4 +30,7 @@ public interface FormVersionRepository extends JpaRepository<FormVersion, UUID> 
 
     /** Count existing versions so we can compute the next version number. */
     long countByFormId(UUID formId);
+
+    @Query("SELECT MAX(v.versionNumber) FROM FormVersion v WHERE v.form.id = :formId")
+    Integer findMaxVersionNumberByFormId(@Param("formId") UUID formId);
 }

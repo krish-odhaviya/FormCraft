@@ -1,7 +1,7 @@
 import { X, AlertCircle } from "lucide-react";
 import { useState } from "react";
 
-export function ActivateDialog({ isOpen, onClose, onConfirm, versionNumber, isActivating }) {
+export function ActivateDialog({ isOpen, onClose, onConfirm, versionNumber, isActivating, isDraftWorkingCopy }) {
   if (!isOpen) return null;
 
   return (
@@ -17,6 +17,16 @@ export function ActivateDialog({ isOpen, onClose, onConfirm, versionNumber, isAc
           <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-3">
             Activate Version v{versionNumber}?
           </h2>
+          
+          {isDraftWorkingCopy && (
+            <div className="mb-6 bg-red-50 border border-red-100 p-4 rounded-2xl flex items-start gap-3 text-left">
+              <AlertCircle size={20} className="text-red-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-red-800 font-bold leading-relaxed">
+                WARNING: This is the DRAFT working copy. Activating it will permanently delete all temporary DRAFT submissions to prevent data corruption.
+              </p>
+            </div>
+          )}
+
           <p className="text-slate-500 text-[15px] leading-relaxed mb-8">
             This will immediately make Version {versionNumber} the live active form for all new respondents. The current live version will safely be marked inactive.
           </p>
