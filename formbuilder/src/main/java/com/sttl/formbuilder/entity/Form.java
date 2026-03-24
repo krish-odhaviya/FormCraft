@@ -20,8 +20,9 @@ import java.util.UUID;
 public class Form {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(columnDefinition = "uuid", updatable = false, nullable = false)
+    private UUID id;
 
     /**
      * Human-readable, URL-safe, unique code for this form (e.g. "contact-us-v1").

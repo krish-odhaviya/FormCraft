@@ -7,12 +7,14 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+import java.util.UUID;
+
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class AccessRequestResponseDTO {
-    private Long id;
+    private UUID id;
     private UserInfo user;
     private FormInfo form;
     private String type;
@@ -26,7 +28,7 @@ public class AccessRequestResponseDTO {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class UserInfo {
-        private Long id;
+        private UUID id;
         private String username;
     }
 
@@ -34,7 +36,7 @@ public class AccessRequestResponseDTO {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class FormInfo {
-        private Long id;
+        private UUID id;
         private String name;
     }
 }

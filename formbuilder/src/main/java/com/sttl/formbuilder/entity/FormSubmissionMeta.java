@@ -31,8 +31,9 @@ import java.time.LocalDateTime;
 public class FormSubmissionMeta {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(columnDefinition = "uuid", updatable = false, nullable = false)
+    private java.util.UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "form_id", nullable = false)
@@ -52,8 +53,8 @@ public class FormSubmissionMeta {
     private SubmissionStatus status = SubmissionStatus.SUBMITTED;
 
     /** Row ID in the per-form dynamic data table. */
-    @Column(name = "data_row_id")
-    private Long dataRowId;
+    @Column(name = "data_row_id", columnDefinition = "uuid")
+    private java.util.UUID dataRowId;
 
     /** Null for anonymous submissions. */
     @Column(name = "submitted_by", length = 100)

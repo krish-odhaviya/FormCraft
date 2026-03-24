@@ -51,7 +51,7 @@ public class FormSubmissionService {
     // SUBMIT
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
-    public void submit(Long formId, Map<String, Object> values) {
+    public void submit(java.util.UUID formId, Map<String, Object> values) {
 
         Form form = formRepository.findByIdWithFields(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
@@ -338,7 +338,7 @@ public class FormSubmissionService {
                 }
                 case "LOOKUP_DROPDOWN" -> {
                     if (val instanceof Map<?, ?> map) val = map.get("value");
-                    if (val instanceof Number n) val = n.longValue();
+                    if (val instanceof String s && !s.trim().isEmpty()) val = UUID.fromString(s.trim());
                     placeholdersList.add("?");
                 }
                 default -> {
@@ -379,7 +379,7 @@ public class FormSubmissionService {
                 + " VALUES (" + String.join(", ", placeholdersList) + ") RETURNING id";
 
         // ── Execute INSERT and capture generated row ID safely ───────────────────
-        Long newRowId = jdbcTemplate.queryForObject(sql, Long.class, argumentsList.toArray());
+        java.util.UUID newRowId = jdbcTemplate.queryForObject(sql, java.util.UUID.class, argumentsList.toArray());
 
         // ── Write to form_submission_meta ──────────────────────────────────────
         FormSubmissionMeta meta = new FormSubmissionMeta();
@@ -497,7 +497,7 @@ public class FormSubmissionService {
                     && f.getSourceTable() != null && f.getSourceColumn() != null) {
                 String alias = "ref_" + f.getFieldKey();
                 joins.append(" LEFT JOIN ").append(f.getSourceTable()).append(" ").append(alias)
-                        .append(" ON CAST(t.").append(f.getFieldKey()).append(" AS BIGINT) = ")
+                        .append(" ON CAST(t.").append(f.getFieldKey()).append(" AS UUID) = ")
                         .append(alias).append(".").append(f.getSourceColumn());
             }
         }
@@ -545,7 +545,7 @@ public class FormSubmissionService {
     // GET SUBMISSIONS — PAGINATED (uses Spring Pageable)
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional(readOnly = true)
-    public PagedSubmissionsResponse getSubmissionsPaged(Long formId, String search, Pageable pageable) {
+    public PagedSubmissionsResponse getSubmissionsPaged(java.util.UUID formId, String search, Pageable pageable) {
 
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
@@ -561,6 +561,7 @@ public class FormSubmissionService {
                 .map(FormField::getFieldKey)
                 .collect(Collectors.toSet());
         validKeys.add("id");
+        validKeys.add("created_at");
 
         // ── Extract pagination values from Pageable ───────────────────────────
         int page = pageable.getPageNumber();   // 0-based
@@ -568,7 +569,7 @@ public class FormSubmissionService {
         long offset = pageable.getOffset();      // page * size
 
         // ── Extract sort from Pageable ────────────────────────────────────────
-        String orderCol = "id";
+        String orderCol = "created_at";
         String orderDir = "DESC";
 
         if (pageable.getSort().isSorted()) {
@@ -620,7 +621,7 @@ public class FormSubmissionService {
     // EXPORT — all matching rows (no pagination)
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional(readOnly = true)
-    public SubmissionsResponse exportSubmissions(Long formId, String search) {
+    public SubmissionsResponse exportSubmissions(java.util.UUID formId, String search) {
 
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
@@ -646,7 +647,7 @@ public class FormSubmissionService {
     // SOFT DELETE
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
-    public void softDeleteSubmission(Long formId, Long submissionId) {
+    public void softDeleteSubmission(java.util.UUID formId, java.util.UUID submissionId) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
@@ -663,7 +664,7 @@ public class FormSubmissionService {
     // BULK SOFT DELETE
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
-    public void softDeleteSubmissionsBulk(Long formId, List<Long> submissionIds) {
+    public void softDeleteSubmissionsBulk(java.util.UUID formId, List<java.util.UUID> submissionIds) {
         if (submissionIds == null || submissionIds.isEmpty()) return;
 
         Form form = formRepository.findById(formId)

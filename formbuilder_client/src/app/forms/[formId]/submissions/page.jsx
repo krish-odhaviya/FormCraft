@@ -37,7 +37,7 @@ export default function SubmissionsPage() {
   const [totalRows,             setTotalRows]             = useState(0);
   const [page,                  setPage]                  = useState(1);
   const [perPage,               setPerPage]               = useState(10);
-  const [sortBy,                setSortBy]                = useState("id");
+  const [sortBy,                setSortBy]                = useState("created_at");
   const [sortDir,               setSortDir]               = useState("desc");
   const [search,                setSearch]                = useState("");
   const [searchInput,           setSearchInput]           = useState("");
@@ -370,12 +370,15 @@ export default function SubmissionsPage() {
   // ── Table columns ─────────────────────────────────────────────────────────
   const tableColumns = [
     {
-      name: "# ID",
-      selector: (row) => row.id,
-      sortable: true,
-      sortField: "id",
+      name: "#",
       width: "80px",
-      cell: (row) => <span className="text-sm font-medium text-slate-400">{row.id}</span>,
+      sortable: true,
+      sortField: "created_at",
+      cell: (row, index) => (
+        <span className="text-sm font-medium text-slate-400">
+          {(page - 1) * perPage + index + 1}
+        </span>
+      ),
     },
     ...columns.map((col) => ({
       name: (

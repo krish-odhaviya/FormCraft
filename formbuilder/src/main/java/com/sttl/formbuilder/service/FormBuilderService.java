@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +31,7 @@ public class FormBuilderService {
     private final UserRepository userRepository;
     private final PermissionService permissionService;
 
-    public FormField addField(Long formId, AddFieldRequest request, String currentUsername) {
+    public FormField addField(UUID formId, AddFieldRequest request, String currentUsername) {
 
         Form form = formRepository.findById(formId)
                 .orElseThrow(() ->
@@ -65,7 +66,7 @@ public class FormBuilderService {
     }
 
     @Transactional
-    public void saveDraft(Long formId, List<AddFieldRequest> fieldRequests, String currentUsername) {
+    public void saveDraft(UUID formId, List<AddFieldRequest> fieldRequests, String currentUsername) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
@@ -162,7 +163,7 @@ public class FormBuilderService {
         formRepository.save(form);
     }
 
-    public void reorderFields(Long formId, ReorderFieldsRequest request, String currentUsername) {
+    public void reorderFields(UUID formId, ReorderFieldsRequest request, String currentUsername) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
@@ -184,7 +185,7 @@ public class FormBuilderService {
                 fieldRepository.findByFormIdAndIsDeletedFalseOrderByFieldOrder(formId);
 
         for (int i = 0; i < request.getFieldIds().size(); i++) {
-            Long id = request.getFieldIds().get(i);
+            UUID id = request.getFieldIds().get(i);
             int order = i + 1;
 
             fields.stream()

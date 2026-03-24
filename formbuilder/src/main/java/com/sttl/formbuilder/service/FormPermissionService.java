@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,7 +32,7 @@ public class FormPermissionService {
     /**
      * Returns all permissions for a form. Caller must have configure access.
      */
-    public List<Map<String, Object>> getFormPermissions(String username, Long formId) {
+    public List<Map<String, Object>> getFormPermissions(String username, UUID formId) {
         Form form = resolveForm(formId);
         User user = resolveUser(username);
 
@@ -48,7 +49,7 @@ public class FormPermissionService {
      * Grants a form role to a target user. Caller must have configure access.
      */
     @Transactional
-    public void addPermission(String granterUsername, Long formId, String targetUsername, FormRole role) {
+    public void addPermission(String granterUsername, UUID formId, String targetUsername, FormRole role) {
         Form form = resolveForm(formId);
         User granter = resolveUser(granterUsername);
 
@@ -66,7 +67,7 @@ public class FormPermissionService {
      * Removes a permission by ID. Caller must have configure access.
      */
     @Transactional
-    public void removePermission(String username, Long formId, Long permissionId) {
+    public void removePermission(String username, UUID formId, UUID permissionId) {
         Form form = resolveForm(formId);
         User user = resolveUser(username);
 
@@ -81,7 +82,7 @@ public class FormPermissionService {
      * Updates the visibility of a form. Caller must be the owner or an admin.
      */
     @Transactional
-    public void updateVisibility(String username, Long formId, VisibilityType visibility) {
+    public void updateVisibility(String username, UUID formId, VisibilityType visibility) {
         Form form = resolveForm(formId);
         User user = resolveUser(username);
 
@@ -95,7 +96,7 @@ public class FormPermissionService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private Form resolveForm(Long formId) {
+    private Form resolveForm(UUID formId) {
         return formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
     }

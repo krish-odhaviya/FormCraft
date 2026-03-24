@@ -10,17 +10,19 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+import java.util.UUID;
+
 @Repository
-public interface FormSubmissionMetaRepository extends JpaRepository<FormSubmissionMeta, Long> {
+public interface FormSubmissionMetaRepository extends JpaRepository<FormSubmissionMeta, UUID> {
 
     /** Find a live (non-deleted) meta record by its data-row ID for a given form. */
-    Optional<FormSubmissionMeta> findByFormIdAndDataRowIdAndIsDeletedFalse(Long formId, Long dataRowId);
+    Optional<FormSubmissionMeta> findByFormIdAndDataRowIdAndIsDeletedFalse(UUID formId, UUID dataRowId);
 
     /** Soft-delete a single meta row. */
     @Modifying
     @Query("UPDATE FormSubmissionMeta m SET m.isDeleted = true WHERE m.form.id = :formId AND m.dataRowId = :dataRowId")
-    void softDeleteByDataRowId(@Param("formId") Long formId, @Param("dataRowId") Long dataRowId);
+    void softDeleteByDataRowId(@Param("formId") UUID formId, @Param("dataRowId") UUID dataRowId);
 
     /** Count non-deleted submissions for a form. */
-    long countByFormIdAndIsDeletedFalseAndStatus(Long formId, SubmissionStatus status);
+    long countByFormIdAndIsDeletedFalseAndStatus(UUID formId, SubmissionStatus status);
 }

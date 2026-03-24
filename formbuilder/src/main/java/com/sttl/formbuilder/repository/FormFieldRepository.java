@@ -5,13 +5,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.sttl.formbuilder.entity.FormField;
 
-public interface FormFieldRepository extends JpaRepository<FormField, Long> {
+import java.util.UUID;
 
-    List<FormField> findByFormIdAndIsDeletedFalseOrderByFieldOrder(Long formId);
+public interface FormFieldRepository extends JpaRepository<FormField, UUID> {
 
-    boolean existsByFormIdAndFieldKeyAndIsDeletedFalse(Long formId, String fieldKey);
+    List<FormField> findByFormIdAndIsDeletedFalseOrderByFieldOrder(UUID formId);
 
-    void deleteByForm_Id(Long formId);
+    boolean existsByFormIdAndFieldKeyAndIsDeletedFalse(UUID formId, String fieldKey);
 
-    void deleteAllByForm_Id(Long formId);
+    void deleteByForm_Id(UUID formId);
+
+    void deleteAllByForm_Id(UUID formId);
 }

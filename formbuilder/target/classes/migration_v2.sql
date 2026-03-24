@@ -11,7 +11,8 @@ ALTER TABLE forms
     ADD COLUMN IF NOT EXISTS code VARCHAR(100);
 
 -- Back-fill existing rows with a unique code derived from their id
-UPDATE forms SET code = 'form-' || id || '-' || LEFT(MD5(RANDOM()::TEXT), 6)
+-- NB: id is now UUID, so we can use it directly or keep this logic
+UPDATE forms SET code = 'form-' || LEFT(id::text, 8) || '-' || LEFT(MD5(RANDOM()::TEXT), 6)
 WHERE code IS NULL;
 
 -- Now enforce uniqueness and NOT NULL
@@ -25,8 +26,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uidx_forms_code ON forms (code);
 -- 2. Create `form_versions` table
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS form_versions (
-    id               BIGSERIAL PRIMARY KEY,
-    form_id          BIGINT        NOT NULL REFERENCES forms (id) ON DELETE CASCADE,
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    form_id          UUID          NOT NULL REFERENCES forms (id) ON DELETE CASCADE,
     version_number   INTEGER       NOT NULL,
     definition_json  TEXT          NOT NULL,
     is_active        BOOLEAN       NOT NULL DEFAULT false,
@@ -45,11 +46,11 @@ CREATE INDEX IF NOT EXISTS idx_fv_active  ON form_versions (form_id, is_active);
 -- 3. Create `form_submission_meta` table
 -- ─────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS form_submission_meta (
-    id                BIGSERIAL PRIMARY KEY,
-    form_id           BIGINT       NOT NULL REFERENCES forms (id) ON DELETE CASCADE,
-    form_version_id   BIGINT       REFERENCES form_versions (id),
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    form_id           UUID         NOT NULL REFERENCES forms (id) ON DELETE CASCADE,
+    form_version_id   UUID         REFERENCES form_versions (id),
     status            VARCHAR(20)  NOT NULL DEFAULT 'SUBMITTED',
-    data_row_id       BIGINT,
+    data_row_id       UUID,
     submitted_by      VARCHAR(100),
     created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -100,7 +101,7 @@ BEGIN
             SELECT 1 FROM information_schema.columns
             WHERE table_name = tbl AND column_name = 'form_version_id'
         ) THEN
-            EXECUTE 'ALTER TABLE ' || tbl || ' ADD COLUMN form_version_id BIGINT';
+            EXECUTE 'ALTER TABLE ' || tbl || ' ADD COLUMN form_version_id UUID';
         END IF;
     END LOOP;
 END $$;

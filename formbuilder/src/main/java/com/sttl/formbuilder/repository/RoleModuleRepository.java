@@ -11,18 +11,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+import java.util.UUID;
+
 @Repository
-public interface RoleModuleRepository extends JpaRepository<RoleModule, Long> {
+public interface RoleModuleRepository extends JpaRepository<RoleModule, UUID> {
     List<RoleModule> findByRole(Role role);
     boolean existsByRoleAndModule(Role role, Module module);
 
     @Modifying
     @Transactional
     @Query("DELETE FROM RoleModule rm WHERE rm.role.id = :roleId")
-    void deleteByRoleId(Long roleId);
+    void deleteByRoleId(UUID roleId);
 
     @Modifying
     @Transactional
     @Query("DELETE FROM RoleModule rm WHERE rm.module.id = :moduleId")
-    void deleteByModuleId(Long moduleId);
+    void deleteByModuleId(UUID moduleId);
 }

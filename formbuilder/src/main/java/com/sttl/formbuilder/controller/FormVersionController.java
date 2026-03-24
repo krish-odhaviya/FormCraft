@@ -46,7 +46,7 @@ public class FormVersionController {
     // ── GET /api/forms/{formId}/versions ─────────────────────────────────────
     @GetMapping
     public ResponseEntity<?> listVersions(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -66,8 +66,8 @@ public class FormVersionController {
     // ── GET /api/forms/{formId}/versions/{versionId} ─────────────────────────
     @GetMapping("/{versionId}")
     public ResponseEntity<?> getVersion(
-            @PathVariable Long formId,
-            @PathVariable Long versionId,
+            @PathVariable java.util.UUID formId,
+            @PathVariable java.util.UUID versionId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -89,7 +89,7 @@ public class FormVersionController {
     // ── POST /api/forms/{formId}/versions ────────────────────────────────────
     @PostMapping
     public ResponseEntity<?> createVersion(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -111,8 +111,8 @@ public class FormVersionController {
     // ── POST /api/forms/{formId}/versions/{versionId}/activate ───────────────
     @PostMapping("/{versionId}/activate")
     public ResponseEntity<?> activateVersion(
-            @PathVariable Long formId,
-            @PathVariable Long versionId,
+            @PathVariable java.util.UUID formId,
+            @PathVariable java.util.UUID versionId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -146,7 +146,7 @@ public class FormVersionController {
         return m;
     }
 
-    private Form resolveForm(Long formId) {
+    private Form resolveForm(java.util.UUID formId) {
         return formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
     }

@@ -6,9 +6,11 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import java.util.UUID;
+
 @Data
 public class ModuleResponseDTO {
-    private Long id;
+    private UUID id;
     private String moduleName;
     private String description;
     private String prefix;
@@ -17,9 +19,9 @@ public class ModuleResponseDTO {
     private boolean isParent;
     @JsonProperty("isSubParent")
     private boolean isSubParent;
-    private Long parentId;
+    private UUID parentId;
     private String parentName;
-    private Long subParentId;
+    private UUID subParentId;
     private boolean active;
     private int sortOrder;
     private LocalDateTime createdAt;

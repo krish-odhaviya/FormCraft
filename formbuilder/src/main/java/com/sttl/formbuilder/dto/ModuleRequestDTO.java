@@ -32,8 +32,8 @@ public class ModuleRequestDTO {
     @JsonProperty("isSubParent")
     private boolean isSubParent;
 
-    private Long parentId;
-    private Long subParentId;
+    private java.util.UUID parentId;
+    private java.util.UUID subParentId;
     private boolean active = true;
     private int sortOrder = 0;
 }

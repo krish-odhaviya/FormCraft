@@ -13,8 +13,7 @@ import java.util.Map;
 public class SubmitFormRequest {
 
     @NotNull(message = "Form ID is required")
-    @Positive(message = "Form ID must be a positive number")
-    private Long formId;
+    private java.util.UUID formId;
 
     @NotNull(message = "Submission values are required")
     @NotEmpty(message = "Submission cannot be empty")

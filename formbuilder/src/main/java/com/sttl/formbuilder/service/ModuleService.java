@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,7 +39,7 @@ public class ModuleService {
     }
 
     @Transactional
-    public ModuleResponseDTO updateModule(Long id, ModuleRequestDTO dto) {
+    public ModuleResponseDTO updateModule(UUID id, ModuleRequestDTO dto) {
         Module module = moduleRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Module not found", HttpStatus.NOT_FOUND));
         mapToEntity(dto, module);
@@ -46,7 +47,7 @@ public class ModuleService {
     }
 
     @Transactional
-    public void deleteModule(Long id) {
+    public void deleteModule(UUID id) {
         if (!moduleRepository.existsById(id)) {
             throw new BusinessException("Module not found", HttpStatus.NOT_FOUND);
         }

@@ -6,10 +6,12 @@ import java.util.List;
 import com.sttl.formbuilder.Enums.FormStatusEnum;
 import lombok.Data;
 
+import java.util.UUID;
+
 @Data
 public class FormDetailsResponse {
 
-    private Long id;
+    private UUID id;
     private String name;
     private String description;
     private LocalDateTime createdAt;
@@ -22,7 +24,7 @@ public class FormDetailsResponse {
     private boolean canViewSubmissions;
     private boolean canDeleteSubmissions;
     private String ownerName;
-    private Long ownerId;
+    private UUID ownerId;
     private List<FieldDto> fields;
 
 }

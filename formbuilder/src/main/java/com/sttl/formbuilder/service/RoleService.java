@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,7 +36,7 @@ public class RoleService {
                 .collect(Collectors.toList());
     }
 
-    public RoleResponseDTO getRole(Long id) {
+    public RoleResponseDTO getRole(UUID id) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Role not found", HttpStatus.NOT_FOUND));
         return toDTO(role);
@@ -64,7 +65,7 @@ public class RoleService {
     }
 
     @Transactional
-    public RoleResponseDTO updateRole(Long id, RoleRequestDTO dto) {
+    public RoleResponseDTO updateRole(UUID id, RoleRequestDTO dto) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Role not found", HttpStatus.NOT_FOUND));
         role.setRoleName(dto.getRoleName());
@@ -82,7 +83,7 @@ public class RoleService {
     }
 
     @Transactional
-    public void deleteRole(Long id) {
+    public void deleteRole(UUID id) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Role not found", HttpStatus.NOT_FOUND));
         if (role.isDefault()) {
@@ -94,7 +95,7 @@ public class RoleService {
     }
 
     @Transactional
-    public void assignModulesToRole(Long roleId, List<Long> moduleIds) {
+    public void assignModulesToRole(UUID roleId, List<UUID> moduleIds) {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new BusinessException("Role not found", HttpStatus.NOT_FOUND));
         roleModuleRepository.deleteByRoleId(roleId);
@@ -103,7 +104,7 @@ public class RoleService {
 
     /** Replace the user's current custom role with the new one */
     @Transactional
-    public void assignRoleToUser(Long userId, Long roleId) {
+    public void assignRoleToUser(UUID userId, UUID roleId) {
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
         User currentUser = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new BusinessException("Current user not found", HttpStatus.UNAUTHORIZED));
@@ -141,13 +142,13 @@ public class RoleService {
                 .orElse(null);
     }
 
-    public Long getCustomRoleId(User user) {
+    public UUID getCustomRoleId(User user) {
         return userRoleRepository.findFirstByUser(user)
                 .map(ur -> ur.getRole().getId())
                 .orElse(null);
     }
 
-    public List<Long> getModuleIdsByRole(Long roleId) {
+    public List<UUID> getModuleIdsByRole(UUID roleId) {
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new BusinessException("Role not found", HttpStatus.NOT_FOUND));
         return roleModuleRepository.findByRole(role).stream()
@@ -157,10 +158,10 @@ public class RoleService {
 
     // ── Helpers ────────────────────────────────────────────────────────────
 
-    private void assignModules(Role role, List<Long> moduleIds) {
+    private void assignModules(Role role, List<UUID> moduleIds) {
         boolean isSystemAdmin = "SYSTEM_ADMIN".equalsIgnoreCase(role.getRoleName());
 
-        for (Long moduleId : moduleIds) {
+        for (java.util.UUID moduleId : moduleIds) {
             Module module = moduleRepository.findById(moduleId)
                     .orElseThrow(() -> new BusinessException("Module not found: " + moduleId, HttpStatus.NOT_FOUND));
 

@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Manages the lifecycle of {@link FormVersion} records.
@@ -41,16 +42,16 @@ public class FormVersionService {
 
     // ── Read ──────────────────────────────────────────────────────────────────
 
-    public List<FormVersion> getVersions(Long formId) {
+    public List<FormVersion> getVersions(UUID formId) {
         return versionRepository.findByFormIdOrderByVersionNumberDesc(formId);
     }
 
-    public FormVersion getVersionById(Long versionId) {
+    public FormVersion getVersionById(UUID versionId) {
         return versionRepository.findById(versionId)
                 .orElseThrow(() -> new BusinessException("Version not found", HttpStatus.NOT_FOUND));
     }
 
-    public Optional<FormVersion> getActiveVersion(Long formId) {
+    public Optional<FormVersion> getActiveVersion(UUID formId) {
         return versionRepository.findByFormIdAndIsActive(formId, true);
     }
 
@@ -65,7 +66,7 @@ public class FormVersionService {
      * @return the newly created (inactive) {@link FormVersion}.
      */
     @Transactional
-    public FormVersion createSnapshot(Long formId, String createdBy) {
+    public FormVersion createSnapshot(UUID formId, String createdBy) {
         Form form = formRepository.findByIdWithFields(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
@@ -117,7 +118,7 @@ public class FormVersionService {
      * @return the activated {@link FormVersion}.
      */
     @Transactional
-    public FormVersion activateVersion(Long versionId, String username) {
+    public FormVersion activateVersion(UUID versionId, String username) {
         FormVersion version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new BusinessException("Version not found", HttpStatus.NOT_FOUND));
 

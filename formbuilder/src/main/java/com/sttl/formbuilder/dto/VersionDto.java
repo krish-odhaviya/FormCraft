@@ -5,9 +5,11 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import java.util.UUID;
+
 @Data
 public class VersionDto {
-    private Long id;
+    private UUID id;
     private Integer versionNumber;
     private String status;
     private String tableName;

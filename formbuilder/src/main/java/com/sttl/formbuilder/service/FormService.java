@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.sttl.formbuilder.Enums.FormStatusEnum;
@@ -85,7 +86,7 @@ public class FormService {
      * Pass currentUsername=null for public access (form fill),
      * or a real username to enforce ownership.
      */
-    public FormDetailsResponse getFormWithStructure(Long formId, String currentUsername) {
+    public FormDetailsResponse getFormWithStructure(UUID formId, String currentUsername) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new RuntimeException("Form not found"));
 
@@ -192,7 +193,7 @@ public class FormService {
         return response;
     }
 
-    public Form archiveForm(Long formId, String currentUsername) {
+    public Form archiveForm(UUID formId, String currentUsername) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new RuntimeException("Form not found"));
 

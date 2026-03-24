@@ -10,7 +10,9 @@ import com.sttl.formbuilder.entity.Form;
 import java.util.List;
 import java.util.Optional;
 
-public interface FormRepository extends JpaRepository<Form, Long> {
+import java.util.UUID;
+
+public interface FormRepository extends JpaRepository<Form, UUID> {
 
     /** All forms belonging to one user. */
     List<Form> findByCreatedByUsername(String username);
@@ -25,7 +27,7 @@ public interface FormRepository extends JpaRepository<Form, Long> {
     boolean existsByNameAndOwner(String name, User owner);
 
     @Query("SELECT f FROM Form f LEFT JOIN FETCH f.fields WHERE f.id = :id")
-    Optional<Form> findByIdWithFields(@Param("id") Long id);
+    Optional<Form> findByIdWithFields(@Param("id") UUID id);
 
     List<Form> findAllByStatus(FormStatusEnum formStatusEnum);
 

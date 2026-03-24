@@ -235,7 +235,7 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Parent Module</label>
                 <select
                   value={form.parentId || ""}
-                  onChange={(e) => setForm((f) => ({ ...f, parentId: e.target.value ? Number(e.target.value) : null }))}
+                  onChange={(e) => setForm((f) => ({ ...f, parentId: e.target.value || null }))}
                   className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold outline-none shadow-sm hover:border-indigo-300 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all appearance-none"
                 >
                   <option value="">None (Top Level)</option>

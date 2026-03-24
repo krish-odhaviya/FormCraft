@@ -33,12 +33,12 @@ public class ModuleController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ModuleResponseDTO>> update(
-            @PathVariable Long id, @Valid @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
+            @PathVariable java.util.UUID id, @Valid @RequestBody ModuleRequestDTO dto, HttpServletRequest req) {
         return ApiResponseUtil.success(moduleService.updateModule(id, dto), "Module updated", req);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id, HttpServletRequest req) {
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable java.util.UUID id, HttpServletRequest req) {
         moduleService.deleteModule(id);
         return ApiResponseUtil.success(null, "Module deleted", req);
     }

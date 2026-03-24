@@ -11,19 +11,21 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
+import java.util.UUID;
+
 @Repository
-public interface UserRoleRepository extends JpaRepository<UserRole, Long> {
+public interface UserRoleRepository extends JpaRepository<UserRole, UUID> {
     List<UserRole> findByUser(User user);
     Optional<UserRole> findFirstByUser(User user);
-    boolean existsByUserAndRoleId(User user, Long roleId);
+    boolean existsByUserAndRoleId(User user, UUID roleId);
 
     @Modifying
     @Transactional
     @Query("DELETE FROM UserRole ur WHERE ur.user.id = :userId")
-    void deleteByUserId(Long userId);
+    void deleteByUserId(UUID userId);
 
     @Modifying
     @Transactional
     @Query("DELETE FROM UserRole ur WHERE ur.role.id = :roleId")
-    void deleteByRoleId(Long roleId);
+    void deleteByRoleId(UUID roleId);
 }

@@ -67,7 +67,7 @@ public class FormSubmissionController {
      */
     @GetMapping("/{formId}/submissions")
     public ResponseEntity<ApiResponse<PagedSubmissionsResponse>> getSubmissions(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @RequestParam(defaultValue = "") String search,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -92,7 +92,7 @@ public class FormSubmissionController {
      */
     @GetMapping("/{formId}/submissions/export")
     public ResponseEntity<byte[]> exportSubmissions(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @RequestParam(defaultValue = "") String search,
             @RequestParam(defaultValue = "csv") String format,
             @AuthenticationPrincipal UserDetails currentUser) {
@@ -114,8 +114,8 @@ public class FormSubmissionController {
      */
     @DeleteMapping("/{formId}/submissions/{submissionId}")
     public ResponseEntity<ApiResponse<String>> deleteSubmission(
-            @PathVariable Long formId,
-            @PathVariable Long submissionId,
+            @PathVariable java.util.UUID formId,
+            @PathVariable java.util.UUID submissionId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -138,8 +138,8 @@ public class FormSubmissionController {
      */
     @PostMapping("/{formId}/submissions/bulk-delete")
     public ResponseEntity<ApiResponse<String>> bulkDeleteSubmissions(
-            @PathVariable Long formId,
-            @RequestBody List<Long> submissionIds,
+            @PathVariable java.util.UUID formId,
+            @RequestBody List<java.util.UUID> submissionIds,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -158,7 +158,7 @@ public class FormSubmissionController {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private Form resolveForm(Long formId) {
+    private Form resolveForm(java.util.UUID formId) {
         return formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
     }

@@ -38,7 +38,7 @@ export function FormsProvider({ children }) {
   /** Look up a form by id (accepts string or number). */
   const getForm = useCallback(
     (formId) =>
-      forms.find((f) => f.id === Number(formId) || f.id === formId),
+      forms.find((f) => f.id === formId),
     [forms]
   );
 

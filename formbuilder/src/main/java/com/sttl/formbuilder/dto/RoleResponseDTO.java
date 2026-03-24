@@ -5,14 +5,16 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import java.util.UUID;
+
 @Data
 public class RoleResponseDTO {
-    private Long id;
+    private UUID id;
     private String roleName;
     private String description;
     private boolean isDefault;
     private LocalDateTime createdAt;
-    private List<Long> moduleIds;
+    private List<UUID> moduleIds;
     private int assignedUserCount;
 
     private boolean canCreateForm;

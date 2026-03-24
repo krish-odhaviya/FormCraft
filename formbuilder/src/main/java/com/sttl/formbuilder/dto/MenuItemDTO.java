@@ -7,13 +7,15 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
+import java.util.UUID;
+
 /**
  * Hierarchical node used for the sidebar menu API response.
  */
 @Data
 @NoArgsConstructor
 public class MenuItemDTO {
-    private Long id;
+    private UUID id;
     private String moduleName;
     private String prefix;
     private String iconCss;

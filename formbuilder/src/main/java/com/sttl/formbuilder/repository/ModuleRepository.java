@@ -6,10 +6,12 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+import java.util.UUID;
+
 @Repository
-public interface ModuleRepository extends JpaRepository<Module, Long> {
+public interface ModuleRepository extends JpaRepository<Module, UUID> {
     List<Module> findByActiveTrue();
     List<Module> findByParentModuleIsNullOrderBySortOrderAsc();
-    List<Module> findByParentModuleIdOrderBySortOrderAsc(Long parentModuleId);
+    List<Module> findByParentModuleIdOrderBySortOrderAsc(UUID parentModuleId);
     boolean existsByModuleName(String moduleName);
 }

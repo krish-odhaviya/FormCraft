@@ -40,7 +40,7 @@ public class SchemaService {
     private static final Set<String> LAYOUT_TYPES = Set.of("SECTION", "LABEL", "PAGE_BREAK", "GROUP");
 
     @Transactional
-    public void publishForm(Long formId, String publishedBy) {
+    public void publishForm(java.util.UUID formId, String publishedBy) {
         try {
             Form form = formRepository.findById(formId)
                     .orElseThrow(() -> new RuntimeException("Form not found"));
@@ -64,7 +64,7 @@ public class SchemaService {
             boolean isNewTable = tableName == null || tableName.isEmpty();
 
             if (isNewTable) {
-                tableName = "form_" + formId + "_data";
+                tableName = "form_" + formId.toString().replace("-", "_") + "_data";
                 createTable(tableName, fields);
                 form.setTableName(tableName);
             } else {
@@ -81,6 +81,7 @@ public class SchemaService {
             formRepository.save(form);
 
         } catch (Exception e) {
+            e.printStackTrace(); // Log on server console
             throw new RuntimeException("Publish failed: " + e.getMessage(), e);
         }
     }
@@ -88,13 +89,21 @@ public class SchemaService {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private void createTable(String tableName, List<FormField> fields) {
+        // Ensure pgcrypto for gen_random_uuid()
+        try {
+            jdbcTemplate.execute("CREATE EXTENSION IF NOT EXISTS \"pgcrypto\"");
+        } catch (Exception e) {
+            // Some cloud environments (e.g. AWS RDS) already have it or gen_random_uuid is native (Postgres 13+)
+            System.err.println("Warning: Could not ensure pgcrypto extension: " + e.getMessage());
+        }
+
         StringBuilder sql = new StringBuilder();
         sql.append("CREATE TABLE ").append(tableName).append(" (")
-                .append("id BIGSERIAL PRIMARY KEY, ")
+                .append("id UUID PRIMARY KEY DEFAULT gen_random_uuid(), ")
                 .append("created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, ")
                 .append("updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, ")
                 .append("is_draft BOOLEAN NOT NULL DEFAULT false, ")
-                .append("form_version_id BIGINT, ")
+                .append("form_version_id UUID, ")
                 .append("is_delete BOOLEAN DEFAULT false");
 
         for (FormField field : fields) {
@@ -116,7 +125,7 @@ public class SchemaService {
         // Add new system columns if they don't exist yet (for tables created before this upgrade)
         addColumnIfMissing(tableName, existingColumns, "updated_at",      "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
         addColumnIfMissing(tableName, existingColumns, "is_draft",         "BOOLEAN NOT NULL DEFAULT false");
-        addColumnIfMissing(tableName, existingColumns, "form_version_id",  "BIGINT");
+        addColumnIfMissing(tableName, existingColumns, "form_version_id",  "UUID");
 
         // Add missing field columns, never drop existing ones
         for (FormField field : fields) {

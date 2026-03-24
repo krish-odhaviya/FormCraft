@@ -8,8 +8,10 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+import java.util.UUID;
+
 @Repository
-public interface AccessRequestRepository extends JpaRepository<AccessRequest, Long> {
+public interface AccessRequestRepository extends JpaRepository<AccessRequest, UUID> {
     List<AccessRequest> findByStatus(String status);
     List<AccessRequest> findByUser(User user);
     List<AccessRequest> findByFormAndStatus(Form form, String status);

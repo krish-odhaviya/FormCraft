@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.UUID;
 import java.util.List;
 
 @Data
@@ -21,7 +22,7 @@ public class RoleRequestDTO {
     @Size(max = 500, message = "Description cannot exceed 500 characters")
     private String description;
 
-    private List<Long> moduleIds;
+    private List<UUID> moduleIds;
 
     private boolean canCreateForm;
     private boolean canEditForm;

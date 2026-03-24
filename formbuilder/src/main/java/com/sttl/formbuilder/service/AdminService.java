@@ -41,7 +41,7 @@ public class AdminService {
      * Requires: "User Management" module.
      */
     @Transactional
-    public UserResponseDto updateUserRole(String adminUsername, Long userId, Long roleId) {
+    public UserResponseDto updateUserRole(String adminUsername, java.util.UUID userId, java.util.UUID roleId) {
         moduleAccessService.assertHasModule(adminUsername, MODULE_USER_MANAGEMENT);  // ← ADDED
         User admin = resolveAdmin(adminUsername);
         assertSystemAdmin(admin);
@@ -63,7 +63,7 @@ public class AdminService {
      * Requires: "User Management" module.
      */
     @Transactional
-    public UserResponseDto toggleUserStatus(String adminUsername, Long userId, boolean enabled) {
+    public UserResponseDto toggleUserStatus(String adminUsername, java.util.UUID userId, boolean enabled) {
         moduleAccessService.assertHasModule(adminUsername, MODULE_USER_MANAGEMENT);  // ← ADDED
         User admin = resolveAdmin(adminUsername);
         assertSystemAdmin(admin);

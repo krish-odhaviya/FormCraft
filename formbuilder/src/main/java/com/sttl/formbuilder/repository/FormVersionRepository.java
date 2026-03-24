@@ -10,20 +10,22 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+import java.util.UUID;
+
 @Repository
-public interface FormVersionRepository extends JpaRepository<FormVersion, Long> {
+public interface FormVersionRepository extends JpaRepository<FormVersion, UUID> {
 
-    List<FormVersion> findByFormIdOrderByVersionNumberDesc(Long formId);
+    List<FormVersion> findByFormIdOrderByVersionNumberDesc(UUID formId);
 
-    Optional<FormVersion> findByFormIdAndIsActive(Long formId, Boolean isActive);
+    Optional<FormVersion> findByFormIdAndIsActive(UUID formId, Boolean isActive);
 
-    Optional<FormVersion> findFirstByFormIdOrderByVersionNumberDesc(Long formId);
+    Optional<FormVersion> findFirstByFormIdOrderByVersionNumberDesc(UUID formId);
 
     /** Deactivate ALL versions for a form (used before activating a new one). */
     @Modifying
     @Query("UPDATE FormVersion v SET v.isActive = false WHERE v.form.id = :formId")
-    void deactivateAllVersions(@Param("formId") Long formId);
+    void deactivateAllVersions(@Param("formId") UUID formId);
 
     /** Count existing versions so we can compute the next version number. */
-    long countByFormId(Long formId);
+    long countByFormId(UUID formId);
 }

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.UUID;
 import java.util.List;
 
 @Getter
@@ -13,5 +14,5 @@ public class ReorderFieldsRequest {
 
     @NotEmpty(message = "Field IDs list cannot be empty")
     @Size(max = 500, message = "Cannot reorder more than 500 fields at once")
-    private List<Long> fieldIds;
+    private List<UUID> fieldIds;
 }

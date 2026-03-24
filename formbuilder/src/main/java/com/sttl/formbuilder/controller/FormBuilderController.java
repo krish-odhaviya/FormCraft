@@ -43,7 +43,7 @@ public class FormBuilderController {
      */
     @PostMapping("/api/forms/{formId}/fields")
     public ResponseEntity<ApiResponse<FormField>> addField(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @Valid @RequestBody AddFieldRequest requestBody,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
@@ -59,7 +59,7 @@ public class FormBuilderController {
      */
     @GetMapping("/api/forms/{formId}/fields")
     public ResponseEntity<ApiResponse<List<FormField>>> getFormFields(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -79,7 +79,7 @@ public class FormBuilderController {
      */
     @PostMapping("/api/forms/{formId}/draft")
     public ResponseEntity<ApiResponse<String>> saveDraft(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @RequestBody List<@Valid AddFieldRequest> fields,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
@@ -96,7 +96,7 @@ public class FormBuilderController {
      */
     @PostMapping("/api/forms/{formId}/publish")
     public ResponseEntity<ApiResponse<String>> publishForm(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -123,7 +123,7 @@ public class FormBuilderController {
      */
     @PostMapping("/api/forms/{formId}/fields/reorder")
     public ResponseEntity<ApiResponse<String>> reorderFields(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @Valid @RequestBody ReorderFieldsRequest requestBody,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {

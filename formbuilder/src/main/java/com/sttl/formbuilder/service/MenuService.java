@@ -86,7 +86,7 @@ public class MenuService {
     }
 
     private List<MenuItemDTO> buildTree(List<Module> modules) {
-        Map<Long, MenuItemDTO> dtoMap = new LinkedHashMap<>();
+        Map<java.util.UUID, MenuItemDTO> dtoMap = new LinkedHashMap<>();
         for (Module m : modules) {
             MenuItemDTO dto = new MenuItemDTO();
             dto.setId(m.getId());

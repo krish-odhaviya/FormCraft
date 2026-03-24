@@ -176,10 +176,12 @@ function FormPageContent() {
     async function fetchFields() {
       try {
         let res;
-        if (isNaN(formId)) {
-          res = await api.getFormByCode(formId);
-        } else {
+        // UUIDs are typically 36 characters. Short codes are 6. 
+        // We check for the presence of dashes often found in UUIDs, or length > 10.
+        if (formId.length > 10 || formId.includes("-")) {
           res = await api.getForm(formId);
+        } else {
+          res = await api.getFormByCode(formId);
         }
         // console.log removed — was leaking full API response to browser console
         setFormDetails(res.data);

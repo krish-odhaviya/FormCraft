@@ -113,7 +113,7 @@ public class AccessRequestService {
     @Transactional
     public AccessRequestResponseDTO processRequest(
             String processorUsername,
-            Long requestId,
+            java.util.UUID requestId,
             String status,
             FormRole role) {
 

@@ -74,7 +74,7 @@ public class AccessRequestController {
      */
     @PostMapping("/{requestId}/process")
     public ResponseEntity<ApiResponse<AccessRequestResponseDTO>> processRequest(
-            @PathVariable Long requestId,
+            @PathVariable java.util.UUID requestId,
             @RequestParam String status,
             @RequestParam(required = false) FormRole role,
             @AuthenticationPrincipal UserDetails currentUser,

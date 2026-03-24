@@ -59,7 +59,7 @@ function UserManagementContent() {
     if (!selectedRoleId) return;
     setSaving(true);
     try {
-      await api.assignRoleToUser(Number(selectedRoleId), managingUser.id);
+      await api.assignRoleToUser(selectedRoleId, managingUser.id);
       toast.success("Role assigned successfully");
       setManagingUser(null);
       reload();

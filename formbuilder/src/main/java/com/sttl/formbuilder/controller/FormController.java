@@ -73,7 +73,7 @@ public class FormController {
     // ── GET /api/forms/{formId} — ownership enforced ──────────────────────────
     @GetMapping("/{formId}")
     public ResponseEntity<ApiResponse<FormDetailsResponse>> getForm(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -119,7 +119,7 @@ public class FormController {
 
     @GetMapping("/published-list")
     public ResponseEntity<?> getPublishedForms(
-            @RequestParam(required = false) Long excludeFormId,
+            @RequestParam(required = false) java.util.UUID excludeFormId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -151,7 +151,7 @@ public class FormController {
 
     @PostMapping("/{formId}/archive")
     public ResponseEntity<?> archiveForm(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -180,7 +180,7 @@ public class FormController {
     // ── POST /api/forms/{formId}/visibility ──────────────────────────────────
     @PostMapping("/{formId}/visibility")
     public ResponseEntity<?> updateVisibility(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @RequestParam VisibilityType visibility,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
@@ -207,7 +207,7 @@ public class FormController {
     // ── GET /api/forms/{formId}/permissions ──────────────────────────────────
     @GetMapping("/{formId}/permissions")
     public ResponseEntity<?> getPermissions(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -237,7 +237,7 @@ public class FormController {
     // ── POST /api/forms/{formId}/permissions ─────────────────────────────────
     @PostMapping("/{formId}/permissions")
     public ResponseEntity<?> addPermission(
-            @PathVariable Long formId,
+            @PathVariable java.util.UUID formId,
             @RequestParam String username,
             @RequestParam FormRole role,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -263,8 +263,8 @@ public class FormController {
     // ── DELETE /api/forms/{formId}/permissions/{permissionId} ────────────────
     @DeleteMapping("/{formId}/permissions/{permissionId}")
     public ResponseEntity<?> removePermission(
-            @PathVariable Long formId,
-            @PathVariable Long permissionId,
+            @PathVariable java.util.UUID formId,
+            @PathVariable java.util.UUID permissionId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 

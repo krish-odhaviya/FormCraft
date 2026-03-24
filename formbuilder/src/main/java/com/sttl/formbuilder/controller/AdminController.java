@@ -42,8 +42,8 @@ public class AdminController {
      */
     @PostMapping("/users/{userId}/custom-role")
     public ResponseEntity<ApiResponse<UserResponseDto>> updateUserCustomRole(
-            @PathVariable Long userId,
-            @RequestParam Long roleId,
+            @PathVariable java.util.UUID userId,
+            @RequestParam java.util.UUID roleId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -58,7 +58,7 @@ public class AdminController {
      */
     @PostMapping("/users/{userId}/enable")
     public ResponseEntity<ApiResponse<UserResponseDto>> toggleUserStatus(
-            @PathVariable Long userId,
+            @PathVariable java.util.UUID userId,
             @RequestParam boolean enabled,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {

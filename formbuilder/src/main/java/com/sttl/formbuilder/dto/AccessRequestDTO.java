@@ -9,8 +9,7 @@ import lombok.Data;
 @Data
 public class AccessRequestDTO {
 
-    @Positive(message = "Form ID must be a positive number")
-    private Long formId; // null = CREATE_FORM request (system-wide)
+    private java.util.UUID formId; // null = CREATE_FORM request (system-wide)
 
     @NotBlank(message = "Request type is required")
     @Pattern(
