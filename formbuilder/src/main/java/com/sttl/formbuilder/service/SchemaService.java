@@ -70,7 +70,7 @@ public class SchemaService {
             boolean isNewTable = tableName == null || tableName.isEmpty();
 
             if (isNewTable) {
-                tableName = "form_data_" + form.getCode();
+                tableName = "form_data_" + form.getName();
                 createTable(tableName, fields);
                 form.setTableName(tableName);
             } else {
