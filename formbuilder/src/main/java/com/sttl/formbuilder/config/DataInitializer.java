@@ -44,6 +44,9 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void seedModules() {
+        // === Dashboard (standalone) ===
+        findOrCreateModule("Dashboard", "System overview and stats", "/dashboard", "layout", false, false, null, null, 0);
+
         // === Forms Management (parent) ===
         Module formsParent = findOrCreateModule("Forms Management", null, "/", "file-text", true, false, null, null, 1);
         findOrCreateModule("Form Vault", "All your forms", "/", "inbox", false, false, formsParent, null, 2);
@@ -62,35 +65,30 @@ public class DataInitializer implements CommandLineRunner {
     private void seedRoles() {
         // Collect all modules
         List<Module> allModules = moduleRepository.findAll();
+        Optional<Module> dashboardMod = allModules.stream().filter(m -> "Dashboard".equals(m.getModuleName())).findFirst();
         List<Module> formsModules = allModules.stream()
-                .filter(m -> m.getModuleName().contains("Form") || m.getModuleName().contains("Create"))
+                .filter(m -> m.getModuleName().contains("Form") || m.getModuleName().contains("Create") || m.getModuleName().equals("Dashboard"))
                 .toList();
 
         // SYSTEM_ADMIN — gets all modules and all permissions
         Role sysAdmin = findOrCreateRole("SYSTEM_ADMIN", "Full system access", true, 
                                          true, true, true, true, true, true);
-        if (roleModuleRepository.findByRole(sysAdmin).isEmpty()) {
-            for (Module m : allModules) {
-                assignModuleToRole(sysAdmin, m);
-            }
+        for (Module m : allModules) {
+            assignModuleToRole(sysAdmin, m);
         }
 
         // FORMS_MANAGER — gets forms modules only, basic permissions
         Role formsManager = findOrCreateRole("FORMS_MANAGER", "Access to form management", true,
                                              true, true, false, false, true, false);
-        if (roleModuleRepository.findByRole(formsManager).isEmpty()) {
-            for (Module m : formsModules) {
-                assignModuleToRole(formsManager, m);
-            }
+        for (Module m : formsModules) {
+            assignModuleToRole(formsManager, m);
         }
 
         // Project manager — gets forms modules only, but with delete and archive permissions
         Role projectManager = findOrCreateRole("PROJECT_MANAGER", "Access to project management", true,
                                                true, true, true, true, true, true);
-        if (roleModuleRepository.findByRole(projectManager).isEmpty()) {
-            for (Module m : formsModules) {
-                assignModuleToRole(projectManager, m);
-            }
+        for (Module m : formsModules) {
+            assignModuleToRole(projectManager, m);
         }
     }
 

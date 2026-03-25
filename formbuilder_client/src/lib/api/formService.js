@@ -45,6 +45,9 @@ export const api = {
       `/requests/${requestId}/process?status=${status}${role ? `&role=${role}` : ""}`
     ),
 
+  // ── Dashboard ─────────────────────────────────────────────────────────────
+  getDashboardStats: () => API.get("/dashboard/stats"),
+
   // ── Forms ─────────────────────────────────────────────────────────────────
   getAllForms: ({ page = 1, size = 10, sortBy = "createdAt", sortDir = "desc" } = {}) => 
     API.get("/forms", {

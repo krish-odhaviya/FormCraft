@@ -18,7 +18,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [loading, isAuthenticated, router]);
 
@@ -29,7 +29,7 @@ export default function LoginPage() {
 
     try {
       await login(username.trim(), password);
-      router.replace("/");
+      router.replace("/dashboard");
     } catch (err) {
       const msg =
         err?.response?.data?.message ||

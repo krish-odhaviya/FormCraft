@@ -24,7 +24,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated) router.replace("/");
+    if (!authLoading && isAuthenticated) router.replace("/dashboard");
   }, [isAuthenticated, authLoading, router]);
 
   const handleSubmit = async (e) => {

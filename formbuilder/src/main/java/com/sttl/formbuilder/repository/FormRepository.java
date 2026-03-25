@@ -47,4 +47,17 @@ public interface FormRepository extends JpaRepository<Form, UUID> {
 
     /** Find by immutable form code. */
     Optional<Form> findByCode(String code);
+
+    long countByOwner(User owner);
+    long countByOwnerAndStatus(User owner, FormStatusEnum status);
+    long countByStatus(FormStatusEnum status);
+
+    @Query("SELECT f FROM Form f WHERE " +
+           "(f.owner = :user OR f.visibility = :publicType OR f.visibility = :linkType OR EXISTS (SELECT 1 FROM FormPermission p WHERE p.form = f AND p.user = :user)) " +
+           "ORDER BY f.updatedAt DESC")
+    List<Form> findTop5RecentAccessibleToUser(
+            @Param("user") User user, 
+            @Param("publicType") VisibilityType publicType,
+            @Param("linkType") VisibilityType linkType,
+            Pageable pageable);
 }

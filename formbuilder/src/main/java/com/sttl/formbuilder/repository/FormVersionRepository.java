@@ -33,4 +33,6 @@ public interface FormVersionRepository extends JpaRepository<FormVersion, UUID> 
 
     @Query("SELECT MAX(v.versionNumber) FROM FormVersion v WHERE v.form.id = :formId")
     Integer findMaxVersionNumberByFormId(@Param("formId") UUID formId);
+
+    Optional<Object> findByFormIdAndIsDraftWorkingCopy(UUID id, boolean b);
 }
