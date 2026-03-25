@@ -16,6 +16,8 @@ import java.util.List;
 @Setter
 public class AddFieldRequest {
 
+    private String id;
+
     @NotBlank(message = "Field key is required")
     @Size(max = 100, message = "Field key cannot exceed 100 characters")
     @Pattern(

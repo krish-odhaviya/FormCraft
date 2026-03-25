@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/forms")
+@RequestMapping("/forms")
 @RequiredArgsConstructor
 public class LookupController {
 

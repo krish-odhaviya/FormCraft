@@ -6,16 +6,18 @@ import com.sttl.formbuilder.dto.AddFieldRequest;
 import com.sttl.formbuilder.dto.ReorderFieldsRequest;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormField;
+import com.sttl.formbuilder.entity.FormVersion;
 import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormRepository;
 import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.repository.UserRepository;
 import com.sttl.formbuilder.service.FormBuilderService;
+import com.sttl.formbuilder.service.SchemaService;
 import com.sttl.formbuilder.service.FormVersionService;
 import com.sttl.formbuilder.service.PermissionService;
-import com.sttl.formbuilder.service.SchemaService;
-import com.sttl.formbuilder.entity.FormVersion;
+import com.sttl.formbuilder.dto.FieldDto;
+import com.sttl.formbuilder.dto.PublishFormRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
@@ -46,9 +49,9 @@ public class FormBuilderController {
      * POST /api/forms/{formId}/fields
      * Adds a new field to a form draft.
      */
-    @PostMapping("/api/forms/{formId}/fields")
+    @PostMapping("/forms/{formId}/fields")
     public ResponseEntity<ApiResponse<FormField>> addField(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @Valid @RequestBody AddFieldRequest requestBody,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
@@ -64,7 +67,7 @@ public class FormBuilderController {
      */
     @GetMapping("/api/forms/{formId}/fields")
     public ResponseEntity<ApiResponse<List<FormField>>> getFormFields(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -82,16 +85,16 @@ public class FormBuilderController {
      * POST /api/forms/{formId}/draft
      * Saves the full list of fields as a draft (replaces existing draft fields).
      */
-    @PostMapping("/api/forms/{formId}/draft")
-    public ResponseEntity<ApiResponse<String>> saveDraft(
-            @PathVariable java.util.UUID formId,
-            @RequestBody List<@Valid AddFieldRequest> fields,
+    @PostMapping("/forms/{formId}/draft")
+    public ResponseEntity<ApiResponse<List<FieldDto>>> saveDraft(
+            @PathVariable UUID formId,
+            @RequestBody @Valid List<AddFieldRequest> fields,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
         assertAuthenticated(currentUser);
-        formBuilderService.saveDraft(formId, fields, currentUser.getUsername());
-        return ApiResponseUtil.success("Draft saved", "Draft saved successfully", request);
+        List<FieldDto> savedFields = formBuilderService.saveDraft(formId, fields, currentUser.getUsername());
+        return ApiResponseUtil.success(savedFields, "Draft saved successfully", request);
     }
 
     /**
@@ -99,9 +102,10 @@ public class FormBuilderController {
      * Publishes the form, making it available for submissions.
      * Caller must have configure access.
      */
-    @PostMapping("/api/forms/{formId}/publish")
+    @PostMapping("/forms/{formId}/publish")
     public ResponseEntity<ApiResponse<String>> publishForm(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
+            @RequestBody(required = false) PublishFormRequest publishRequest,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -118,6 +122,12 @@ public class FormBuilderController {
                     null, HttpStatus.FORBIDDEN, request);
         }
 
+        // If user is in the builder and sends current fields in the request, save them first as a draft.
+        // This ensures the publish action uses the latest data and avoids "empty draft" errors.
+        if (publishRequest != null && publishRequest.getFields() != null && !publishRequest.getFields().isEmpty()) {
+            formBuilderService.saveDraft(formId, publishRequest.getFields(), currentUser.getUsername());
+        }
+
         schemaService.publishForm(formId, currentUser.getUsername());
         return ApiResponseUtil.success("Published successfully", "Form published successfully", request);
     }
@@ -126,9 +136,9 @@ public class FormBuilderController {
      * POST /api/forms/{formId}/fields/reorder
      * Reorders fields within a form.
      */
-    @PostMapping("/api/forms/{formId}/fields/reorder")
+    @PostMapping("/forms/{formId}/fields/reorder")
     public ResponseEntity<ApiResponse<String>> reorderFields(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @Valid @RequestBody ReorderFieldsRequest requestBody,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {

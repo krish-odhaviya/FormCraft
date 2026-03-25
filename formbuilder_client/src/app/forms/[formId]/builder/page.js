@@ -388,20 +388,12 @@ export default function BuilderPage() {
       )
     );
 
-  const handleSave = async () => {
-    // Client-side validation
-    const emptyFields = localFields.filter(f => !f.fieldLabel?.trim());
-    if (emptyFields.length > 0) {
-      const fieldNames = emptyFields.map(f => f.fieldType).join(", ");
-      toast.error(`Validation Error: One or more fields (${fieldNames}) are missing a Field Name.`);
-      return;
-    }
-
-    setSaving(true);
-    const payload = localFields.map((field, index) => {
+  const getFieldsPayload = () => {
+    return localFields.map((field, index) => {
       const sanitize = (val) => (val === "" ? null : val);
 
       return {
+        id: field.id,
         fieldKey: field.fieldKey || generateFieldKey(field.fieldLabel, index + 1),
         parentId: field.parentId,
         fieldLabel: (field.fieldLabel || "").trim(),
@@ -425,13 +417,38 @@ export default function BuilderPage() {
           scaleMin: sanitize(field.uiConfig?.scaleMin),
           scaleMax: sanitize(field.uiConfig?.scaleMax),
           maxFileSizeMb: sanitize(field.uiConfig?.maxFileSizeMb),
+          placeholder: field.uiConfig?.placeholder,
+          helpText: field.uiConfig?.helpText,
+          defaultValue: field.uiConfig?.defaultValue,
+          readOnly: field.uiConfig?.readOnly,
+          hidden: field.uiConfig?.hidden,
+          sourceTable: field.uiConfig?.sourceTable,
+          sourceColumn: field.uiConfig?.sourceColumn,
+          sourceDisplayColumn: field.uiConfig?.sourceDisplayColumn,
+          acceptedFileTypes: field.uiConfig?.acceptedFileTypes
         },
         conditions: field.conditions || null,
       };
     });
+  };
+
+  const handleSave = async () => {
+    // Client-side validation
+    const emptyFields = localFields.filter(f => !f.fieldLabel?.trim());
+    if (emptyFields.length > 0) {
+      const fieldNames = emptyFields.map(f => f.fieldType).join(", ");
+      toast.error(`Validation Error: One or more fields (${fieldNames}) are missing a Field Name.`);
+      return;
+    }
+
+    setSaving(true);
+    const payload = getFieldsPayload();
 
     try {
-      await api.saveDraft(formId, payload);
+      const res = await api.saveDraft(formId, payload);
+      if (res.data) {
+        setLocalFields(res.data);
+      }
       toast.success("Form saved successfully!");
     } catch (e) {
       console.error(e);
@@ -458,7 +475,8 @@ export default function BuilderPage() {
 
     setPublishing(true);
     try {
-      await api.publishForm(formId);
+      const payload = getFieldsPayload();
+      await api.publishForm(formId, payload);
       toast.success("Form published!");
       router.push("/");
     } catch (e) {

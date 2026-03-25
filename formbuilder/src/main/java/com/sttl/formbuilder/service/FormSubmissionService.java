@@ -520,12 +520,18 @@ public class FormSubmissionService {
     /**
      * Build WHERE clause — always filters deleted rows, optionally applies search
      */
-    private String buildWhere(List<FormField> fields, String search) {
-        if (search == null || search.trim().isEmpty()) {
-            return " WHERE t.is_delete = false";
+    private String buildWhere(List<FormField> fields, String search, UUID versionId) {
+        StringBuilder where = new StringBuilder(" WHERE t.is_delete = false");
+        
+        if (versionId != null) {
+            where.append(" AND t.form_version_id = '").append(versionId).append("'");
         }
 
-        String safe = search.trim().replace("'", "''"); // basic SQL escape for ILIKE
+        if (search == null || search.trim().isEmpty()) {
+            return where.toString();
+        }
+
+        String safe = search.trim().replace("'", "''");
 
         List<String> conditions = fields.stream()
                 .filter(f -> !"SECTION".equalsIgnoreCase(f.getFieldType())
@@ -549,16 +555,17 @@ public class FormSubmissionService {
 
         conditions.add("CAST(t.id AS TEXT) ILIKE '%" + safe + "%'");
 
-        if (conditions.isEmpty()) return " WHERE t.is_delete = false";
+        if (conditions.isEmpty()) return where.toString();
 
-        return " WHERE t.is_delete = false AND (" + String.join(" OR ", conditions) + ")";
+        where.append(" AND (").append(String.join(" OR ", conditions)).append(")");
+        return where.toString();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // GET SUBMISSIONS — PAGINATED (uses Spring Pageable)
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional(readOnly = true)
-    public PagedSubmissionsResponse getSubmissionsPaged(java.util.UUID formId, String search, Pageable pageable) {
+    public PagedSubmissionsResponse getSubmissionsPaged(java.util.UUID formId, String search, java.util.UUID versionId, Pageable pageable) {
 
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
@@ -569,10 +576,20 @@ public class FormSubmissionService {
 
         String tableName = form.getTableName();
 
-        // ── Resolve fields from Active Version ───────────────────────────────
-        FormVersion activeVersion = formVersionRepository.findByFormIdAndIsActive(formId, true)
-                .orElseThrow(() -> new BusinessException("No active version found", HttpStatus.NOT_FOUND));
-        List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(activeVersion.getId());
+        // ── Resolve version ──────────────────────────────────────────────────
+        FormVersion targetVersion;
+        if (versionId != null) {
+            targetVersion = formVersionRepository.findById(versionId)
+                    .orElseThrow(() -> new BusinessException("Version not found", HttpStatus.NOT_FOUND));
+            if (!targetVersion.getForm().getId().equals(formId)) {
+                throw new BusinessException("Version does not belong to this form", HttpStatus.BAD_REQUEST);
+            }
+        } else {
+            targetVersion = formVersionRepository.findByFormIdAndIsActive(formId, true)
+                    .orElseThrow(() -> new BusinessException("No active version found", HttpStatus.NOT_FOUND));
+        }
+
+        List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(targetVersion.getId());
 
         // ── Valid field keys (to prevent SQL injection on sort column) ─────────
         Set<String> validKeys = fields.stream()
@@ -601,7 +618,7 @@ public class FormSubmissionService {
 
         // ── Build SQL parts ───────────────────────────────────────────────────
         String selectSql = buildSelectSql(fields, tableName);
-        String whereSql = buildWhere(fields, search);
+        String whereSql = buildWhere(fields, search, versionId);
         String orderSql = " ORDER BY t." + orderCol + " " + orderDir;
 
         // ── COUNT query (for totalElements) ───────────────────────────────────
@@ -639,7 +656,7 @@ public class FormSubmissionService {
     // EXPORT — all matching rows (no pagination)
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional(readOnly = true)
-    public SubmissionsResponse exportSubmissions(java.util.UUID formId, String search) {
+    public SubmissionsResponse exportSubmissions(java.util.UUID formId, String search, java.util.UUID versionId) {
 
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
@@ -650,12 +667,19 @@ public class FormSubmissionService {
 
         String tableName = form.getTableName();
 
-        FormVersion activeVersion = formVersionRepository.findByFormIdAndIsActive(formId, true)
-                .orElseThrow(() -> new BusinessException("No active version found", HttpStatus.NOT_FOUND));
-        List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(activeVersion.getId());
+        FormVersion targetVersion;
+        if (versionId != null) {
+            targetVersion = formVersionRepository.findById(versionId)
+                    .orElseThrow(() -> new BusinessException("Version not found", HttpStatus.NOT_FOUND));
+        } else {
+            targetVersion = formVersionRepository.findByFormIdAndIsActive(formId, true)
+                    .orElseThrow(() -> new BusinessException("No active version found", HttpStatus.NOT_FOUND));
+        }
+        
+        List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(targetVersion.getId());
 
         String sql = buildSelectSql(fields, tableName)
-                + buildWhere(fields, search)
+                + buildWhere(fields, search, versionId)
                 + " ORDER BY t.id DESC";
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);

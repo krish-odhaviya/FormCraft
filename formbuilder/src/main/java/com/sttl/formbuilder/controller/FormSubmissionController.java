@@ -26,9 +26,10 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/forms")
+@RequestMapping("/forms")
 @RequiredArgsConstructor
 public class FormSubmissionController {
 
@@ -67,8 +68,9 @@ public class FormSubmissionController {
      */
     @GetMapping("/{formId}/submissions")
     public ResponseEntity<ApiResponse<PagedSubmissionsResponse>> getSubmissions(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @RequestParam(defaultValue = "") String search,
+            @RequestParam(required = false) UUID versionId,
             @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
@@ -82,7 +84,7 @@ public class FormSubmissionController {
                     null, HttpStatus.FORBIDDEN, request);
         }
 
-        PagedSubmissionsResponse response = formSubmissionService.getSubmissionsPaged(formId, search, pageable);
+        PagedSubmissionsResponse response = formSubmissionService.getSubmissionsPaged(formId, search, versionId, pageable);
         return ApiResponseUtil.success(response, "Submissions fetched successfully", request);
     }
 
@@ -92,8 +94,9 @@ public class FormSubmissionController {
      */
     @GetMapping("/{formId}/submissions/export")
     public ResponseEntity<byte[]> exportSubmissions(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @RequestParam(defaultValue = "") String search,
+            @RequestParam(required = false) UUID versionId,
             @RequestParam(defaultValue = "csv") String format,
             @AuthenticationPrincipal UserDetails currentUser) {
 
@@ -104,7 +107,7 @@ public class FormSubmissionController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        SubmissionsResponse data = formSubmissionService.exportSubmissions(formId, search);
+        SubmissionsResponse data = formSubmissionService.exportSubmissions(formId, search, versionId);
         return exportService.export(data, format);
     }
 
@@ -114,8 +117,8 @@ public class FormSubmissionController {
      */
     @DeleteMapping("/{formId}/submissions/{submissionId}")
     public ResponseEntity<ApiResponse<String>> deleteSubmission(
-            @PathVariable java.util.UUID formId,
-            @PathVariable java.util.UUID submissionId,
+            @PathVariable UUID formId,
+            @PathVariable UUID submissionId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -138,8 +141,8 @@ public class FormSubmissionController {
      */
     @PostMapping("/{formId}/submissions/bulk-delete")
     public ResponseEntity<ApiResponse<String>> bulkDeleteSubmissions(
-            @PathVariable java.util.UUID formId,
-            @RequestBody List<java.util.UUID> submissionIds,
+            @PathVariable UUID formId,
+            @RequestBody List<UUID> submissionIds,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -158,7 +161,7 @@ public class FormSubmissionController {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private Form resolveForm(java.util.UUID formId) {
+    private Form resolveForm(UUID formId) {
         return formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
     }

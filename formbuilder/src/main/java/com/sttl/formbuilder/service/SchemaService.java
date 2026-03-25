@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 import com.sttl.formbuilder.Enums.FormStatusEnum;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -40,7 +41,7 @@ public class SchemaService {
     private static final Set<String> LAYOUT_TYPES = Set.of("SECTION", "LABEL", "PAGE_BREAK", "GROUP");
 
     @Transactional
-    public void publishForm(java.util.UUID formId, String publishedBy) {
+    public void publishForm(UUID formId, String publishedBy) {
         try {
             Form form = formRepository.findById(formId)
                     .orElseThrow(() -> new RuntimeException("Form not found"));
@@ -69,7 +70,7 @@ public class SchemaService {
             boolean isNewTable = tableName == null || tableName.isEmpty();
 
             if (isNewTable) {
-                tableName = "form_" + formId.toString().replace("-", "_") + "_data";
+                tableName = "form_data_" + form.getCode();
                 createTable(tableName, fields);
                 form.setTableName(tableName);
             } else {

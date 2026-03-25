@@ -2,7 +2,7 @@ import axios from "axios";
 
 // ─── Single source of truth for the API base URL ────────────────────────────
 // Change this one line for staging/production — never hardcode in page files.
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9090/api";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9090/api/v1";
 
 export const API = axios.create({
   baseURL: BASE_URL,

@@ -46,7 +46,7 @@ public class Form {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private VisibilityType visibility = VisibilityType.PUBLIC;
+    private VisibilityType visibility = VisibilityType.RESTRICTED;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

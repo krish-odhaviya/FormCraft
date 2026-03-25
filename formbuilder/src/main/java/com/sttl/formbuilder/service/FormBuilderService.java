@@ -20,10 +20,15 @@ import com.sttl.formbuilder.repository.FormRepository;
 import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import com.sttl.formbuilder.dto.FieldDto;
 
 @Service
 @RequiredArgsConstructor
@@ -76,7 +81,7 @@ public class FormBuilderService {
     }
 
     @Transactional
-    public void saveDraft(UUID formId, List<AddFieldRequest> fieldRequests, String currentUsername) {
+    public List<FieldDto> saveDraft(UUID formId, List<AddFieldRequest> fieldRequests, String currentUsername) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
@@ -87,84 +92,139 @@ public class FormBuilderService {
             throw new BusinessException("Access denied: only owners or builders can save draft", HttpStatus.FORBIDDEN);
         }
 
-        // Architecture Decision: Preparation of NEXT version
+        // 1. Get/Initialize the draft version
         FormVersion draftVersion = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
-
-        // Guard: never allow saving to an active version (Task 3.3 Rule)
         if (Boolean.TRUE.equals(draftVersion.getIsActive())) {
-            throw new BusinessException("Cannot edit an active version. Create a new version to make changes.", HttpStatus.CONFLICT);
+            throw new BusinessException("Cannot edit an active version. Create a new version first.", HttpStatus.CONFLICT);
         }
 
-        // Soft delete all existing fields for THIS draft version exclusively
+        // 2. Validate incoming field requests for duplicate keys in the same request
+        Set<String> seenKeys = new HashSet<>();
+        for (AddFieldRequest req : fieldRequests) {
+            if (req.getFieldKey() != null && !seenKeys.add(req.getFieldKey())) {
+                throw new BusinessException("Validation Error: Duplicate field key '" + req.getFieldKey() + "' found in request.", HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        // 3. Load existing active fields for this version and map them by ID
         List<FormField> existingFields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(draftVersion.getId());
-        for(FormField f: existingFields) {
-            f.setIsDeleted(true);
-            f.setFieldKey(f.getFieldKey() + "_del_" + System.currentTimeMillis());
+        Map<UUID, FormField> existingMap = new HashMap<>();
+        for (FormField f : existingFields) {
+            existingMap.put(f.getId(), f);
         }
-        fieldRepository.saveAll(existingFields);
-        fieldRepository.flush();
 
-        List<FormField> newFields = new ArrayList<>();
+        List<FormField> fieldsToSave = new ArrayList<>();
+        List<FormField> activeResult = new ArrayList<>();
+
+        // 3. Process the incoming requests (Differential Update)
         for (int i = 0; i < fieldRequests.size(); i++) {
             AddFieldRequest req = fieldRequests.get(i);
-            FormField field = new FormField();
-            field.setFormVersion(draftVersion);
+            FormField field;
 
-            // --- Basic Fields ---
-            field.setFieldKey(req.getFieldKey());
-            field.setParentId(req.getParentId());
-            field.setFieldLabel(req.getFieldLabel());
-            field.setFieldType(req.getFieldType());
-            field.setRequired(req.getRequired() != null ? req.getRequired() : false);
-            field.setConditions(req.getConditions());
-            field.setFieldOrder(i + 1);
+            UUID uuid = tryParseUuid(req.getId());
 
-            // --- Handle Options ---
-            if (req.getOptions() != null && !req.getOptions().isEmpty()) {
-                field.setOptions(new ArrayList<>(req.getOptions()));
+            // Tie to existing if ID matches
+            if (uuid != null && existingMap.containsKey(uuid)) {
+                field = existingMap.remove(uuid); // Remove so it don't get deleted
+            } else {
+                field = new FormField();
+                field.setFormVersion(draftVersion);
             }
 
-            if (req.getUiConfig() != null) {
-                field.setMaxStars(req.getUiConfig().getMaxStars());
-                field.setScaleMin(req.getUiConfig().getScaleMin());
-                field.setScaleMax(req.getUiConfig().getScaleMax());
-                field.setLowLabel(req.getUiConfig().getLowLabel());
-                field.setHighLabel(req.getUiConfig().getHighLabel());
-                field.setMaxFileSizeMb(req.getUiConfig().getMaxFileSizeMb());
-                field.setSourceTable(req.getUiConfig().getSourceTable());
-                field.setSourceColumn(req.getUiConfig().getSourceColumn());
-                field.setSourceDisplayColumn(req.getUiConfig().getSourceDisplayColumn());
-                field.setPlaceholder(req.getUiConfig().getPlaceholder());
-                field.setHelpText(req.getUiConfig().getHelpText());
-                field.setDefaultValue(req.getUiConfig().getDefaultValue());
-                field.setReadOnly(req.getUiConfig().getReadOnly());
-                field.setIsHidden(req.getUiConfig().getHidden());
-
-                if (req.getUiConfig().getAcceptedFileTypes() != null) {
-                    field.getAcceptedFileTypes().addAll(req.getUiConfig().getAcceptedFileTypes());
-                }
-            }
-
-            if (req.getValidation() != null) {
-                field.setMinLength(req.getValidation().getMinLength());
-                field.setMaxLength(req.getValidation().getMaxLength());
-                field.setMinValue(req.getValidation().getMin());
-                field.setMaxValue(req.getValidation().getMax());
-                field.setPattern(req.getValidation().getPattern());
-                field.setValidationMessage(req.getValidation().getValidationMessage());
-                field.setIsUnique(req.getValidation().getUnique());
-                field.setNumberFormat(req.getValidation().getNumberFormat());
-
-                if (req.getValidation().getRows() != null) {
-                    field.getGridRows().addAll(req.getValidation().getRows());
-                }
-                if (req.getValidation().getColumns() != null) {
-                    field.getGridColumns().addAll(req.getValidation().getColumns());
-                }
-            }
-            newFields.add(field);
+            // Populate/Update all attributes
+            populateFieldFromRequest(field, req, i + 1);
+            fieldsToSave.add(field);
+            activeResult.add(field);
         }
-        fieldRepository.saveAll(newFields);
+
+        // 4. Handle Soft Deletes first and FLUSH to free up the fieldKey constraint
+        if (!existingMap.isEmpty()) {
+            List<FormField> fieldsToSoftDelete = new ArrayList<>();
+            for (FormField removedField : existingMap.values()) {
+                removedField.setIsDeleted(true);
+                removedField.setFieldKey(removedField.getFieldKey() + "_del_" + System.currentTimeMillis());
+                fieldsToSoftDelete.add(removedField);
+            }
+            fieldRepository.saveAll(fieldsToSoftDelete);
+            fieldRepository.flush(); // CRITICAL: Execute these updates now to free up keys
+        }
+
+        // 5. Final save for all new/updated fields
+        fieldRepository.saveAllAndFlush(fieldsToSave);
+        return activeResult.stream()
+                .map(FieldDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    private void populateFieldFromRequest(FormField field, AddFieldRequest req, int order) {
+        field.setFieldKey(req.getFieldKey());
+        field.setParentId(req.getParentId());
+        field.setFieldLabel(req.getFieldLabel());
+        field.setFieldType(req.getFieldType());
+        field.setRequired(req.getRequired() != null ? req.getRequired() : false);
+        field.setConditions(req.getConditions());
+        field.setFieldOrder(order);
+
+        // --- Options ---
+        if (req.getOptions() != null) {
+            field.setOptions(new ArrayList<>(req.getOptions()));
+        } else {
+            field.setOptions(new ArrayList<>());
+        }
+
+        // --- UI Config ---
+        if (req.getUiConfig() != null) {
+            field.setMaxStars(req.getUiConfig().getMaxStars());
+            field.setScaleMin(req.getUiConfig().getScaleMin());
+            field.setScaleMax(req.getUiConfig().getScaleMax());
+            field.setLowLabel(req.getUiConfig().getLowLabel());
+            field.setHighLabel(req.getUiConfig().getHighLabel());
+            field.setMaxFileSizeMb(req.getUiConfig().getMaxFileSizeMb());
+            field.setSourceTable(req.getUiConfig().getSourceTable());
+            field.setSourceColumn(req.getUiConfig().getSourceColumn());
+            field.setSourceDisplayColumn(req.getUiConfig().getSourceDisplayColumn());
+            field.setPlaceholder(req.getUiConfig().getPlaceholder());
+            field.setHelpText(req.getUiConfig().getHelpText());
+            field.setDefaultValue(req.getUiConfig().getDefaultValue());
+            field.setReadOnly(req.getUiConfig().getReadOnly());
+            field.setIsHidden(req.getUiConfig().getHidden());
+
+            if (req.getUiConfig().getAcceptedFileTypes() != null) {
+                field.getAcceptedFileTypes().clear();
+                field.getAcceptedFileTypes().addAll(req.getUiConfig().getAcceptedFileTypes());
+            }
+        }
+
+        // --- Validation ---
+        if (req.getValidation() != null) {
+            field.setMinLength(req.getValidation().getMinLength());
+            field.setMaxLength(req.getValidation().getMaxLength());
+            field.setMinValue(req.getValidation().getMin());
+            field.setMaxValue(req.getValidation().getMax());
+            field.setPattern(req.getValidation().getPattern());
+            field.setValidationMessage(req.getValidation().getValidationMessage());
+            field.setIsUnique(req.getValidation().getUnique());
+            field.setNumberFormat(req.getValidation().getNumberFormat());
+
+            field.getGridRows().clear();
+            if (req.getValidation().getRows() != null) {
+                field.getGridRows().addAll(req.getValidation().getRows());
+            }
+
+            field.getGridColumns().clear();
+            if (req.getValidation().getColumns() != null) {
+                field.getGridColumns().addAll(req.getValidation().getColumns());
+            }
+        }
+    }
+
+    private UUID tryParseUuid(String id) {
+        if (id == null) return null;
+        try {
+            return UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public void reorderFields(UUID formId, ReorderFieldsRequest request, String currentUsername) {

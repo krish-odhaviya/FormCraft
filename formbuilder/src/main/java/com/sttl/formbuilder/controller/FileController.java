@@ -20,7 +20,7 @@ import java.util.Map;
 
 
 @RestController
-@RequestMapping("/api/forms")
+@RequestMapping("/forms")
 @RequiredArgsConstructor
 public class FileController {
 

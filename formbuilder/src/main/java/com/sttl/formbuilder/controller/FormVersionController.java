@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * </ul>
  */
 @RestController
-@RequestMapping("/api/forms/{formId}/versions")
+@RequestMapping("/forms/{formId}/versions")
 @RequiredArgsConstructor
 public class FormVersionController {
 

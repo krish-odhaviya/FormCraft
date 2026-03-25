@@ -6,17 +6,24 @@ import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.FormDetailsResponse;
 import com.sttl.formbuilder.dto.CreateFormRequest;
 import com.sttl.formbuilder.entity.Form;
+import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormRepository;
 import com.sttl.formbuilder.service.FormService;
 import com.sttl.formbuilder.service.FormVersionService;
 import com.sttl.formbuilder.repository.FormFieldRepository;
-import com.sttl.formbuilder.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import com.sttl.formbuilder.dto.PagedResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import com.sttl.formbuilder.Enums.FormRole;
@@ -33,7 +40,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/forms")
+@RequestMapping("/forms")
 @RequiredArgsConstructor
 public class FormController {
 
@@ -45,17 +52,28 @@ public class FormController {
     private final UserRepository userRepository;
     private final FormPermissionRepository permissionRepository;
 
-    // ── GET /api/forms — only returns forms owned by the logged-in user ───────
+    // ── GET /api/forms — Paginated form list ───────
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAllForms(
+    public ResponseEntity<ApiResponse<PagedResponse<Map<String, Object>>>> getAllForms(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        List<Form> forms = formService.getAllForms(currentUser.getUsername());
-        User user = userRepository.findByUsername(currentUser.getUsername())
-                .orElse(null);
+        Sort sort = sortDir.equalsIgnoreCase("asc") 
+            ? Sort.by(sortBy).ascending() 
+            : Sort.by(sortBy).descending();
+            
+        Pageable pageable = PageRequest.of(page, size, sort);
 
-        List<Map<String, Object>> response = forms.stream().map(form -> {
+        Page<Form> formsPage = 
+            formService.getFormsPaginated(currentUser.getUsername(), pageable);
+
+        User user = userRepository.findByUsername(currentUser.getUsername()).orElse(null);
+
+        List<Map<String, Object>> content = formsPage.getContent().stream().map(form -> {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("id", form.getId());
             map.put("name", form.getName());
@@ -67,17 +85,26 @@ public class FormController {
             map.put("ownerUsername", form.getOwner() != null ? form.getOwner().getUsername() : null);
             map.put("canEdit", user != null && (permissionService.canManageSystem(user) || permissionService.canConfigureForm(user, form)));
             map.put("canViewSubmissions", user != null && (permissionService.canManageSystem(user) || permissionService.canViewSubmissions(user, form)));
-            
             return map;
         }).collect(Collectors.toList());
 
-        return ApiResponseUtil.success(response, "Forms fetched successfully", request);
+        PagedResponse<Map<String, Object>> pagedResponse = 
+            PagedResponse.<Map<String, Object>>builder()
+                .content(content)
+                .page(formsPage.getNumber())
+                .size(formsPage.getSize())
+                .totalElements(formsPage.getTotalElements())
+                .totalPages(formsPage.getTotalPages())
+                .last(formsPage.isLast())
+                .build();
+
+        return ApiResponseUtil.success(pagedResponse, "Forms fetched successfully", request);
     }
 
     // ── GET /api/forms/{formId} — ownership enforced ──────────────────────────
     @GetMapping("/{formId}")
     public ResponseEntity<ApiResponse<FormDetailsResponse>> getForm(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @RequestParam(required = false) String mode,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
@@ -97,8 +124,8 @@ public class FormController {
 
         String username = currentUser != null ? currentUser.getUsername() : null;
         Form form = formRepository.findByCode(code)
-                .orElseThrow(() -> new com.sttl.formbuilder.exception.BusinessException(
-                        "Form not found for code: " + code, org.springframework.http.HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(
+                        "Form not found for code: " + code, HttpStatus.NOT_FOUND));
         FormDetailsResponse response = formService.getFormWithStructure(form.getId(), username, mode);
         return ApiResponseUtil.success(response, "Form fetched successfully", request);
     }
@@ -111,7 +138,7 @@ public class FormController {
 
         User user = userRepository.findByUsername(currentUser.getUsername()).orElse(null);
         if (user == null || !permissionService.canCreateForm(user)) {
-            return ApiResponseUtil.error("Access Denied: You do not have permission to create forms", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+            return ApiResponseUtil.error("Access Denied: You do not have permission to create forms", null, HttpStatus.FORBIDDEN, request);
         }
 
         Form form = formService.createForm(
@@ -125,7 +152,7 @@ public class FormController {
 
     @GetMapping("/published-list")
     public ResponseEntity<?> getPublishedForms(
-            @RequestParam(required = false) java.util.UUID excludeFormId,
+            @RequestParam(required = false) UUID excludeFormId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -161,42 +188,42 @@ public class FormController {
 
     @PostMapping("/{formId}/archive")
     public ResponseEntity<?> archiveForm(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
         if (currentUser == null) {
-            return ApiResponseUtil.error("Unauthorized", null, org.springframework.http.HttpStatus.UNAUTHORIZED, request);
+            return ApiResponseUtil.error("Unauthorized", null, HttpStatus.UNAUTHORIZED, request);
         }
 
         User user = userRepository.findByUsername(currentUser.getUsername()).orElse(null);
         Form formToArchive = formRepository.findById(formId).orElse(null);
 
         if (formToArchive == null) {
-            return ApiResponseUtil.error("Form not found", null, org.springframework.http.HttpStatus.NOT_FOUND, request);
+            return ApiResponseUtil.error("Form not found", null, HttpStatus.NOT_FOUND, request);
         }
         if (!permissionService.canArchiveForm(user, formToArchive)) {
-            return ApiResponseUtil.error("Access Denied: You do not have permission to archive this form", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+            return ApiResponseUtil.error("Access Denied: You do not have permission to archive this form", null, HttpStatus.FORBIDDEN, request);
         }
 
         try {
             Form form = formService.archiveForm(formId, currentUser.getUsername());
             return ApiResponseUtil.success(form, "Form archived successfully", request);
         } catch (Exception e) {
-            return ApiResponseUtil.error(e.getMessage(), null, org.springframework.http.HttpStatus.BAD_REQUEST, request);
+            return ApiResponseUtil.error(e.getMessage(), null, HttpStatus.BAD_REQUEST, request);
         }
     }
 
     // ── POST /api/forms/{formId}/visibility ──────────────────────────────────
     @PostMapping("/{formId}/visibility")
     public ResponseEntity<?> updateVisibility(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @RequestParam VisibilityType visibility,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
         if (currentUser == null) {
-            return ApiResponseUtil.error("Unauthorized", null, org.springframework.http.HttpStatus.UNAUTHORIZED, request);
+            return ApiResponseUtil.error("Unauthorized", null, HttpStatus.UNAUTHORIZED, request);
         }
 
         Form form = formRepository.findById(formId)
@@ -204,7 +231,7 @@ public class FormController {
         User user = userRepository.findByUsername(currentUser.getUsername()).orElseThrow();
 
         if (!permissionService.isOwnerOrAdmin(user, form)) {
-            return ApiResponseUtil.error("Access denied: only owner or admin can change visibility", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+            return ApiResponseUtil.error("Access denied: only owner or admin can change visibility", null, HttpStatus.FORBIDDEN, request);
         }
 
         form.setVisibility(visibility);
@@ -217,17 +244,17 @@ public class FormController {
     // ── GET /api/forms/{formId}/permissions ──────────────────────────────────
     @GetMapping("/{formId}/permissions")
     public ResponseEntity<?> getPermissions(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new BusinessException("Form not found", org.springframework.http.HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
         User user = userRepository.findByUsername(currentUser.getUsername())
-                .orElseThrow(() -> new BusinessException("Session user not found", org.springframework.http.HttpStatus.UNAUTHORIZED));
+                .orElseThrow(() -> new BusinessException("Session user not found", HttpStatus.UNAUTHORIZED));
 
         if (!permissionService.isOwnerOrAdmin(user, form)) {
-            return ApiResponseUtil.error("Access denied", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+            return ApiResponseUtil.error("Access denied", null, HttpStatus.FORBIDDEN, request);
         }
 
         List<FormPermission> permissions = permissionRepository.findByForm(form);
@@ -247,23 +274,23 @@ public class FormController {
     // ── POST /api/forms/{formId}/permissions ─────────────────────────────────
     @PostMapping("/{formId}/permissions")
     public ResponseEntity<?> addPermission(
-            @PathVariable java.util.UUID formId,
+            @PathVariable UUID formId,
             @RequestParam String username,
             @RequestParam FormRole role,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
         Form form = formRepository.findById(formId)
-                .orElseThrow(() -> new BusinessException("Form not found", org.springframework.http.HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
         User grantor = userRepository.findByUsername(currentUser.getUsername())
-                .orElseThrow(() -> new BusinessException("Session user not found", org.springframework.http.HttpStatus.UNAUTHORIZED));
+                .orElseThrow(() -> new BusinessException("Session user not found", HttpStatus.UNAUTHORIZED));
 
         if (!permissionService.isOwnerOrAdmin(grantor, form)) {
-            return ApiResponseUtil.error("Access denied", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+            return ApiResponseUtil.error("Access denied", null, HttpStatus.FORBIDDEN, request);
         }
 
         User targetUser = userRepository.findByUsername(username)
-                .orElseThrow(() -> new BusinessException("User not found: " + username, org.springframework.http.HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new BusinessException("User not found: " + username, HttpStatus.NOT_FOUND));
 
         permissionService.grantFormRole(grantor, targetUser, form, role, null);
 
@@ -273,8 +300,8 @@ public class FormController {
     // ── DELETE /api/forms/{formId}/permissions/{permissionId} ────────────────
     @DeleteMapping("/{formId}/permissions/{permissionId}")
     public ResponseEntity<?> removePermission(
-            @PathVariable java.util.UUID formId,
-            @PathVariable java.util.UUID permissionId,
+            @PathVariable UUID formId,
+            @PathVariable UUID permissionId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -283,7 +310,7 @@ public class FormController {
         User user = userRepository.findByUsername(currentUser.getUsername()).orElseThrow();
 
         if (!permissionService.isOwnerOrAdmin(user, form)) {
-            return ApiResponseUtil.error("Access denied", null, org.springframework.http.HttpStatus.FORBIDDEN, request);
+            return ApiResponseUtil.error("Access denied", null, HttpStatus.FORBIDDEN, request);
         }
 
         permissionRepository.deleteById(permissionId);

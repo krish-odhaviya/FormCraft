@@ -48,6 +48,8 @@ export default function SubmissionsPage() {
   const [selectedRows,          setSelectedRows]          = useState([]);
   const [clearSelectionToggle,  setClearSelectionToggle]  = useState(false);
   const [canDelete,             setCanDelete]             = useState(false);
+  const [versions,              setVersions]              = useState([]);
+  const [selectedVersionId,     setSelectedVersionId]     = useState("");
 
   const debounceRef = useRef(null);
 
@@ -75,7 +77,7 @@ export default function SubmissionsPage() {
   // ── Fetch one page of submissions ─────────────────────────────────────────
   // Previously used raw fetch() with a hardcoded localhost URL.
   // Now goes through api.getSubmissionsPaged() defined in formService.js.
-  const fetchSubmissions = useCallback(async (pg, size, srch, sb, sd) => {
+  const fetchSubmissions = useCallback(async (pg, size, srch, sb, sd, vid) => {
     setLoading(true);
     try {
       // Permission check via form metadata
@@ -95,9 +97,9 @@ export default function SubmissionsPage() {
         return;
       }
 
-      // All fetch logic now goes through the centralized api — no localhost URL
+      // All fetch logic now goes through the centralized api
       const res = await api.getSubmissionsPaged(formId, {
-        page: pg, size, search: srch, sortBy: sb, sortDir: sd,
+        page: pg, size, search: srch, sortBy: sb, sortDir: sd, versionId: vid || undefined
       });
 
       const payload = res.data || {};
@@ -112,20 +114,39 @@ export default function SubmissionsPage() {
     }
   }, [formId]);
 
+  const fetchVersions = useCallback(async () => {
+    try {
+      const res = await api.getFormVersions(formId);
+      const allVersions = res.data || [];
+      setVersions(allVersions);
+      // Auto-select the active version by default
+      const active = allVersions.find(v => v.isActive);
+      if (active) setSelectedVersionId(active.id);
+    } catch {
+      toast.error("Failed to load form versions.");
+    }
+  }, [formId]);
+
   useEffect(() => {
-    if (formId) fetchSubmissions(page, perPage, search, sortBy, sortDir);
-  }, [formId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (formId) {
+       fetchVersions();
+    }
+  }, [formId, fetchVersions]);
+
+  useEffect(() => {
+    if (formId) fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId);
+  }, [formId, selectedVersionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── react-data-table callbacks ────────────────────────────────────────────
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    fetchSubmissions(newPage, perPage, search, sortBy, sortDir);
+    fetchSubmissions(newPage, perPage, search, sortBy, sortDir, selectedVersionId);
   };
 
   const handlePerRowsChange = (newPerPage, newPage) => {
     setPerPage(newPerPage);
     setPage(newPage);
-    fetchSubmissions(newPage, newPerPage, search, sortBy, sortDir);
+    fetchSubmissions(newPage, newPerPage, search, sortBy, sortDir, selectedVersionId);
   };
 
   const handleSort = (column, direction) => {
@@ -135,7 +156,7 @@ export default function SubmissionsPage() {
     setSortDir(dir);
     setPage(1);
     setResetPaginationToggle((t) => !t);
-    fetchSubmissions(1, perPage, search, key, dir);
+    fetchSubmissions(1, perPage, search, key, dir, selectedVersionId);
   };
 
   // ── Debounced search ──────────────────────────────────────────────────────
@@ -147,7 +168,7 @@ export default function SubmissionsPage() {
       setSearch(val);
       setPage(1);
       setResetPaginationToggle((t) => !t);
-      fetchSubmissions(1, perPage, val, sortBy, sortDir);
+      fetchSubmissions(1, perPage, val, sortBy, sortDir, selectedVersionId);
     }, 400);
   };
 
@@ -156,7 +177,7 @@ export default function SubmissionsPage() {
     setSearch("");
     setPage(1);
     setResetPaginationToggle((t) => !t);
-    fetchSubmissions(1, perPage, "", sortBy, sortDir);
+    fetchSubmissions(1, perPage, "", sortBy, sortDir, selectedVersionId);
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
@@ -165,7 +186,7 @@ export default function SubmissionsPage() {
     try {
       await api.deleteSubmission(formId, submissionId);
       setSelectedRows((prev) => prev.filter((r) => r.id !== submissionId));
-      fetchSubmissions(page, perPage, search, sortBy, sortDir);
+      fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId);
       toast.success("Submission deleted.");
     } catch {
       toast.error("Failed to delete submission.");
@@ -179,7 +200,7 @@ export default function SubmissionsPage() {
       await api.deleteSubmissionsBulk(formId, selectedRows.map((r) => r.id));
       setClearSelectionToggle((t) => !t);
       setSelectedRows([]);
-      fetchSubmissions(page, perPage, search, sortBy, sortDir);
+      fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId);
       toast.success(`${selectedRows.length} submissions deleted.`);
     } catch {
       toast.error("Failed to bulk delete submissions.");
@@ -195,7 +216,7 @@ export default function SubmissionsPage() {
     setExporting(format);
     setShowExportMenu(false);
     try {
-      const res = await api.exportSubmissions(formId, { search, format });
+      const res = await api.exportSubmissions(formId, { search, format, versionId: selectedVersionId || undefined });
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -510,8 +531,8 @@ export default function SubmissionsPage() {
 
         {/* Table card */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-4 border-b border-slate-100">
-            <div className="relative max-w-sm">
+          <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="relative max-w-sm w-full">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -525,6 +546,29 @@ export default function SubmissionsPage() {
                   <X size={14} />
                 </button>
               )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Version Filter:</label>
+              <div className="relative">
+                <select
+                  value={selectedVersionId}
+                  onChange={(e) => {
+                    setSelectedVersionId(e.target.value);
+                    setPage(1);
+                    setResetPaginationToggle(t => !t);
+                  }}
+                  className="appearance-none pl-4 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-700 min-w-[140px]"
+                >
+                  <option value="">All Versions</option>
+                  {versions.filter(v => !v.isDraftWorkingCopy).map(v => (
+                    <option key={v.id} value={v.id}>
+                      Version {v.versionNumber} {v.isActive ? "(Current)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
             </div>
           </div>
 
