@@ -179,9 +179,9 @@ function FormPageContent() {
         // UUIDs are typically 36 characters. Short codes are 6. 
         // We check for the presence of dashes often found in UUIDs, or length > 10.
         if (formId.length > 10 || formId.includes("-")) {
-          res = await api.getForm(formId, isPreview);
+          res = await api.getForm(formId, { mode: isPreview ? 'builder' : null });
         } else {
-          res = await api.getFormByCode(formId, isPreview);
+          res = await api.getFormByCode(formId, { mode: isPreview ? 'builder' : null });
         }
         // console.log removed — was leaking full API response to browser console
         setFormDetails(res.data);
@@ -386,7 +386,8 @@ function FormPageContent() {
     }
 
     try {
-      await api.submitForm(formId, visibleValues, formDetails.formVersionId);
+      const vid = isPreview ? formDetails.draftVersionId : formDetails.activeVersionId;
+      await api.submitForm(formId, visibleValues, vid);
       if (formDetails.canViewSubmissions) {
         toast.success("Form submitted successfully!");
         router.push(`/forms/${formId}/submissions`);

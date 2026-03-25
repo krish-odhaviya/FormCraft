@@ -78,12 +78,12 @@ public class FormController {
     @GetMapping("/{formId}")
     public ResponseEntity<ApiResponse<FormDetailsResponse>> getForm(
             @PathVariable java.util.UUID formId,
-            @RequestParam(defaultValue = "false") boolean isDraft,
+            @RequestParam(required = false) String mode,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
         String username = currentUser != null ? currentUser.getUsername() : null;
-        FormDetailsResponse response = formService.getFormWithStructure(formId, username, isDraft);
+        FormDetailsResponse response = formService.getFormWithStructure(formId, username, mode);
         return ApiResponseUtil.success(response, "Form fetched successfully", request);
     }
 
@@ -91,7 +91,7 @@ public class FormController {
     @GetMapping("/code/{code}")
     public ResponseEntity<ApiResponse<FormDetailsResponse>> getFormByCode(
             @PathVariable String code,
-            @RequestParam(defaultValue = "false") boolean isDraft,
+            @RequestParam(required = false) String mode,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -99,7 +99,7 @@ public class FormController {
         Form form = formRepository.findByCode(code)
                 .orElseThrow(() -> new com.sttl.formbuilder.exception.BusinessException(
                         "Form not found for code: " + code, org.springframework.http.HttpStatus.NOT_FOUND));
-        FormDetailsResponse response = formService.getFormWithStructure(form.getId(), username, isDraft);
+        FormDetailsResponse response = formService.getFormWithStructure(form.getId(), username, mode);
         return ApiResponseUtil.success(response, "Form fetched successfully", request);
     }
 

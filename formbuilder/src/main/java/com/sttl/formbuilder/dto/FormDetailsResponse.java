@@ -26,7 +26,7 @@ public class FormDetailsResponse {
     private String ownerName;
     private UUID ownerId;
     private List<FieldDto> fields;
-    private boolean hasLiveSubmissions;
-    private UUID formVersionId;
+    private UUID draftVersionId;
+    private UUID activeVersionId;
     private Integer activeVersionNumber;
 }

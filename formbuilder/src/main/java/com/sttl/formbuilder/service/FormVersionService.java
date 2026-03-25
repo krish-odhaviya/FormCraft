@@ -79,7 +79,12 @@ public class FormVersionService {
                     v.setCreatedBy(username);
                     v.setCreatedAt(LocalDateTime.now());
                     v.setDefinitionJson("[]"); // placeholder
-                    return versionRepository.save(v);
+                    FormVersion saved = versionRepository.save(v);
+                    
+                    // Architecture Requirement: Start from active version if it exists
+                    getActiveVersion(formId).ifPresent(active -> cloneFields(active, saved));
+                    
+                    return saved;
                 });
     }
 

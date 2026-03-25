@@ -25,7 +25,7 @@ public interface FormVersionRepository extends JpaRepository<FormVersion, UUID> 
 
     /** Deactivate ALL versions for a form (used before activating a new one). */
     @Modifying
-    @Query("UPDATE FormVersion v SET v.isActive = false WHERE v.form.id = :formId")
+    @Query("UPDATE FormVersion v SET v.isActive = false, v.isDraftWorkingCopy = false WHERE v.form.id = :formId")
     void deactivateAllVersions(@Param("formId") UUID formId);
 
     /** Count existing versions so we can compute the next version number. */

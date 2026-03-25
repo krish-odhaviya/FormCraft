@@ -49,6 +49,10 @@ public class FormBuilderService {
         }
 
         FormVersion draft = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+        
+        if (Boolean.TRUE.equals(draft.getIsActive())) {
+             throw new BusinessException("Cannot edit an active version. Create a new version first.", HttpStatus.CONFLICT);
+        }
 
         if (fieldRepository.existsByFormVersionIdAndFieldKeyAndIsDeletedFalse(
                 draft.getId(), request.getFieldKey())) {
@@ -83,14 +87,15 @@ public class FormBuilderService {
             throw new BusinessException("Access denied: only owners or builders can save draft", HttpStatus.FORBIDDEN);
         }
 
-        // Architecture Decision 11.1: Forms with live submissions cannot be modified
-        if (submissionMetaRepository.existsLiveSubmissions(formId)) {
-            throw new BusinessException("This form has live submissions and cannot be modified", HttpStatus.CONFLICT);
-        }
-
+        // Architecture Decision: Preparation of NEXT version
         FormVersion draftVersion = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
 
-        // Soft delete all existing fields for THIS version
+        // Guard: never allow saving to an active version (Task 3.3 Rule)
+        if (Boolean.TRUE.equals(draftVersion.getIsActive())) {
+            throw new BusinessException("Cannot edit an active version. Create a new version to make changes.", HttpStatus.CONFLICT);
+        }
+
+        // Soft delete all existing fields for THIS draft version exclusively
         List<FormField> existingFields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(draftVersion.getId());
         for(FormField f: existingFields) {
             f.setIsDeleted(true);
@@ -181,6 +186,9 @@ public class FormBuilderService {
         }
 
         FormVersion draft = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+        if (Boolean.TRUE.equals(draft.getIsActive())) {
+             throw new BusinessException("Cannot edit an active version. Create a new version first.", HttpStatus.CONFLICT);
+        }
         List<FormField> fields =
                 fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(draft.getId());
 

@@ -87,10 +87,6 @@ public class SchemaService {
             form.setPublishedAt(LocalDateTime.now());
             formRepository.save(form);
 
-            // 8. Create a fresh blank working copy for future edits (cloning fields)
-            FormVersion newDraft = formVersionService.getOrCreateDraftVersion(formId, publishedBy);
-            formVersionService.cloneFields(draftVersion, newDraft);
-
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException("Publish failed: " + e.getMessage(), e);

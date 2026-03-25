@@ -53,9 +53,11 @@ export const api = {
       `/forms/published-list${excludeFormId ? `?excludeFormId=${excludeFormId}` : ""}`
     ),
 
-  getForm: (formId, isDraft = false) => API.get(`/forms/${formId}?isDraft=${isDraft}`),
+  getForm: (formId, params = {}) =>
+    API.get(`/forms/${formId}`, { params }),
 
-  getFormByCode: (code, isDraft = false) => API.get(`/forms/code/${code}?isDraft=${isDraft}`),
+  getFormByCode: (code, params = {}) =>
+    API.get(`/forms/code/${code}`, { params }),
 
   createForm: (name, description) => API.post("/forms", { name, description }),
 

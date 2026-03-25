@@ -22,6 +22,7 @@ import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.repository.FormRepository;
+import com.sttl.formbuilder.repository.FormVersionRepository;
 
 @Service
 public class FormService {
@@ -33,6 +34,7 @@ public class FormService {
     private final ModuleAccessService         moduleAccessService;
     private final FormVersionService          formVersionService;
     private final FormSubmissionMetaRepository submissionMetaRepository;
+    private final FormVersionRepository       versionRepository;
 
     public FormService(FormRepository formRepository,
                        FormFieldRepository formFieldRepository,
@@ -40,7 +42,8 @@ public class FormService {
                        PermissionService permissionService,
                        ModuleAccessService moduleAccessService,
                        FormVersionService formVersionService,
-                       FormSubmissionMetaRepository submissionMetaRepository) {
+                       FormSubmissionMetaRepository submissionMetaRepository,
+                       FormVersionRepository versionRepository) {
         this.formRepository      = formRepository;
         this.formFieldRepository = formFieldRepository;
         this.userRepository      = userRepository;
@@ -48,6 +51,7 @@ public class FormService {
         this.moduleAccessService = moduleAccessService;
         this.formVersionService  = formVersionService;
         this.submissionMetaRepository = submissionMetaRepository;
+        this.versionRepository   = versionRepository;
     }
 
     /** Returns forms the user has access to manage (Owner or Admin or Builder).
@@ -93,14 +97,14 @@ public class FormService {
      * Pass currentUsername=null for public access (form fill),
      * or a real username to enforce ownership.
      */
-    public FormDetailsResponse getFormWithStructure(UUID formId, String currentUsername, boolean isDraft) {
+    public FormDetailsResponse getFormWithStructure(UUID formId, String currentUsername, String mode) {
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", org.springframework.http.HttpStatus.NOT_FOUND));
 
         User user = currentUsername != null ? userRepository.findByUsername(currentUsername).orElse(null) : null;
 
         System.out.println("FormService.getFormWithStructure: formId=" + formId +
-                " isDraft=" + isDraft +
+                " mode=" + mode +
                 " visibility=" + form.getVisibility() +
                 " user=" + (user != null ? user.getUsername() : "ANONYMOUS"));
 
@@ -126,13 +130,24 @@ public class FormService {
         com.sttl.formbuilder.entity.FormVersion version;
         boolean canEdit = permissionService.canConfigureForm(user, form);
         
-        if (isDraft && canEdit) {
-            version = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+        if ("builder".equalsIgnoreCase(mode) && canEdit) {
+            // First, try find existing draft
+            version = versionRepository.findByFormIdAndIsActiveAndIsDraftWorkingCopy(formId, false, true).orElse(null);
+            
+            // Fallback to active version if no draft exists — user sees active fields in builder
+            if (version == null) {
+                version = formVersionService.getActiveVersion(formId).orElse(null);
+            }
+            
+            // If still no version (fresh form), then create initial draft
+            if (version == null && currentUsername != null) {
+                version = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+            }
         } else {
             version = formVersionService.getActiveVersion(formId).orElse(null);
             // Fallback to draft ONLY if no active version exists and user is owner
             if (version == null && canEdit && currentUsername != null) {
-                version = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+                version = versionRepository.findByFormIdAndIsActiveAndIsDraftWorkingCopy(formId, false, true).orElse(null);
             }
         }
 
@@ -140,16 +155,16 @@ public class FormService {
         if (version != null) {
             fields = formFieldRepository
                     .findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(version.getId());
-            response.setFormVersionId(version.getId());
         }
 
-        // Add hasLiveSubmissions check
-        response.setHasLiveSubmissions(submissionMetaRepository.existsLiveSubmissions(formId));
+        // 3. Populate Version Context
+        formVersionService.getActiveVersion(formId).ifPresent(v -> {
+            response.setActiveVersionId(v.getId());
+            response.setActiveVersionNumber(v.getVersionNumber());
+        });
         
-        // Populate active version number if it exists
-        formVersionService.getActiveVersion(formId).ifPresent(v -> 
-            response.setActiveVersionNumber(v.getVersionNumber())
-        );
+        versionRepository.findByFormIdAndIsActiveAndIsDraftWorkingCopy(formId, false, true)
+                .ifPresent(dv -> response.setDraftVersionId(dv.getId()));
 
         response.setCanEdit(canEdit);
         response.setCanViewSubmissions(permissionService.canViewSubmissions(user, form));
