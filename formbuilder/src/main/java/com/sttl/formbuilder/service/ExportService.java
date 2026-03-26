@@ -98,12 +98,16 @@ public class ExportService {
             int rowNum = 1;
             for (var row : data.getRows()) {
                 XSSFRow dataRow = sheet.createRow(rowNum++);
-                dataRow.createCell(0).setCellValue(String.valueOf(row.getOrDefault("id", "")));
+                dataRow.createCell(0).setCellValue(
+                    sanitizeForExport(String.valueOf(row.getOrDefault("id", "")))
+                );
                 int colIdx = 1;
                 for (var column : data.getColumns()) {
                     Object val = row.get(column.getFieldKey());
                     XSSFCell cell = dataRow.createCell(colIdx++);
-                    cell.setCellValue(val == null ? "" : String.valueOf(val));
+                    cell.setCellValue(
+                        sanitizeForExport(val == null ? "" : String.valueOf(val))
+                    );
                 }
             }
 
@@ -138,10 +142,14 @@ public class ExportService {
 
         // Rows
         for (var row : data.getRows()) {
-            table.addCell(new Phrase(String.valueOf(row.getOrDefault("id", ""))));
+            table.addCell(new Phrase(
+                sanitizeForExport(String.valueOf(row.getOrDefault("id", "")))
+            ));
             for (var col : data.getColumns()) {
                 Object val = row.get(col.getFieldKey());
-                table.addCell(new Phrase(val == null ? "" : String.valueOf(val)));
+                table.addCell(new Phrase(
+                    sanitizeForExport(val == null ? "" : String.valueOf(val))
+                ));
             }
         }
 
@@ -175,11 +183,15 @@ public class ExportService {
         int rowIdx = 1;
         for (var dataRow : data.getRows()) {
             XWPFTableRow tableRow = table.getRow(rowIdx++);
-            tableRow.getCell(0).setText(String.valueOf(dataRow.getOrDefault("id", "")));
+            tableRow.getCell(0).setText(
+                sanitizeForExport(String.valueOf(dataRow.getOrDefault("id", "")))
+            );
             colIdx = 1;
             for (var col : data.getColumns()) {
                 Object val = dataRow.get(col.getFieldKey());
-                tableRow.getCell(colIdx++).setText(val == null ? "" : String.valueOf(val));
+                tableRow.getCell(colIdx++).setText(
+                    sanitizeForExport(val == null ? "" : String.valueOf(val))
+                );
             }
         }
 
@@ -201,6 +213,28 @@ public class ExportService {
         headers.setContentDispositionFormData("attachment", filename);
         headers.setContentLength(bytes.length);
         return new ResponseEntity<>(bytes, headers, HttpStatus.OK);
+    }
+
+    /**
+     * Sanitizes a cell value for export formats that render content directly
+     * (XLSX, PDF, Word). Prevents CSV/formula injection by prefixing any value
+     * that starts with a formula indicator character with a single quote.
+     *
+     * Formula indicator characters: =  +  -  @  tab  carriage-return
+     *
+     * @param value the raw cell value coming from the database
+     * @return the safe value ready to write into a cell
+     */
+    private String sanitizeForExport(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        for (String prefix : FORMULA_PREFIXES) {
+            if (value.startsWith(prefix)) {
+                return "'" + value;
+            }
+        }
+        return value;
     }
 
     /**
