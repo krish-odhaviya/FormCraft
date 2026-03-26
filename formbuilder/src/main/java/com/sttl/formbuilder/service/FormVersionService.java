@@ -139,6 +139,8 @@ public class FormVersionService {
                         if (f.getSourceTable() != null) ui.put("sourceTable", f.getSourceTable());
                         if (f.getSourceColumn() != null) ui.put("sourceColumn", f.getSourceColumn());
                         if (f.getSourceDisplayColumn() != null) ui.put("sourceDisplayColumn", f.getSourceDisplayColumn());
+                        if (f.getSelectionMode() != null) ui.put("selectionMode", f.getSelectionMode());
+                        if (f.getMaxSelections() != null) ui.put("maxSelections", f.getMaxSelections());
 
                         // Populate Validation node
                         var val = node.putObject("validation");
@@ -203,6 +205,8 @@ public class FormVersionService {
             nf.setValidationMessage(f.getValidationMessage());
             nf.setIsUnique(f.getIsUnique());
             nf.setNumberFormat(f.getNumberFormat());
+            nf.setSelectionMode(f.getSelectionMode());
+            nf.setMaxSelections(f.getMaxSelections());
             return nf;
         }).toList();
         fieldRepository.saveAll(newFields);

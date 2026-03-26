@@ -214,6 +214,45 @@ public class FormController {
         }
     }
 
+    /**
+     * POST /api/forms/{formId}/reactivate
+     * Reactivates an archived form — sets status back to DRAFT.
+     * SRS §11.2: "Archived forms may be reactivated."
+     */
+    @PostMapping("/{formId}/reactivate")
+    public ResponseEntity<?> reactivateForm(
+            @PathVariable java.util.UUID formId,
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails currentUser,
+            jakarta.servlet.http.HttpServletRequest request) {
+
+        if (currentUser == null) {
+            return ApiResponseUtil.error("Authentication required", null,
+                    HttpStatus.UNAUTHORIZED, request);
+        }
+
+        User user = userRepository.findByUsername(currentUser.getUsername()).orElse(null);
+        Form formToReactivate = formRepository.findById(formId).orElse(null);
+
+        if (formToReactivate == null) {
+            return ApiResponseUtil.error("Form not found", null,
+                    HttpStatus.NOT_FOUND, request);
+        }
+
+        if (!permissionService.canArchiveForm(user, formToReactivate)) {
+            return ApiResponseUtil.error(
+                    "Access Denied: You do not have permission to reactivate this form",
+                    null, HttpStatus.FORBIDDEN, request);
+        }
+
+        try {
+            Form form = formService.reactivateForm(formId, currentUser.getUsername());
+            return ApiResponseUtil.success(form, "Form reactivated successfully", request);
+        } catch (RuntimeException e) {
+            return ApiResponseUtil.error(e.getMessage(), null,
+                    HttpStatus.BAD_REQUEST, request);
+        }
+    }
+
     // ── POST /api/forms/{formId}/visibility ──────────────────────────────────
     @PostMapping("/{formId}/visibility")
     public ResponseEntity<?> updateVisibility(

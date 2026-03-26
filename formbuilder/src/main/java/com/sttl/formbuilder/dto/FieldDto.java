@@ -76,6 +76,8 @@ public class FieldDto {
         if (f.getSourceTable()         != null) uiMap.put("sourceTable",         f.getSourceTable());
         if (f.getSourceColumn()        != null) uiMap.put("sourceColumn",        f.getSourceColumn());
         if (f.getSourceDisplayColumn() != null) uiMap.put("sourceDisplayColumn", f.getSourceDisplayColumn());
+        uiMap.put("selectionMode", f.getSelectionMode() != null ? f.getSelectionMode() : "single");
+        if (f.getMaxSelections() != null) uiMap.put("maxSelections", f.getMaxSelections());
         fd.setUiConfig(uiMap);
 
         return fd;

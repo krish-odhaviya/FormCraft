@@ -211,4 +211,29 @@ public class FormService {
         form.setStatus(com.sttl.formbuilder.Enums.FormStatusEnum.ARCHIVED);
         return formRepository.save(form);
     }
+
+    /**
+     * Reactivates an archived form by setting its status back to DRAFT.
+     * SRS §11.2: "Archived forms may be reactivated."
+     */
+    public Form reactivateForm(UUID formId, String currentUsername) {
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new RuntimeException("Form not found"));
+
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Only the same roles that can archive can reactivate
+        if (!permissionService.canArchiveForm(user, form)) {
+            throw new RuntimeException("Access denied: you do not have permission to reactivate this form");
+        }
+
+        // Guard: only ARCHIVED forms can be reactivated
+        if (form.getStatus() != com.sttl.formbuilder.Enums.FormStatusEnum.ARCHIVED) {
+            throw new RuntimeException("Only archived forms can be reactivated. Current status: " + form.getStatus());
+        }
+
+        form.setStatus(com.sttl.formbuilder.Enums.FormStatusEnum.DRAFT);
+        return formRepository.save(form);
+    }
 }

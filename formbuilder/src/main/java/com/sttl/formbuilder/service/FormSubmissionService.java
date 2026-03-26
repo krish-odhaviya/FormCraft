@@ -133,7 +133,12 @@ public class FormSubmissionService {
             } else if ("LINEAR_SCALE".equalsIgnoreCase(fieldType)) {
                 if (val.toString().trim().isEmpty()) isEmpty = true;
             } else if ("LOOKUP_DROPDOWN".equalsIgnoreCase(fieldType)) {
-                if (val instanceof Map<?, ?> m && m.get("value") == null) isEmpty = true;
+                if (field.getSelectionMode() != null && field.getSelectionMode().equalsIgnoreCase("multiple")) {
+                    if (!(val instanceof List) || ((List<?>) val).isEmpty()) isEmpty = true;
+                } else {
+                    if (val instanceof Map<?, ?> m && m.get("value") == null) isEmpty = true;
+                    else if (val == null) isEmpty = true;
+                }
             }
 
             if (isEmpty) errors.put(key, "'" + label + "' is required.");
@@ -246,6 +251,15 @@ public class FormSubmissionService {
                         if (!accept)
                             errors.put(key, "'" + label + "' only accepts: "
                                     + String.join(", ", field.getAcceptedFileTypes()));
+                    }
+                }
+                case "DROPDOWN", "LOOKUP_DROPDOWN" -> {
+                    if (field.getSelectionMode() != null && field.getSelectionMode().equalsIgnoreCase("multiple")) {
+                        if (val instanceof List<?> list) {
+                            if (field.getMaxSelections() != null && list.size() > field.getMaxSelections()) {
+                                errors.put(key, "'" + label + "' accepts at most " + field.getMaxSelections() + " selection(s).");
+                            }
+                        }
                     }
                 }
                 case "MC_GRID" -> {
@@ -366,6 +380,15 @@ public class FormSubmissionService {
 
     private void processFieldValue(String key, Object val, String expectedType, Map<String, FormField> fieldMap,
                                    List<String> placeholdersList, List<Object> argumentsList) {
+        
+        // Handle null or empty strings early—these should be stored as DB NULL and use standard '?' placeholder.
+        // This prevents "invalid input syntax for type json" errors when casting empty strings to JSONB.
+        if (val == null || (val instanceof String s && s.trim().isEmpty())) {
+            argumentsList.add(null);
+            placeholdersList.add("?");
+            return;
+        }
+
         switch (expectedType.toUpperCase()) {
             case "DATE" -> {
                 if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalDate.parse(s.trim());
@@ -413,9 +436,45 @@ public class FormSubmissionService {
                 placeholdersList.add("?::jsonb");
             }
             case "LOOKUP_DROPDOWN" -> {
-                if (val instanceof Map<?, ?> map) val = map.get("value");
-                if (val instanceof String s && !s.trim().isEmpty()) val = UUID.fromString(s.trim());
-                placeholdersList.add("?");
+                FormField f = fieldMap.get(key);
+                boolean isMultiple = f != null && "multiple".equalsIgnoreCase(f.getSelectionMode());
+                if (isMultiple) {
+                    if (val instanceof List<?> list) {
+                        try {
+                            List<Map<String, Object>> valuesToStore = list.stream()
+                                    .map(item -> {
+                                        if (item instanceof Map<?, ?> map) {
+                                            return Map.of("value", map.get("value"), "label", map.get("label"));
+                                        }
+                                        return Map.of("value", item, "label", item);
+                                    })
+                                    .filter(Objects::nonNull)
+                                    .collect(Collectors.toList());
+                            val = objectMapper.writeValueAsString(valuesToStore);
+                        } catch (JsonProcessingException e) {
+                            throw new RuntimeException("Failed to serialize lookup: " + key);
+                        }
+                    }
+                    placeholdersList.add("?::jsonb");
+                } else {
+                    if (val instanceof Map<?, ?> map) val = map.get("value");
+                    if (val instanceof String s && !s.trim().isEmpty()) {
+                        try { val = UUID.fromString(s.trim()); } catch(Exception e) { /* keep as string if not uuid */ }
+                    }
+                    placeholdersList.add("?");
+                }
+            }
+            case "DROPDOWN" -> {
+                FormField f = fieldMap.get(key);
+                if (f != null && "multiple".equalsIgnoreCase(f.getSelectionMode())) {
+                    if (val instanceof List) {
+                        try { val = objectMapper.writeValueAsString(val); }
+                        catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize dropdown: " + key); }
+                    }
+                    placeholdersList.add("?::jsonb");
+                } else {
+                    placeholdersList.add("?");
+                }
             }
             default -> {
                 if (val instanceof String s && s.trim().isEmpty()) val = null;
@@ -591,6 +650,8 @@ public class FormSubmissionService {
                         uiConfig.put("sourceDisplayColumn", f.getSourceDisplayColumn());
                     if (f.getAcceptedFileTypes() != null && !f.getAcceptedFileTypes().isEmpty())
                         uiConfig.put("acceptedFileTypes", f.getAcceptedFileTypes());
+                    if (f.getSelectionMode() != null) uiConfig.put("selectionMode", f.getSelectionMode());
+                    if (f.getMaxSelections() != null) uiConfig.put("maxSelections", f.getMaxSelections());
                     dto.setUiConfig(uiConfig);
 
                     Map<String, Object> validation = new HashMap<>();
@@ -626,14 +687,18 @@ public class FormSubmissionService {
 
             if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
                     && f.getSourceTable() != null && f.getSourceColumn() != null) {
-                String alias = "ref_" + f.getFieldKey();
-                String displayCol = f.getSourceDisplayColumn() != null
-                        ? f.getSourceDisplayColumn() : f.getSourceColumn();
-                select.append(", ").append(alias).append(".").append(displayCol)
-                        .append(" AS ").append(f.getFieldKey());
-                joins.append(" LEFT JOIN ").append(f.getSourceTable()).append(" ").append(alias)
-                        .append(" ON CAST(t.").append(f.getFieldKey()).append(" AS BIGINT) = ")
-                        .append(alias).append(".").append(f.getSourceColumn());
+                if ("multiple".equalsIgnoreCase(f.getSelectionMode())) {
+                    select.append(", CAST(t.").append(f.getFieldKey()).append(" AS TEXT) AS ").append(f.getFieldKey());
+                } else {
+                    String alias = "ref_" + f.getFieldKey();
+                    String displayCol = f.getSourceDisplayColumn() != null
+                            ? f.getSourceDisplayColumn() : f.getSourceColumn();
+                    select.append(", ").append(alias).append(".").append(displayCol)
+                            .append(" AS ").append(f.getFieldKey());
+                    joins.append(" LEFT JOIN ").append(f.getSourceTable()).append(" ").append(alias)
+                            .append(" ON CAST(t.").append(f.getFieldKey()).append(" AS TEXT) = CAST(")
+                            .append(alias).append(".").append(f.getSourceColumn()).append(" AS TEXT)");
+                }
             } else if ("MC_GRID".equalsIgnoreCase(f.getFieldType()) || "TICK_BOX_GRID".equalsIgnoreCase(f.getFieldType())) {
                 select.append(", CAST(t.").append(f.getFieldKey()).append(" AS TEXT) AS ").append(f.getFieldKey());
             } else {
@@ -651,11 +716,12 @@ public class FormSubmissionService {
         StringBuilder joins = new StringBuilder();
         for (FormField f : fields) {
             if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
-                    && f.getSourceTable() != null && f.getSourceColumn() != null) {
+                    && f.getSourceTable() != null && f.getSourceColumn() != null 
+                    && !"multiple".equalsIgnoreCase(f.getSelectionMode())) {
                 String alias = "ref_" + f.getFieldKey();
                 joins.append(" LEFT JOIN ").append(f.getSourceTable()).append(" ").append(alias)
-                        .append(" ON CAST(t.").append(f.getFieldKey()).append(" AS UUID) = ")
-                        .append(alias).append(".").append(f.getSourceColumn());
+                        .append(" ON CAST(t.").append(f.getFieldKey()).append(" AS TEXT) = CAST(")
+                        .append(alias).append(".").append(f.getSourceColumn()).append(" AS TEXT)");
             }
         }
         return joins.toString();
@@ -688,6 +754,10 @@ public class FormSubmissionService {
                         && !"FILE_UPLOAD".equalsIgnoreCase(f.getFieldType()))
                 .map(f -> {
                     if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())) {
+                        boolean isMultiple = "multiple".equalsIgnoreCase(f.getSelectionMode());
+                        if (isMultiple) {
+                            return "CAST(t." + f.getFieldKey() + " AS TEXT) ILIKE '%" + safe + "%'";
+                        }
                         String alias = "ref_" + f.getFieldKey();
                         String displayCol = f.getSourceDisplayColumn() != null
                                 ? f.getSourceDisplayColumn() : f.getSourceColumn();

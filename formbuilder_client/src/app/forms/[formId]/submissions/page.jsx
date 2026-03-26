@@ -258,8 +258,8 @@ export default function SubmissionsPage() {
   };
 
   // ── Cell renderer (unchanged) ─────────────────────────────────────────────
-  const formatCellValue = (value, fieldType, rowId, fieldKey) => {
-    if (value === null || value === undefined)
+  const formatCellValue = (value, fieldType, rowId, fieldKey, uiConfig) => {
+    if (value === null || value === undefined || value === "")
       return <span className="text-slate-300 select-none">—</span>;
 
     switch (fieldType?.toUpperCase()) {
@@ -276,15 +276,15 @@ export default function SubmissionsPage() {
         try {
           const parsed = typeof value === "string" ? JSON.parse(value) : value;
           if (!Array.isArray(parsed) || parsed.length === 0)
-            return <span className="text-slate-300">—</span>;
+            return <span className="text-slate-300 select-none">—</span>;
           return (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {parsed.map((item, i) => (
-                <span key={i} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-xs font-medium">{item}</span>
+                <span key={i} className="px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg text-[11px] font-bold uppercase tracking-wider">{item}</span>
               ))}
             </div>
           );
-        } catch { return <span className="text-sm text-slate-700">{String(value)}</span>; }
+        } catch { return <span className="text-sm text-slate-700 truncate block max-w-xs">{String(value)}</span>; }
       }
 
       case "STAR_RATING": {
@@ -388,12 +388,36 @@ export default function SubmissionsPage() {
         } catch { return <span className="text-sm text-slate-700">{String(value)}</span>; }
       }
 
-      case "LOOKUP_DROPDOWN":
+      case "DROPDOWN":
+      case "LOOKUP_DROPDOWN": {
+        const isMultiple = uiConfig?.selectionMode === "multiple";
+        if (isMultiple) {
+          try {
+            const parsed = typeof value === "string" ? JSON.parse(value) : value;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              return (
+                <div className="flex flex-wrap gap-1.5">
+                  {parsed.map((item, i) => {
+                    const label = typeof item === 'object' ? item.label : String(item);
+                    return (
+                      <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-lg text-[11px] font-bold uppercase tracking-wider">
+                        {fieldType === "LOOKUP_DROPDOWN" && <Link2 size={10} className="shrink-0" />}
+                        {label}
+                      </span>
+                    );
+                  })}
+                </div>
+              );
+            }
+          } catch (e) { /* ignore */ }
+        }
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md text-xs font-medium">
-            <Link2 size={11} />{String(value)}
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 ${fieldType === "LOOKUP_DROPDOWN" ? "bg-indigo-50 text-indigo-700 border border-indigo-100" : "bg-slate-100 text-slate-600"} rounded-md text-xs font-medium`}>
+            {fieldType === "LOOKUP_DROPDOWN" && <Link2 size={11} />}
+            {String(value)}
           </span>
         );
+      }
 
       default:
         return (
@@ -427,7 +451,7 @@ export default function SubmissionsPage() {
       selector: (row) => row[col.fieldKey],
       sortable: true,
       sortField: col.fieldKey,
-      cell: (row) => formatCellValue(row[col.fieldKey], col.fieldType, row.id, col.fieldKey),
+      cell: (row) => formatCellValue(row[col.fieldKey], col.fieldType, row.id, col.fieldKey, col.uiConfig),
       style: { minWidth: "160px" },
     })),
     ...(canDelete

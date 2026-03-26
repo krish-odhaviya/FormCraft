@@ -12,7 +12,7 @@ import { evaluateFormula } from "@/lib/formulaEvaluator";
 import {
   Loader2, Send, CheckCircle2, AlertCircle,
   ChevronDown, Star, Upload, LayoutTemplate, Lock,
-  KeyRound, ShieldQuestion,
+  KeyRound, ShieldQuestion, X
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useForms } from "@/context/FormsContext";
@@ -50,6 +50,112 @@ function evaluateConditions(field, formValues) {
     default:        return { visible: true,    disabled: false };
   }
 }
+// ── CustomSelect Component ──────────────────────────────────────────────────
+const CustomSelect = ({ options, value, onChange, placeholder, isDisabled, maxSelections, mode = 'multiple' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const isMultiple = mode === 'multiple';
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedItems = isMultiple 
+    ? (Array.isArray(value) ? value : []) 
+    : (value ? [value] : []);
+
+  const toggleOption = (opt) => {
+    if (!isMultiple) {
+      onChange(opt);
+      setIsOpen(false);
+      return;
+    }
+
+    let updated;
+    const optValue = typeof opt === 'object' ? String(opt.value) : String(opt);
+    const isSelected = selectedItems.some(v => (typeof v === 'object' ? String(v.value) : String(v)) === optValue);
+    
+    if (isSelected) {
+      updated = selectedItems.filter(v => (typeof v === 'object' ? String(v.value) : String(v)) !== optValue);
+    } else {
+      if (maxSelections && selectedItems.length >= maxSelections) {
+        toast.error(`Maximum ${maxSelections} selection(s) allowed`);
+        return;
+      }
+      updated = [...selectedItems, opt];
+    }
+    onChange(updated);
+  };
+
+  const getLabel = (v) => typeof v === 'object' ? v.label : v;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div 
+        onClick={() => !isDisabled && setIsOpen(!isOpen)}
+        className={`min-h-[42px] p-2 border rounded-xl bg-white cursor-pointer flex flex-wrap gap-1.5 items-center transition-all ${
+          isOpen ? 'ring-2 ring-indigo-500/20 border-indigo-500 shadow-sm' : 'border-slate-300 hover:border-slate-400'
+        } ${isDisabled ? 'bg-slate-50 cursor-not-allowed opacity-60' : ''}`}
+      >
+        {selectedItems.length > 0 ? (
+          selectedItems.map((v, i) => (
+            <span key={i} className={`inline-flex items-center gap-1.5 px-2.5 py-1 ${isMultiple ? "bg-indigo-50 text-indigo-700 font-semibold" : "bg-slate-100 text-slate-800 font-medium"} text-sm rounded-lg border border-transparent animate-in fade-in zoom-in duration-200`}>
+              {getLabel(v)}
+              {isMultiple && (
+                <button 
+                  type="button" 
+                  onClick={(e) => { e.stopPropagation(); toggleOption(v); }}
+                  className="hover:bg-indigo-100 text-indigo-400 hover:text-indigo-700 rounded-md p-0.5 transition-colors"
+                  disabled={isDisabled}
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </span>
+          ))
+        ) : (
+          <span className="text-slate-400 text-sm ml-2">{placeholder || 'Select...'}</span>
+        )}
+        <div className="flex-1" />
+        <ChevronDown size={16} className={`mr-2 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 ring-1 ring-black/5">
+          <div className="max-h-64 overflow-y-auto custom-scrollbar p-1">
+            {options.map((opt, i) => {
+              const optValue = typeof opt === 'object' ? String(opt.value) : String(opt);
+              const isSelected = selectedItems.some(v => (typeof v === 'object' ? String(v.value) : String(v)) === optValue);
+              return (
+                <div 
+                  key={i}
+                  onClick={() => toggleOption(opt)}
+                  className={`p-2.5 rounded-lg text-sm cursor-pointer flex items-center justify-between transition-colors ${
+                    isSelected ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {getLabel(opt)}
+                  {isSelected && <CheckCircle2 size={16} className="text-indigo-600" />}
+                </div>
+              );
+            })}
+            {options.length === 0 && (
+              <div className="p-4 text-center text-slate-400 text-sm italic">
+                No options available
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 // ── Main form component ───────────────────────────────────────────────────────
@@ -930,22 +1036,24 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
       );
     }
 
-    case "DROPDOWN":
+    case "DROPDOWN": {
+      const mode = uiConfig.selectionMode || "single";
       return (
-        <div>
+        <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
-          <div className="relative">
-            <select className={`${inputClass} appearance-none cursor-pointer`}
-              value={value || ""} disabled={isDisabled}
-              onChange={(e) => handleChange(field.fieldKey, e.target.value)}>
-              <option value="" disabled>Select an option...</option>
-              {options.map((opt, idx) => <option key={idx} value={opt}>{opt}</option>)}
-            </select>
-            <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          </div>
+          <CustomSelect 
+            options={options}
+            value={value}
+            onChange={(updated) => handleChange(field.fieldKey, updated)}
+            placeholder={uiConfig.placeholder}
+            isDisabled={isDisabled}
+            maxSelections={uiConfig.maxSelections}
+            mode={mode}
+          />
           <FieldError />
         </div>
       );
+    }
 
     case "BOOLEAN":
       return (
@@ -1147,24 +1255,25 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
 
     case "LOOKUP_DROPDOWN": {
       const opts = lookupData[field.fieldKey] || [];
+      const mode = uiConfig.selectionMode || "single";
+
       return (
         <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
           {opts.length === 0 ? (
-            <div className={`${inputClass} text-slate-400`}>Loading options...</div>
-          ) : (
-            <div className="relative">
-              <select className={`${inputClass} appearance-none cursor-pointer`}
-                value={value?.value || ""} disabled={isDisabled}
-                onChange={(e) => {
-                  const selected = opts.find((o) => String(o.value) === e.target.value);
-                  handleChange(field.fieldKey, selected || "");
-                }}>
-                <option value="">Select an option...</option>
-                {opts.map((opt, idx) => <option key={idx} value={String(opt.value)}>{opt.label}</option>)}
-              </select>
-              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <div className={`${inputClass} text-slate-400 flex items-center justify-center p-8 border-dashed`}>
+              <Loader2 size={16} className="animate-spin mr-2" /> Loading options...
             </div>
+          ) : (
+            <CustomSelect 
+              options={opts}
+              value={value}
+              onChange={(updated) => handleChange(field.fieldKey, updated)}
+              placeholder={uiConfig.placeholder}
+              isDisabled={isDisabled}
+              maxSelections={uiConfig.maxSelections}
+              mode={mode}
+            />
           )}
           <FieldError />
         </div>

@@ -1367,6 +1367,46 @@ export default function BuilderPage() {
                         </div>
                       )}
 
+                      {(activeField.fieldType === "DROPDOWN" || activeField.fieldType === "LOOKUP_DROPDOWN") && (
+                        <div className="space-y-4 pt-5 border-t border-slate-100">
+                          <label className="block text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+                            <Users size={16} className="text-indigo-500" />
+                            Selection Mode
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {['single', 'multiple'].map(mode => (
+                              <button
+                                key={mode}
+                                onClick={() => updateNestedObject(activeField.id, "uiConfig", "selectionMode", mode)}
+                                className={`px-4 py-3 text-xs font-bold rounded-xl border-2 transition-all ${
+                                  (activeField.uiConfig?.selectionMode || 'single') === mode
+                                    ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm"
+                                    : "border-slate-200 bg-white text-slate-500 hover:border-indigo-200"
+                                }`}
+                              >
+                                {mode === 'single' ? 'Single Select' : 'Multi Select'}
+                              </button>
+                            ))}
+                          </div>
+                          {(activeField.uiConfig?.selectionMode === 'multiple') && (
+                            <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                              <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 flex items-center justify-between">
+                                <span>Max Selections</span>
+                                <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-400">Optional</span>
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={activeField.uiConfig?.maxSelections || ""}
+                                onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxSelections", e.target.value ? Number(e.target.value) : null)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                placeholder="No limit"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+ 
                       {activeField.fieldType === "FILE_UPLOAD" && (
                         <div className="space-y-4 pt-5 border-t border-slate-100">
                           <div>

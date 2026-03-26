@@ -6,7 +6,7 @@ public class SqlTypeMapper {
         return switch (type.toUpperCase()) {
 
             // Standard short strings
-            case "TEXT", "EMAIL", "RADIO", "DROPDOWN" -> "VARCHAR(255)";
+            case "TEXT", "EMAIL", "RADIO" -> "VARCHAR(255)";
 
             // Long strings or JSON/Comma-separated arrays
             case "TEXTAREA", "CHECKBOX_GROUP" -> "TEXT";
@@ -34,12 +34,7 @@ public class SqlTypeMapper {
             case "FILE_UPLOAD" -> "VARCHAR(500)";
 
             // MC Grid stores a JSON object: { "Row 1": "Col 2", "Row 2": "Col 1" }
-            case "MC_GRID" -> "JSONB";
-
-            // Tick Box Grid stores a JSON object: { "Row 1": ["Col 1", "Col 3"] }
-            case "TICK_BOX_GRID" -> "JSONB";
-
-            case "LOOKUP_DROPDOWN" -> "UUID";
+            case "MC_GRID", "TICK_BOX_GRID", "DROPDOWN", "LOOKUP_DROPDOWN" -> "JSONB";
 
             case "SECTION",
                  "LABEL",

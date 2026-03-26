@@ -129,5 +129,11 @@ public class AddFieldRequest {
 
         @Size(max = 120, message = "Source display column cannot exceed 120 characters")
         private String sourceDisplayColumn;
+
+        @Pattern(regexp = "^(single|multiple)$", message = "Selection mode must be single or multiple")
+        private String selectionMode;
+
+        @Min(value = 1, message = "Max selections must be at least 1")
+        private Integer maxSelections;
     }
 }

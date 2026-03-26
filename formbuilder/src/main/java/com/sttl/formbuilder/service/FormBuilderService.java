@@ -10,6 +10,7 @@ import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.repository.FormSubmissionMetaRepository;
 import com.sttl.formbuilder.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -29,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import com.sttl.formbuilder.dto.FieldDto;
+import com.sttl.formbuilder.dto.internal.FormRuleDTO;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +41,7 @@ public class FormBuilderService {
     private final PermissionService permissionService;
     private final FormVersionService formVersionService;
     private final FormSubmissionMetaRepository submissionMetaRepository;
+    private final ObjectMapper                objectMapper;
 
     public FormField addField(UUID formId, AddFieldRequest request, String currentUsername) {
 
@@ -90,6 +93,55 @@ public class FormBuilderService {
 
         if (!permissionService.canConfigureForm(user, form)) {
             throw new BusinessException("Access denied: only owners or builders can save draft", HttpStatus.FORBIDDEN);
+        }
+
+        // ── SRS §10 Limits & Guardrails ───────────────────────────────────────
+        // Check 1: Max 50 fields per form (every field type counts)
+        if (fieldRequests.size() > 50) {
+            throw new BusinessException(
+                "Form exceeds the maximum of 50 fields. " +
+                "Current count: " + fieldRequests.size() + ". " +
+                "Please remove " + (fieldRequests.size() - 50) + " field(s) before saving.",
+                HttpStatus.BAD_REQUEST
+            );
+        }
+
+        // Check 2: Max 10 pages/sections per form (PAGE_BREAK + SECTION types combined)
+        long pageAndSectionCount = fieldRequests.stream()
+            .filter(f -> "PAGE_BREAK".equalsIgnoreCase(f.getFieldType())
+                      || "SECTION".equalsIgnoreCase(f.getFieldType()))
+            .count();
+
+        if (pageAndSectionCount > 10) {
+            throw new BusinessException(
+                "Form exceeds the maximum of 10 pages/sections. " +
+                "Current count: " + pageAndSectionCount + ". " +
+                "Please remove " + (pageAndSectionCount - 10) + " page break(s) or section(s).",
+                HttpStatus.BAD_REQUEST
+            );
+        }
+
+        // Check 3: Max 100 validations per form (each action in conditions.actions[] counts as one)
+        int totalValidationCount = 0;
+        for (AddFieldRequest req : fieldRequests) {
+            if (req.getConditions() == null || req.getConditions().isBlank()) continue;
+            try {
+                FormRuleDTO rule = objectMapper.readValue(req.getConditions(), FormRuleDTO.class);
+                if (rule.getActions() != null) {
+                    totalValidationCount += rule.getActions().size();
+                }
+            } catch (Exception e) {
+                // Malformed conditions JSON — skip this field, it will fail later on its own
+            }
+        }
+
+        if (totalValidationCount > 100) {
+            throw new BusinessException(
+                "Form exceeds the maximum of 5 validation rules. " +
+                "Current count: " + totalValidationCount + ". " +
+                "Please remove " + (totalValidationCount - 5) + " validation rule(s) before saving.",
+                HttpStatus.BAD_REQUEST
+            );
         }
 
         // 1. Get/Initialize the draft version
@@ -183,6 +235,8 @@ public class FormBuilderService {
             field.setSourceTable(req.getUiConfig().getSourceTable());
             field.setSourceColumn(req.getUiConfig().getSourceColumn());
             field.setSourceDisplayColumn(req.getUiConfig().getSourceDisplayColumn());
+            field.setSelectionMode(req.getUiConfig().getSelectionMode() != null ? req.getUiConfig().getSelectionMode() : "single");
+            field.setMaxSelections(req.getUiConfig().getMaxSelections());
             field.setPlaceholder(req.getUiConfig().getPlaceholder());
             field.setHelpText(req.getUiConfig().getHelpText());
             field.setDefaultValue(req.getUiConfig().getDefaultValue());

@@ -118,6 +118,10 @@ public class FormField {
     @Column(length = 20)
     private String numberFormat;
 
+    @Column(length = 20)
+    private String selectionMode = "single"; // "single" or "multiple"
+
+    private Integer maxSelections; // Only used when selectionMode is "multiple"
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
