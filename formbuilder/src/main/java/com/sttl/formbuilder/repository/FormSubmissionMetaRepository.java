@@ -39,4 +39,6 @@ public interface FormSubmissionMetaRepository extends JpaRepository<FormSubmissi
 
     @Query("SELECT (count(m) > 0) FROM FormSubmissionMeta m WHERE m.form.id = :formId AND m.status = com.sttl.formbuilder.entity.FormSubmissionMeta.SubmissionStatus.SUBMITTED AND m.isDeleted = false")
     boolean existsLiveSubmissions(@Param("formId") UUID formId);
+
+    Optional<FormSubmissionMeta> findByFormIdAndSubmittedByAndStatusAndIsDeletedFalse(UUID formId, String submittedBy, SubmissionStatus status);
 }

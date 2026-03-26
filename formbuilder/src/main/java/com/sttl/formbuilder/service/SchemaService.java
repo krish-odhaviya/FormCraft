@@ -70,7 +70,15 @@ public class SchemaService {
             boolean isNewTable = tableName == null || tableName.isEmpty();
 
             if (isNewTable) {
-                tableName = "form_data_" + form.getName();
+                // Requirement 3: Build a safe, unique table name
+                String safeBase = buildSafeTableName(form.getName());
+                tableName = safeBase;
+
+                // Requirement 7: Handle collisions (duplicate table names)
+                if (formRepository.existsByTableName(tableName)) {
+                    tableName = safeBase + "_" + form.getId().toString().substring(0, 8);
+                }
+
                 createTable(tableName, fields);
                 form.setTableName(tableName);
             } else {
@@ -92,6 +100,31 @@ public class SchemaService {
             e.printStackTrace();
             throw new RuntimeException("Publish failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Requirement 2 & 3: Sanitization Utility
+     * Safe SQL table names: a-z, 0-9, _ only.
+     */
+    public String buildSafeTableName(String name) {
+        if (name == null || name.isBlank()) return "form_data_" + System.currentTimeMillis();
+
+        String sanitized = name.toLowerCase().trim()
+                .replaceAll("[- ]", "_")       // spaces/hyphens to underscore
+                .replaceAll("[^a-z0-9_]", "")  // remove all special chars except alphanumeric/underscore
+                .replaceAll("__+", "_");       // reduce multiple underscores
+
+        // Prefix check: must start with letter
+        if (!sanitized.isEmpty() && Character.isDigit(sanitized.charAt(0))) {
+            sanitized = "f_" + sanitized;
+        } else if (sanitized.isEmpty()) {
+            sanitized = "generic";
+        }
+
+        // Clip to avoid Postgres 63-char limit (keeping room for suffixes)
+        if (sanitized.length() > 50) sanitized = sanitized.substring(0, 50);
+
+        return "form_data_" + sanitized;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -154,11 +187,9 @@ public class SchemaService {
                 }
                 jdbcTemplate.execute(alterSql.toString());
             } else {
-                // Drop NOT NULL if field is no longer required (never add NOT NULL to existing columns)
-                if (!Boolean.TRUE.equals(field.getRequired())) {
-                    jdbcTemplate.execute(
-                            "ALTER TABLE " + tableName + " ALTER COLUMN " + colName + " DROP NOT NULL");
-                }
+                // Ensure all field columns are nullable to support drafts
+                jdbcTemplate.execute(
+                        "ALTER TABLE " + tableName + " ALTER COLUMN " + colName + " DROP NOT NULL");
             }
         }
 
@@ -189,9 +220,9 @@ public class SchemaService {
                 .append(" ")
                 .append(SqlTypeMapper.map(field.getFieldType()));
 
-        if (Boolean.TRUE.equals(field.getRequired())) {
-            sql.append(" NOT NULL");
-        }
+        // We no longer add NOT NULL at the DB level to support partial drafts.
+        // Required-field validation is handled at the application service level during final submission.
+        
         if (Boolean.TRUE.equals(field.getIsUnique())) {
             sql.append(" UNIQUE");
         }

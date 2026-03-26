@@ -3,11 +3,8 @@ package com.sttl.formbuilder.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sttl.formbuilder.Enums.FormStatusEnum;
-import com.sttl.formbuilder.dto.FieldDto;
-import com.sttl.formbuilder.dto.PagedSubmissionsResponse;
-import com.sttl.formbuilder.dto.SubmissionsResponse;
+import com.sttl.formbuilder.dto.*;
 import com.sttl.formbuilder.entity.Form;
-import com.sttl.formbuilder.dto.SubmitFormRequest;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.entity.FormSubmissionMeta;
@@ -55,7 +52,7 @@ public class FormSubmissionService {
     // SUBMIT
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
-    public void submit(SubmitFormRequest request) {
+    public void submit(SubmitFormRequest request, String username) {
         UUID formId = request.getFormId();
         Map<String, Object> values = request.getValues();
 
@@ -272,7 +269,14 @@ public class FormSubmissionService {
 
         if (!errors.isEmpty()) throw new ValidationException(errors);
 
-        // ── Build and execute INSERT ───────────────────────────────────────────
+        // ── Check if there is an existing draft for this user/form ────────────
+        Optional<FormSubmissionMeta> existingDraft = Optional.empty();
+        if (username != null) {
+            existingDraft = submissionMetaRepository.findByFormIdAndSubmittedByAndStatusAndIsDeletedFalse(
+                    formId, username, SubmissionStatus.DRAFT);
+        }
+
+        // ── Build columns and arguments ───────────────────────────────────────
         List<String> columnsList = new ArrayList<>();
         List<Object> argumentsList = new ArrayList<>();
         List<String> placeholdersList = new ArrayList<>();
@@ -285,88 +289,20 @@ public class FormSubmissionService {
             columnsList.add(key);
             String expectedType = fieldTypes.get(key);
 
-            switch (expectedType.toUpperCase()) {
-                case "DATE" -> {
-                    if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalDate.parse(s.trim());
-                    placeholdersList.add("?");
-                }
-                case "TIME" -> {
-                    if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalTime.parse(s.trim());
-                    placeholdersList.add("?");
-                }
-                case "INTEGER" -> {
-                    FormField numField = fieldMap.get(key);
-                    String fmt = (numField != null && numField.getNumberFormat() != null)
-                            ? numField.getNumberFormat().toUpperCase()
-                            : "INTEGER";
-                    if (val instanceof String s) {
-                        if (s.trim().isEmpty()) {
-                            val = null;
-                        } else if ("INTEGER".equals(fmt)) {
-                            val = (long) Double.parseDouble(s.trim()); // strip decimals
-                        } else {
-                            val = Double.parseDouble(s.trim());        // keep decimals
-                        }
-                    } else if (val instanceof Number n) {
-                        val = "INTEGER".equals(fmt) ? n.longValue() : n.doubleValue();
-                    }
-                    placeholdersList.add("?");
-                }
-                case "STAR_RATING", "LINEAR_SCALE" -> {
-                    if (val instanceof String s) val = s.trim().isEmpty() ? null : Integer.parseInt(s.trim());
-                    else if (val instanceof Number n) val = n.intValue();
-                    placeholdersList.add("?");
-                }
-                case "BOOLEAN" -> {
-                    if (val instanceof String s) val = Boolean.parseBoolean(s.trim());
-                    placeholdersList.add("?");
-                }
-                case "CHECKBOX_GROUP" -> {
-                    if (val instanceof List) {
-                        try {
-                            val = objectMapper.writeValueAsString(val);
-                        } catch (JsonProcessingException e) {
-                            throw new BusinessException("Failed to serialize checkbox: " + key, HttpStatus.INTERNAL_SERVER_ERROR);
-                        }
-                    }
-                    placeholdersList.add("?");
-                }
-                case "MC_GRID" -> {
-                    if (val instanceof Map) {
-                        try {
-                            val = objectMapper.writeValueAsString(val);
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException("Failed to serialize MC grid: " + key);
-                        }
-                    }
-                    placeholdersList.add("?::jsonb");
-                }
-                case "TICK_BOX_GRID" -> {
-                    if (val instanceof Map) {
-                        try {
-                            val = objectMapper.writeValueAsString(val);
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException("Failed to serialize tick box: " + key);
-                        }
-                    }
-                    placeholdersList.add("?::jsonb");
-                }
-                case "LOOKUP_DROPDOWN" -> {
-                    if (val instanceof Map<?, ?> map) val = map.get("value");
-                    if (val instanceof String s && !s.trim().isEmpty()) val = UUID.fromString(s.trim());
-                    placeholdersList.add("?");
-                }
-                default -> {
-                    if (val instanceof String s && s.trim().isEmpty()) val = null;
-                    placeholdersList.add("?");
-                }
-            }
-            argumentsList.add(val);
+            processFieldValue(key, val, expectedType, fieldMap, placeholdersList, argumentsList);
 
             FormField field = fieldMap.get(key);
             if (field != null && Boolean.TRUE.equals(field.getIsUnique()) && val != null) {
-                String sqlCheck = "SELECT count(*) FROM " + tableName + " WHERE " + key + " = ?";
-                Integer count = jdbcTemplate.queryForObject(sqlCheck, Integer.class, val);
+                String sqlCheck = "SELECT count(*) FROM " + tableName + " WHERE " + key + " = ? AND is_delete = false";
+                if (existingDraft.isPresent()) {
+                    sqlCheck += " AND id <> ?";
+                }
+                Integer count;
+                if (existingDraft.isPresent()) {
+                    count = jdbcTemplate.queryForObject(sqlCheck, Integer.class, val, existingDraft.get().getDataRowId());
+                } else {
+                    count = jdbcTemplate.queryForObject(sqlCheck, Integer.class, val);
+                }
                 if (count != null && count > 0) {
                     errors.put(key, "'" + field.getFieldLabel() + "' must be unique. This value already exists.");
                 }
@@ -377,33 +313,241 @@ public class FormSubmissionService {
 
         if (columnsList.isEmpty()) throw new BusinessException("No valid columns provided.", HttpStatus.BAD_REQUEST);
 
-        // ── Resolve active version ────────────────────────────────────────────
-        // ── Append metadata columns ───────────────────────────────────────────
-        columnsList.add("is_draft");
-        placeholdersList.add("?");
-        argumentsList.add(false);
+        UUID dataRowId;
+        if (existingDraft.isPresent()) {
+            // ── UPDATE existing draft ───────────────────────────────────────
+            dataRowId = existingDraft.get().getDataRowId();
+            StringBuilder updateSql = new StringBuilder("UPDATE ").append(tableName).append(" SET ");
+            for (int i = 0; i < columnsList.size(); i++) {
+                updateSql.append(columnsList.get(i)).append(" = ").append(placeholdersList.get(i));
+                if (i < columnsList.size() - 1) updateSql.append(", ");
+            }
+            updateSql.append(", is_draft = ?, form_version_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            argumentsList.add(false);
+            argumentsList.add(activeVersion.getId());
+            argumentsList.add(dataRowId);
+            jdbcTemplate.update(updateSql.toString(), argumentsList.toArray());
 
-        columnsList.add("form_version_id");
-        placeholdersList.add("?");
-        argumentsList.add(activeVersion.getId());
+            // ── Update Meta ────────────────────────────────────────────────
+            FormSubmissionMeta meta = existingDraft.get();
+            meta.setStatus(SubmissionStatus.SUBMITTED);
+            meta.setFormVersion(activeVersion);
+            meta.setSubmittedAt(LocalDateTime.now());
+            submissionMetaRepository.save(meta);
+        } else {
+            // ── INSERT new submission ───────────────────────────────────────
+            columnsList.add("is_draft");
+            placeholdersList.add("?");
+            argumentsList.add(false);
 
-        String sql = "INSERT INTO " + tableName
-                + " (" + String.join(", ", columnsList) + ")"
-                + " VALUES (" + String.join(", ", placeholdersList) + ") RETURNING id";
+            columnsList.add("form_version_id");
+            placeholdersList.add("?");
+            argumentsList.add(activeVersion.getId());
 
-        // ── Execute INSERT and capture generated row ID safely ───────────────────
-        java.util.UUID newRowId = jdbcTemplate.queryForObject(sql, java.util.UUID.class, argumentsList.toArray());
+            String sql = "INSERT INTO " + tableName
+                    + " (" + String.join(", ", columnsList) + ")"
+                    + " VALUES (" + String.join(", ", placeholdersList) + ") RETURNING id";
 
-        // ── Write to form_submission_meta ──────────────────────────────────────
-        FormSubmissionMeta meta = new FormSubmissionMeta();
-        meta.setForm(form);
-        meta.setFormVersion(activeVersion);
-        meta.setStatus(SubmissionStatus.SUBMITTED);
-        meta.setDataRowId(newRowId);
-        meta.setSubmittedAt(LocalDateTime.now());
-        submissionMetaRepository.save(meta);
+            dataRowId = jdbcTemplate.queryForObject(sql, java.util.UUID.class, argumentsList.toArray());
+
+            // ── Write to form_submission_meta ────────────────────────────────
+            FormSubmissionMeta meta = new FormSubmissionMeta();
+            meta.setForm(form);
+            meta.setFormVersion(activeVersion);
+            meta.setStatus(SubmissionStatus.SUBMITTED);
+            meta.setDataRowId(dataRowId);
+            meta.setSubmittedAt(LocalDateTime.now());
+            meta.setSubmittedBy(username);
+            submissionMetaRepository.save(meta);
+        }
 
         ruleEngineService.executePostSubmissionWorkflows(fields, values);
+    }
+
+    private void processFieldValue(String key, Object val, String expectedType, Map<String, FormField> fieldMap,
+                                   List<String> placeholdersList, List<Object> argumentsList) {
+        switch (expectedType.toUpperCase()) {
+            case "DATE" -> {
+                if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalDate.parse(s.trim());
+                placeholdersList.add("?");
+            }
+            case "TIME" -> {
+                if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalTime.parse(s.trim());
+                placeholdersList.add("?");
+            }
+            case "INTEGER" -> {
+                FormField numField = fieldMap.get(key);
+                String fmt = (numField != null && numField.getNumberFormat() != null)
+                        ? numField.getNumberFormat().toUpperCase()
+                        : "INTEGER";
+                if (val instanceof String s) {
+                    if (s.trim().isEmpty()) val = null;
+                    else if ("INTEGER".equals(fmt)) val = (long) Double.parseDouble(s.trim());
+                    else val = Double.parseDouble(s.trim());
+                } else if (val instanceof Number n) {
+                    val = "INTEGER".equals(fmt) ? n.longValue() : n.doubleValue();
+                }
+                placeholdersList.add("?");
+            }
+            case "STAR_RATING", "LINEAR_SCALE" -> {
+                if (val instanceof String s) val = s.trim().isEmpty() ? null : Integer.parseInt(s.trim());
+                else if (val instanceof Number n) val = n.intValue();
+                placeholdersList.add("?");
+            }
+            case "BOOLEAN" -> {
+                if (val instanceof String s) val = Boolean.parseBoolean(s.trim());
+                placeholdersList.add("?");
+            }
+            case "CHECKBOX_GROUP" -> {
+                if (val instanceof List) {
+                    try { val = objectMapper.writeValueAsString(val); }
+                    catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize checkbox: " + key); }
+                }
+                placeholdersList.add("?");
+            }
+            case "MC_GRID", "TICK_BOX_GRID" -> {
+                if (val instanceof Map) {
+                    try { val = objectMapper.writeValueAsString(val); }
+                    catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize grid: " + key); }
+                }
+                placeholdersList.add("?::jsonb");
+            }
+            case "LOOKUP_DROPDOWN" -> {
+                if (val instanceof Map<?, ?> map) val = map.get("value");
+                if (val instanceof String s && !s.trim().isEmpty()) val = UUID.fromString(s.trim());
+                placeholdersList.add("?");
+            }
+            default -> {
+                if (val instanceof String s && s.trim().isEmpty()) val = null;
+                placeholdersList.add("?");
+            }
+        }
+        argumentsList.add(val);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // DRAFT SAVE / GET
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Transactional
+    public java.util.UUID saveDraft(DraftRequest request, String username) {
+        if (username == null) throw new BusinessException("User must be authenticated to save a draft", HttpStatus.UNAUTHORIZED);
+
+        UUID formId = request.getFormId();
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
+
+        FormVersion version = formVersionRepository.findById(request.getFormVersionId())
+                .orElseThrow(() -> new BusinessException("Version not found", HttpStatus.NOT_FOUND));
+
+        // Structural validation: check unknown fields
+        List<FormField> activeFields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(version.getId());
+        Set<String> allowedKeys = activeFields.stream()
+                .filter(f -> !List.of("SECTION", "LABEL", "PAGE_BREAK", "GROUP").contains(f.getFieldType()))
+                .map(FormField::getFieldKey)
+                .collect(Collectors.toSet());
+
+        Map<String, Object> values = request.getData();
+        if (values != null) {
+            for (String key : values.keySet()) {
+                if (!allowedKeys.contains(key)) throw new BusinessException("Unknown field: " + key, HttpStatus.BAD_REQUEST);
+            }
+        }
+
+        Optional<FormSubmissionMeta> existingMeta = submissionMetaRepository.findByFormIdAndSubmittedByAndStatusAndIsDeletedFalse(
+                formId, username, SubmissionStatus.DRAFT);
+
+        String tableName = form.getTableName();
+        Map<String, String> fieldTypes = activeFields.stream()
+                .filter(f -> allowedKeys.contains(f.getFieldKey()))
+                .collect(Collectors.toMap(FormField::getFieldKey, FormField::getFieldType));
+        Map<String, FormField> fieldMap = activeFields.stream().collect(Collectors.toMap(FormField::getFieldKey, f -> f));
+
+        List<String> columnsList = new ArrayList<>();
+        List<Object> argumentsList = new ArrayList<>();
+        List<String> placeholdersList = new ArrayList<>();
+
+        if (values != null) {
+            for (Map.Entry<String, Object> entry : values.entrySet()) {
+                String key = entry.getKey();
+                Object val = entry.getValue();
+                columnsList.add(key);
+                processFieldValue(key, val, fieldTypes.get(key), fieldMap, placeholdersList, argumentsList);
+            }
+        }
+
+        UUID dataRowId;
+        if (existingMeta.isPresent()) {
+            dataRowId = existingMeta.get().getDataRowId();
+            StringBuilder sql = new StringBuilder("UPDATE ").append(tableName).append(" SET ");
+            for (int i = 0; i < columnsList.size(); i++) {
+                sql.append(columnsList.get(i)).append(" = ").append(placeholdersList.get(i));
+                if (i < columnsList.size() - 1) sql.append(", ");
+            }
+            if (!columnsList.isEmpty()) sql.append(", ");
+            sql.append("form_version_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            argumentsList.add(version.getId());
+            argumentsList.add(dataRowId);
+            jdbcTemplate.update(sql.toString(), argumentsList.toArray());
+
+            FormSubmissionMeta meta = existingMeta.get();
+            meta.setFormVersion(version);
+            submissionMetaRepository.save(meta);
+        } else {
+            columnsList.add("is_draft");
+            placeholdersList.add("?");
+            argumentsList.add(true);
+
+            columnsList.add("form_version_id");
+            placeholdersList.add("?");
+            argumentsList.add(version.getId());
+
+            String sql = "INSERT INTO " + tableName + " (" + String.join(", ", columnsList) + ") VALUES (" 
+                    + String.join(", ", placeholdersList) + ") RETURNING id";
+            dataRowId = jdbcTemplate.queryForObject(sql, UUID.class, argumentsList.toArray());
+
+            FormSubmissionMeta meta = new FormSubmissionMeta();
+            meta.setForm(form);
+            meta.setFormVersion(version);
+            meta.setStatus(SubmissionStatus.DRAFT);
+            meta.setDataRowId(dataRowId);
+            meta.setSubmittedBy(username);
+            submissionMetaRepository.save(meta);
+        }
+        return dataRowId;
+    }
+
+    @Transactional(readOnly = true)
+    public DraftResponse getDraft(UUID formId, String username) {
+        if (username == null) return null;
+
+        Optional<FormSubmissionMeta> metaOpt = submissionMetaRepository.findByFormIdAndSubmittedByAndStatusAndIsDeletedFalse(
+                formId, username, SubmissionStatus.DRAFT);
+
+        if (metaOpt.isEmpty()) return null;
+
+        FormSubmissionMeta meta = metaOpt.get();
+        Form form = meta.getForm();
+        FormVersion version = meta.getFormVersion();
+
+        List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(version.getId());
+        String dataSql = buildSelectSql(fields, form.getTableName()) + " WHERE id = ?";
+        Map<String, Object> data = jdbcTemplate.queryForMap(dataSql, meta.getDataRowId());
+        
+        // Remove system columns from returned data
+        data.remove("id");
+        data.remove("created_at");
+        data.remove("updated_at");
+        data.remove("is_draft");
+        data.remove("form_version_id");
+        data.remove("is_delete");
+
+        DraftResponse res = new DraftResponse();
+        res.setSubmissionId(meta.getDataRowId());
+        res.setFormVersionId(version.getId());
+        res.setData(data);
+        res.setStatus("DRAFT");
+        return res;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

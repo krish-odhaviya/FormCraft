@@ -35,6 +35,8 @@ public interface FormRepository extends JpaRepository<Form, UUID> {
             @Param("sharedOnly") boolean sharedOnly,
             Pageable pageable);
 
+    boolean existsByTableName(String tableName);
+
     @Query("SELECT DISTINCT f FROM Form f WHERE (f.owner = :user OR f.visibility = com.sttl.formbuilder.Enums.VisibilityType.PUBLIC OR f.visibility = com.sttl.formbuilder.Enums.VisibilityType.LINK OR EXISTS (SELECT 1 FROM FormPermission p WHERE p.form = f AND p.user = :user))")
     Page<Form> findFormsAccessibleToUser(@Param("user") User user, Pageable pageable);
 

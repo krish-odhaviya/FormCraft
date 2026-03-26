@@ -48,20 +48,13 @@ export default function NewFormPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!name.trim()) {
-      setError("Please provide a name for your form.");
+    if (name.trim().length < 3 || name.trim().length > 50) {
+      setError("Form name must be between 3 and 50 characters.");
       return;
     }
-    if (name.trim().length < 3) {
-      setError("Form name must be at least 3 characters.");
-      return;
-    }
-    if (name.trim().length > 150) {
-      setError("Form name cannot exceed 150 characters.");
-      return;
-    }
-    if (!/^[\w\s\-()\.,!?&]+$/.test(name.trim())) {
-      setError("Form name contains invalid characters.");
+    // Requirement 1 Regex: Must start with letter, only letters, numbers, underscores
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name.trim())) {
+      setError("Form name must start with a letter and contain only letters, numbers, and underscores (no spaces).");
       return;
     }
     if (description.length > 1000) {
@@ -141,10 +134,13 @@ export default function NewFormPage() {
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               value={name}
               onChange={(e) => {
-                setName(e.target.value);
-                if (error) setError(""); // Clear error when user types
+                const val = e.target.value.toLowerCase();
+                // Auto-transform: spaces/hyphens to underscore, remove other symbols
+                const transformed = val.replace(/[\s-]/g, "_").replace(/[^a-z0-9_]/g, "");
+                setName(transformed);
+                if (error) setError("");
               }}
-              maxLength={150}
+              maxLength={50}
               autoFocus
               disabled={loading}
             />

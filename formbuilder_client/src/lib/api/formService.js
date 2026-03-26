@@ -85,6 +85,13 @@ export const api = {
 
   saveDraft: (formId, fields) => API.post(`/forms/${formId}/draft`, fields),
 
+  // ── Public Draft Save & Resume ──────────────────────────────────────────
+  saveDraftSubmission: (formId, formVersionId, data) => 
+    API.post("/submissions/draft", { formId, formVersionId, data }),
+
+  getDraftSubmission: (formId) => 
+    API.get(`/submissions/draft?formId=${formId}`),
+
   publishForm: (formId, fields = null) => 
     API.post(`/forms/${formId}/publish`, fields ? { fields } : null),
 

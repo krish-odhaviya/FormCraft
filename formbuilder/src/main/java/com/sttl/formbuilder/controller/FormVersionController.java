@@ -25,14 +25,12 @@ import java.util.stream.Collectors;
 
 /**
  * REST API for managing form versions.
- * <p>
  * Endpoints:
- * <ul>
- *   <li>GET  /api/forms/{formId}/versions       — list all versions</li>
- *   <li>GET  /api/forms/{formId}/versions/{id}  — get a single version</li>
- *   <li>POST /api/forms/{formId}/versions        — create snapshot (draft → new version)</li>
- *   <li>POST /api/forms/{formId}/versions/{id}/activate — activate a version</li>
- * </ul>
+ GET  /api/forms/{formId}/versions       — list all versions</li>
+ GET  /api/forms/{formId}/versions/{id}  — get a single version</li>
+ POST /api/forms/{formId}/versions        — create snapshot (draft → new version)</li>
+ POST /api/forms/{formId}/versions/{id}/activate — activate a version</li>
+
  */
 @RestController
 @RequestMapping("/forms/{formId}/versions")

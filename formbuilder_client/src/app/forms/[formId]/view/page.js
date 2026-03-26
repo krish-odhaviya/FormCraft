@@ -70,6 +70,12 @@ function FormPageContent() {
   const [currentPage, setCurrentPage] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // ── Draft Save & Resume States ──────────────────────────────────────────
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [draftSubmissionId, setDraftSubmissionId] = useState(null);
+  const [draftBanner, setDraftBanner] = useState(null);
+  const [draftSaveMessage, setDraftSaveMessage] = useState(null);
+
   const { user, isAuthenticated } = useAuth();
   const [accessRequested, setAccessRequested] = useState(false);
   const [requestReason,   setRequestReason]   = useState("");
@@ -217,6 +223,29 @@ function FormPageContent() {
     }
     if (formId) fetchFields().catch(() => {});
   }, [formId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch draft on mount ──────────────────────────────────────────────────
+  useEffect(() => {
+    async function fetchDraft() {
+      if (!isAuthenticated || !formDetails.activeVersionId) return;
+      try {
+        const res = await api.getDraftSubmission(formId);
+        if (res.data) {
+          const draft = res.data;
+          if (draft.formVersionId === formDetails.activeVersionId) {
+            setFormValues((prev) => ({ ...prev, ...draft.data }));
+            setDraftBanner("You have a saved draft. Resuming where you left off.");
+            setDraftSubmissionId(draft.submissionId);
+          } else {
+            setDraftBanner("warning: Your previous draft was for an older version of this form and cannot be restored.");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch draft", err);
+      }
+    }
+    if (formDetails.activeVersionId) fetchDraft();
+  }, [formDetails.activeVersionId, isAuthenticated]);
 
   // ── Scroll to error field after page nav ──────────────────────────────────
   useEffect(() => {
@@ -427,6 +456,22 @@ function FormPageContent() {
     }
   };
 
+  const handleSaveDraft = async () => {
+    setIsDraftSaving(true);
+    setDraftSaveMessage(null);
+    try {
+      const vid = formDetails.activeVersionId;
+      const res = await api.saveDraftSubmission(formId, vid, formValues);
+      setDraftSubmissionId(res.data.submissionId);
+      setDraftSaveMessage({ type: "success", text: "Draft saved successfully" });
+      setTimeout(() => setDraftSaveMessage(null), 3000);
+    } catch (err) {
+      setDraftSaveMessage({ type: "error", text: err.response?.data?.message || "Failed to save draft" });
+    } finally {
+      setIsDraftSaving(false);
+    }
+  };
+
   const handleRequestAccess = async () => {
     setRequestStatus("pending");
     try {
@@ -533,6 +578,27 @@ function FormPageContent() {
           {formDetails.description && <p className="text-slate-600 mt-3 leading-relaxed">{formDetails.description}</p>}
         </div>
 
+        {draftBanner && (
+          <div className={`p-4 rounded-xl text-sm font-medium flex items-center gap-3 border shadow-sm ${
+            draftBanner.startsWith("warning") 
+              ? "bg-amber-50 text-amber-800 border-amber-200" 
+              : "bg-indigo-50 text-indigo-800 border-indigo-200"
+          }`}>
+            <AlertCircle size={18} className={draftBanner.startsWith("warning") ? "text-amber-600" : "text-indigo-600"} />
+            {draftBanner.replace("warning: ", "")}
+            <button onClick={() => setDraftBanner(null)} className="ml-auto text-xs opacity-60 hover:opacity-100 font-bold uppercase tracking-wider">Dismiss</button>
+          </div>
+        )}
+
+        {draftSaveMessage && (
+          <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 rounded-2xl shadow-2xl z-50 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300 ${
+            draftSaveMessage.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
+          }`}>
+            {draftSaveMessage.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+            <span className="text-sm font-bold">{draftSaveMessage.text}</span>
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 sm:p-10">
           {message === "archived" && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -633,29 +699,42 @@ function FormPageContent() {
                 })}
               </div>
 
-              {fields.length > 0 && (
-                <div className="pt-6 mt-8 border-t border-slate-100 flex justify-between items-center">
-                  <div>
-                    {currentPage > 0 ? (
-                      <button type="button" onClick={() => { setCurrentPage((p) => p - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+              <div className="pt-6 mt-8 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="flex gap-3">
+                  {currentPage > 0 ? (
+                    <button type="button" onClick={() => { setCurrentPage((p) => p - 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                      className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm">
+                      Previous
+                    </button>
+                  ) : (
+                    isPreview && (
+                      <button type="button" onClick={() => router.push(`/forms/${formId}/builder`)}
                         className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm">
-                        Previous
+                        Close Preview
                       </button>
-                    ) : (
-                      isPreview && (
-                        <button type="button" onClick={() => router.push(`/forms/${formId}/builder`)}
-                          className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors text-sm">
-                          Close Preview
-                        </button>
-                      )
-                    )}
-                  </div>
+                    )
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                  {isAuthenticated && !isPreview && (
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      disabled={isDraftSaving || submitting}
+                      className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl border-2 border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-all text-sm disabled:opacity-50"
+                    >
+                      {isDraftSaving ? <Loader2 size={18} className="animate-spin text-indigo-600" /> : <LayoutTemplate size={18} className="text-slate-400" />}
+                      {isDraftSaving ? "Saving..." : "Save Draft"}
+                    </button>
+                  )}
+
                   <button
                     type="submit"
                     disabled={submitting || message === "success" || (isPreview && currentPage === formPages.length - 1)}
-                    className={`flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-medium shadow-sm transition-all ${
+                    className={`flex items-center justify-center gap-2 px-8 py-3 rounded-xl text-sm font-bold shadow-lg transition-all ${
                       isPreview && currentPage === formPages.length - 1
-                        ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                        ? "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300"
                         : "bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white"
                     }`}
                   >
@@ -665,7 +744,7 @@ function FormPageContent() {
                       : isPreview ? "Submit Disabled" : submitting ? "Submitting..." : "Submit Form"}
                   </button>
                 </div>
-              )}
+              </div>
             </form>
           ) : null}
         </div>

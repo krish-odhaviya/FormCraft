@@ -11,10 +11,9 @@ import lombok.Setter;
 public class CreateFormRequest {
 
     @NotBlank(message = "Form name is required")
-    @Size(min = 3, max = 150, message = "Form name must be between 3 and 150 characters")
     @Pattern(
-            regexp = "^[\\w\\s\\-().,!?&]+$",
-            message = "Form name contains invalid characters"
+            regexp = "^[a-z][a-z0-9_]{2,49}$",
+            message = "Form name must be 3-50 characters, start with a lowercase letter, and contain only lowercase letters, numbers, or underscores (no spaces)."
     )
     private String name;
 

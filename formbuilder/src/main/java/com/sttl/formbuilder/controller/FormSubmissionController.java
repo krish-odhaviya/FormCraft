@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/forms")
+@RequestMapping("/")
 @RequiredArgsConstructor
 public class FormSubmissionController {
 
@@ -40,10 +40,10 @@ public class FormSubmissionController {
     private final ExportService exportService;
 
     /**
-     * POST /api/forms/submit
+     * POST /api/v1/forms/submit
      * Submits a form response. Anonymous access allowed for PUBLIC forms.
      */
-    @PostMapping("/submit")
+    @PostMapping("/forms/submit")
     public ResponseEntity<?> submitForm(
             @Valid @RequestBody SubmitFormRequest submitRequest,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -58,15 +58,56 @@ public class FormSubmissionController {
                     null, HttpStatus.FORBIDDEN, request);
         }
 
-        formSubmissionService.submit(submitRequest);
+        formSubmissionService.submit(submitRequest, user != null ? user.getUsername() : null);
         return ApiResponseUtil.success("Submitted successfully", "Form submitted successfully", request);
     }
 
     /**
-     * GET /api/forms/{formId}/submissions
+     * POST /api/v1/submissions/draft
+     * Saves or updates a draft for the current user.
+     */
+    @PostMapping("/submissions/draft")
+    public ResponseEntity<?> saveDraft(
+            @Valid @RequestBody com.sttl.formbuilder.dto.DraftRequest draftRequest,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
+
+        if (currentUser == null) {
+            return ApiResponseUtil.error("Log in to save a draft", null, HttpStatus.UNAUTHORIZED, request);
+        }
+
+        UUID submissionId = formSubmissionService.saveDraft(draftRequest, currentUser.getUsername());
+        
+        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        data.put("submissionId", submissionId);
+        data.put("status", "DRAFT");
+        
+        return ApiResponseUtil.success(data, "Draft saved successfully", request);
+    }
+
+    /**
+     * GET /api/v1/submissions/draft?formId=<uuid>
+     * Retrieves the existing draft for the user and form.
+     */
+    @GetMapping("/submissions/draft")
+    public ResponseEntity<?> getDraft(
+            @RequestParam UUID formId,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
+
+        if (currentUser == null) {
+            return ApiResponseUtil.success(null, "No draft (not logged in)", request);
+        }
+
+        com.sttl.formbuilder.dto.DraftResponse draft = formSubmissionService.getDraft(formId, currentUser.getUsername());
+        return ApiResponseUtil.success(draft, "Draft fetched successfully", request);
+    }
+
+    /**
+     * GET /api/v1/forms/{formId}/submissions
      * Returns paginated submissions. Supports ?page, ?size, ?sort, ?search.
      */
-    @GetMapping("/{formId}/submissions")
+    @GetMapping("/forms/{formId}/submissions")
     public ResponseEntity<ApiResponse<PagedSubmissionsResponse>> getSubmissions(
             @PathVariable UUID formId,
             @RequestParam(defaultValue = "") String search,
@@ -89,10 +130,10 @@ public class FormSubmissionController {
     }
 
     /**
-     * GET /api/forms/{formId}/submissions/export?search=&format=csv|pdf|word|xlsx
+     * GET /api/v1/forms/{formId}/submissions/export?search=&format=csv|pdf|word|xlsx
      * Downloads all matching submissions as a file.
      */
-    @GetMapping("/{formId}/submissions/export")
+    @GetMapping("/forms/{formId}/submissions/export")
     public ResponseEntity<byte[]> exportSubmissions(
             @PathVariable UUID formId,
             @RequestParam(defaultValue = "") String search,
@@ -112,10 +153,10 @@ public class FormSubmissionController {
     }
 
     /**
-     * DELETE /api/forms/{formId}/submissions/{submissionId}
+     * DELETE /api/v1/forms/{formId}/submissions/{submissionId}
      * Soft-deletes a single submission.
      */
-    @DeleteMapping("/{formId}/submissions/{submissionId}")
+    @DeleteMapping("/forms/{formId}/submissions/{submissionId}")
     public ResponseEntity<ApiResponse<String>> deleteSubmission(
             @PathVariable UUID formId,
             @PathVariable UUID submissionId,
@@ -136,10 +177,10 @@ public class FormSubmissionController {
     }
 
     /**
-     * POST /api/forms/{formId}/submissions/bulk-delete
+     * POST /api/v1/forms/{formId}/submissions/bulk-delete
      * Soft-deletes multiple submissions at once.
      */
-    @PostMapping("/{formId}/submissions/bulk-delete")
+    @PostMapping("/forms/{formId}/submissions/bulk-delete")
     public ResponseEntity<ApiResponse<String>> bulkDeleteSubmissions(
             @PathVariable UUID formId,
             @RequestBody List<UUID> submissionIds,

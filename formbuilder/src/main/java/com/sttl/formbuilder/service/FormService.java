@@ -90,13 +90,13 @@ public class FormService {
      *  Requires: "Create New Form" module.
      */
     public Form createForm(String name, String description, String currentUsername) {
-        moduleAccessService.assertHasModule(currentUsername, ModuleAccessService.MODULE_CREATE_FORM);  // ← ADDED
+        moduleAccessService.assertHasModule(currentUsername, ModuleAccessService.MODULE_CREATE_FORM);
 
         User user = userRepository.findByUsername(currentUsername)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
 
         if (formRepository.existsByNameAndOwner(name, user)) {
-            throw new RuntimeException("You already have a form with that name");
+            throw new BusinessException("You already have a form with that name", HttpStatus.CONFLICT);
         }
 
         Form form = new Form();
