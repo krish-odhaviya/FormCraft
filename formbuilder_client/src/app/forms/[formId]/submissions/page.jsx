@@ -13,6 +13,7 @@ import {
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "react-hot-toast";
+import { useConfirm } from "@/context/ConfirmationContext";
 
 // ── Table styles ──────────────────────────────────────────────────────────────
 const tableCustomStyles = {
@@ -29,6 +30,7 @@ const tableCustomStyles = {
 export default function SubmissionsPage() {
   const { formId } = useParams();
   const { user } = useAuth();
+  const confirm = useConfirm();
 
   const [loading,               setLoading]               = useState(true);
   const [error,                 setError]                 = useState("");
@@ -182,7 +184,14 @@ export default function SubmissionsPage() {
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (submissionId) => {
-    if (!window.confirm("Are you sure you want to delete this submission?")) return;
+    const confirmed = await confirm({
+      title: "Delete Submission",
+      message: "Are you sure you want to delete this submission? This action cannot be undone.",
+      confirmText: "Delete",
+      type: "danger"
+    });
+    
+    if (!confirmed) return;
     try {
       await api.deleteSubmission(formId, submissionId);
       setSelectedRows((prev) => prev.filter((r) => r.id !== submissionId));
@@ -195,7 +204,14 @@ export default function SubmissionsPage() {
 
   const handleBulkDelete = async () => {
     if (selectedRows.length === 0) return;
-    if (!window.confirm(`Delete ${selectedRows.length} selected submission(s)?`)) return;
+    const confirmed = await confirm({
+      title: "Bulk Delete",
+      message: `Are you sure you want to delete ${selectedRows.length} selected submission(s)? This action cannot be undone.`,
+      confirmText: `Delete ${selectedRows.length}`,
+      type: "danger"
+    });
+    
+    if (!confirmed) return;
     try {
       await api.deleteSubmissionsBulk(formId, selectedRows.map((r) => r.id));
       setClearSelectionToggle((t) => !t);

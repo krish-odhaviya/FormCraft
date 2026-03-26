@@ -96,6 +96,7 @@ export const api = {
     API.post(`/forms/${formId}/publish`, fields ? { fields } : null),
 
   archiveForm: (formId) => API.post(`/forms/${formId}/archive`),
+  reactivateForm: (formId) => API.post(`/forms/${formId}/reactivate`),
 
   // ── Submissions ───────────────────────────────────────────────────────────
   /**

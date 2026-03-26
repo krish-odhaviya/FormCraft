@@ -12,12 +12,13 @@ import {
   Link2, Heading1, AlignLeft as AlignLeftIcon, GitBranch,
   History, CheckCircle2, Archive, FilePen, ChevronDown as ChevronDownIcon,
   Loader2, ExternalLink, BookOpen, Eye, Users, ShieldAlert, UserPlus, Shield,
-  AlertCircle
+  AlertCircle, RotateCcw
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
 import { useForms } from "@/context/FormsContext";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/context/ConfirmationContext";
 import { toast } from "react-hot-toast";
 
 const FIELD_CATEGORIES = [
@@ -94,6 +95,7 @@ export default function BuilderPage() {
 
   const { user } = useAuth();
   const { getForm, setFormFromServer } = useForms();
+  const confirm = useConfirm();
   const form = getForm(formId);
 
   const isOwnerOrAdmin = user?.customRole === 'SYSTEM_ADMIN' || (form && form.ownerId === user?.id);
@@ -180,6 +182,19 @@ export default function BuilderPage() {
       fetchForm().catch(() => {});
     }
   }, [formId, setFormFromServer]);
+
+  // Counts total validation actions across all fields for SRS §10 limit check
+  const countTotalValidations = (fields) => {
+    return fields.reduce((total, field) => {
+      if (!field.conditions) return total
+      try {
+        const parsed = JSON.parse(field.conditions)
+        return total + (parsed.actions?.length || 0)
+      } catch {
+        return total
+      }
+    }, 0)
+  }
 
   const parseConditions = (field) => {
     if (!field?.conditions) return { action: "show", logic: "AND", rules: [], actions: [] };
@@ -441,6 +456,37 @@ export default function BuilderPage() {
       return;
     }
 
+    // SRS §10 — Max 50 fields per form
+    if (localFields.length > 50) {
+      toast.error(
+        `Too many fields: ${localFields.length}/50. ` +
+        `Remove ${localFields.length - 50} field(s) before saving.`
+      )
+      return
+    }
+
+    // SRS §10 — Max 10 pages/sections per form
+    const pageAndSectionCount = localFields.filter(
+      f => f.fieldType === 'PAGE_BREAK' || f.fieldType === 'SECTION'
+    ).length
+    if (pageAndSectionCount > 10) {
+      toast.error(
+        `Too many pages/sections: ${pageAndSectionCount}/10. ` +
+        `Remove ${pageAndSectionCount - 10} page break(s) or section(s).`
+      )
+      return
+    }
+
+    // SRS §10 — Max 100 validations per form
+    const totalValidations = countTotalValidations(localFields)
+    if (totalValidations > 100) {
+      toast.error(
+        `Too many validation rules: ${totalValidations}/100. ` +
+        `Remove ${totalValidations - 100} validation rule(s) before proceeding.`
+      )
+      return
+    }
+
     setSaving(true);
     const payload = getFieldsPayload();
 
@@ -473,6 +519,37 @@ export default function BuilderPage() {
       return;
     }
 
+    // SRS §10 — Max 50 fields per form
+    if (localFields.length > 50) {
+      toast.error(
+        `Too many fields: ${localFields.length}/50. ` +
+        `Remove ${localFields.length - 50} field(s) before publishing.`
+      )
+      return
+    }
+
+    // SRS §10 — Max 10 pages/sections per form
+    const pageAndSectionCount = localFields.filter(
+      f => f.fieldType === 'PAGE_BREAK' || f.fieldType === 'SECTION'
+    ).length
+    if (pageAndSectionCount > 10) {
+      toast.error(
+        `Too many pages/sections: ${pageAndSectionCount}/10. ` +
+        `Remove ${pageAndSectionCount - 10} page break(s) or section(s).`
+      )
+      return
+    }
+
+    // SRS §10 — Max 100 validations per form
+    const totalValidations = countTotalValidations(localFields)
+    if (totalValidations > 100) {
+      toast.error(
+        `Too many validation rules: ${totalValidations}/100. ` +
+        `Remove ${totalValidations - 100} validation rule(s) before publishing.`
+      )
+      return
+    }
+
     setPublishing(true);
     try {
       const payload = getFieldsPayload();
@@ -483,6 +560,31 @@ export default function BuilderPage() {
       console.error(e);
       toast.error("Publish failed. " + (e.response?.data?.message || ""));
       setPublishing(false);
+    }
+  };
+
+  const handleReactivate = async () => {
+    const confirmed = await confirm({
+      title: "Reactivate Form?",
+      message: "This form is currently archived. Reactivating it will return it to DRAFT status so you can edit it again. Existing submissions and versions will be preserved.",
+      confirmText: "Reactivate",
+      type: "info"
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await api.reactivateForm(formId);
+      toast.success("Form reactivated!");
+      // Status is now DRAFT, so we can reload the builder state
+      setIsArchived(false);
+      // Optional: reload form data from server to be safe
+      const formRes = await api.getForm(formId, { mode: 'builder' });
+      setFormFromServer(formRes.data);
+      setLocalFields(formRes.data.fields || []);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to reactivate. " + (e.response?.data?.message || ""));
     }
   };
 
@@ -903,12 +1005,21 @@ export default function BuilderPage() {
               <p className="text-slate-500 mb-8 leading-relaxed font-medium">
                 This form has been archived and is now in read-only mode. No further changes can be made.
               </p>
-              <Link
-                href="/"
-                className="inline-flex items-center justify-center gap-2 bg-slate-900 text-white px-8 py-3.5 rounded-xl text-sm font-bold hover:bg-slate-800 transition-all shadow-lg hover:shadow-xl active:scale-95"
-              >
-                Back to Dashboard
-              </Link>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleReactivate}
+                  className="inline-flex items-center justify-center gap-2 bg-indigo-600 text-white px-8 py-3.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg hover:shadow-xl active:scale-95"
+                >
+                  <RotateCcw size={18} />
+                  Reactivate to Edit
+                </button>
+                <Link
+                  href="/"
+                  className="inline-flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 px-8 py-3.5 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all shadow-sm hover:shadow active:scale-95"
+                >
+                  Back to Dashboard
+                </Link>
+              </div>
             </div>
           </div>
         )}

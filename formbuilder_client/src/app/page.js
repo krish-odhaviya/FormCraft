@@ -17,15 +17,18 @@ import {
   ShieldCheck,
   Users,
   Bell,
-  Lock
+  Lock,
+  RotateCcw
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { toast } from "react-hot-toast";
+import { useConfirm } from "@/context/ConfirmationContext";
 
 function DashboardContent() {
   const { user, logout } = useAuth();
+  const confirm = useConfirm();
   const router = useRouter();
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +82,14 @@ function DashboardContent() {
   };
 
   const handleArchive = async (formId) => {
-    if (!window.confirm("Are you sure you want to archive this form? This will stop all new submissions.")) return;
+    const confirmed = await confirm({
+      title: "Archive Form",
+      message: "Are you sure you want to archive this form? This will stop all new submissions.",
+      confirmText: "Archive",
+      type: "danger"
+    });
+    
+    if (!confirmed) return;
     try {
       await api.archiveForm(formId);
       setForms((prev) =>
@@ -89,6 +99,28 @@ function DashboardContent() {
     } catch (err) {
       console.error("Failed to archive form:", err);
       toast.error(err?.response?.data?.message || "Failed to archive form.");
+    }
+  };
+
+  const handleReactivate = async (formId) => {
+    const confirmed = await confirm({
+      title: "Reactivate Form",
+      message: "Reactivate this form? It will return to Draft status. You will need to publish it again to accept new submissions.",
+      confirmText: "Reactivate",
+      type: "info"
+    });
+    
+    if (!confirmed) return;
+
+    try {
+      await api.reactivateForm(formId);
+      setForms((prev) =>
+        prev.map((f) => (f.id === formId ? { ...f, status: "DRAFT" } : f))
+      );
+      toast.success("Form reactivated. It is now in Draft status.");
+    } catch (err) {
+      console.error("Failed to reactivate form:", err);
+      toast.error(err?.response?.data?.message || "Failed to reactivate form.");
     }
   };
 
@@ -322,6 +354,16 @@ function DashboardContent() {
                         title="Archive Form"
                       >
                         <Archive size={20} />
+                      </button>
+                    )}
+
+                    {form.status === "ARCHIVED" && canArchiveAny && (
+                      <button
+                        onClick={() => handleReactivate(form.id)}
+                        className="p-3.5 bg-slate-50 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-2xl transition-all border border-slate-100"
+                        title="Reactivate Form"
+                      >
+                        <RotateCcw size={20} />
                       </button>
                     )}
                   </div>

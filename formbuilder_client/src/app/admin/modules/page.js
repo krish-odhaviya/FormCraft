@@ -24,6 +24,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { useAdminGuard } from "@/hooks/useAdminGuard";
 import { validateModule, formatServerErrors } from "@/lib/validation";
 import { toast } from "react-hot-toast";
+import { useConfirm } from "@/context/ConfirmationContext";
 
 // ── Icon registry (unchanged) ─────────────────────────────────────────────────
 const AVAILABLE_ICONS = [
@@ -357,6 +358,7 @@ function ModuleModal({ initialData, modules, onSave, onClose }) {
 
 function ModulesContent() {
   const { isReady } = useAdminGuard(); // ← replaces 10 lines of copy-pasted auth check
+  const confirm = useConfirm();
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // null | {} | { initialData: module }
@@ -378,7 +380,14 @@ function ModulesContent() {
   }, [isReady, reload]);
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this module?")) return;
+    const confirmed = await confirm({
+      title: "Delete Module",
+      message: "Are you sure you want to delete this module? This might affect sidebar navigation.",
+      confirmText: "Delete",
+      type: "danger"
+    });
+    
+    if (!confirmed) return;
     try {
       await api.deleteModule(id);
       toast.success("Module deleted");

@@ -6,6 +6,8 @@ import { AuthProvider } from "@/context/AuthContext";
 import { FormsProvider } from "@/context/FormsContext";
 import { Toaster } from "react-hot-toast";
 
+import { ConfirmationProvider } from "@/context/ConfirmationContext";
+
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
   const isAuthPage = pathname === "/login" || pathname === "/register";
@@ -14,8 +16,10 @@ export default function ClientLayout({ children }) {
     return (
       <AuthProvider>
         <FormsProvider>
-          {children}
-          <Toaster position="top-right" />
+          <ConfirmationProvider>
+            {children}
+            <Toaster position="top-right" />
+          </ConfirmationProvider>
         </FormsProvider>
       </AuthProvider>
     );
@@ -24,15 +28,17 @@ export default function ClientLayout({ children }) {
   return (
     <AuthProvider>
       <FormsProvider>
-        <div className="flex min-h-screen bg-[#F8FAFC]">
-          <Sidebar />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <main className="flex-1 overflow-auto">
-              {children}
-            </main>
+        <ConfirmationProvider>
+          <div className="flex min-h-screen bg-[#F8FAFC]">
+            <Sidebar />
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <main className="flex-1 overflow-auto">
+                {children}
+              </main>
+            </div>
           </div>
-        </div>
-        <Toaster position="top-right" />
+          <Toaster position="top-right" />
+        </ConfirmationProvider>
       </FormsProvider>
     </AuthProvider>
   );
