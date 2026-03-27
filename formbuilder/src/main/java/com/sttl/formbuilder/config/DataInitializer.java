@@ -3,6 +3,7 @@ package com.sttl.formbuilder.config;
 import com.sttl.formbuilder.entity.*;
 import com.sttl.formbuilder.entity.Module;
 import com.sttl.formbuilder.repository.*;
+import com.sttl.formbuilder.service.SchemaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Configuration;
@@ -22,6 +23,9 @@ public class DataInitializer implements CommandLineRunner {
     private final RoleRepository roleRepository;
     private final RoleModuleRepository roleModuleRepository;
     private final UserRoleRepository userRoleRepository;
+    private final FormRepository formRepository;
+    private final FormFieldRepository formFieldRepository;
+    private final SchemaService schemaService;
 
     @Override
     @Transactional
@@ -30,6 +34,7 @@ public class DataInitializer implements CommandLineRunner {
         seedModules();
         seedRoles();
         assignRolesToExistingUsers();
+        checkSchemaDrift();
     }
 
     private void seedAdminUser() {
@@ -176,5 +181,61 @@ public class DataInitializer implements CommandLineRunner {
             rm.setModule(module);
             roleModuleRepository.save(rm);
         }
+    }
+
+    /**
+     * SRS §4.3 — Schema drift check at application startup.
+     *
+     * Scans every PUBLISHED form and verifies that its physical submission
+     * table in PostgreSQL matches the form's field definitions.
+     *
+     * If any drift is found: logs all affected forms clearly and throws
+     * an IllegalStateException so the application refuses to start.
+     * This is intentional fail-fast behavior per the SRS.
+     */
+    private void checkSchemaDrift() {
+        List<Form> publishedForms = formRepository.findAllByStatus(
+                com.sttl.formbuilder.Enums.FormStatusEnum.PUBLISHED);
+
+        if (publishedForms.isEmpty()) {
+            System.out.println("[SchemaDrift] No published forms found. Drift check skipped.");
+            return;
+        }
+
+        System.out.println("[SchemaDrift] Checking " + publishedForms.size() + " published form(s)...");
+
+        boolean driftFound = false;
+
+        for (Form form : publishedForms) {
+            if (form.getTableName() == null || form.getTableName().isBlank()) {
+                System.out.println("[SchemaDrift] WARNING: Form '" + form.getName() +
+                        "' (id=" + form.getId() + ") is PUBLISHED but has no table name set.");
+                driftFound = true;
+                continue;
+            }
+
+            List<FormField> activeFields = formFieldRepository
+                    .findByFormIdAndIsDeletedFalseOrderByFieldOrder(form.getId());
+
+            List<String> missingColumns = schemaService.detectDrift(form, activeFields);
+
+            if (!missingColumns.isEmpty()) {
+                System.err.println("[SchemaDrift] DRIFT DETECTED in form '" + form.getName() +
+                        "' (id=" + form.getId() + ") table='" + form.getTableName() + "'");
+                System.err.println("[SchemaDrift]   Missing columns: " + String.join(", ", missingColumns));
+                driftFound = true;
+            } else {
+                System.out.println("[SchemaDrift] OK: form '" + form.getName() + "'");
+            }
+        }
+
+        if (driftFound) {
+            throw new IllegalStateException(
+                    "APPLICATION STARTUP ABORTED: Schema drift detected in one or more published forms. " +
+                            "Check the logs above for details. Fix the database before restarting."
+            );
+        }
+
+        System.out.println("[SchemaDrift] All published forms passed drift check.");
     }
 }

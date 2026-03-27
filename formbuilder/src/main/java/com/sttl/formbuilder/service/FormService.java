@@ -25,6 +25,7 @@ import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.repository.FormRepository;
 import com.sttl.formbuilder.repository.FormVersionRepository;
+import com.sttl.formbuilder.service.SchemaService;
 
 @Service
 public class FormService {
@@ -37,6 +38,7 @@ public class FormService {
     private final FormVersionService          formVersionService;
     private final FormSubmissionMetaRepository submissionMetaRepository;
     private final FormVersionRepository       versionRepository;
+    private final SchemaService              schemaService;
 
     public FormService(FormRepository formRepository,
                        FormFieldRepository formFieldRepository,
@@ -45,7 +47,8 @@ public class FormService {
                        ModuleAccessService moduleAccessService,
                        FormVersionService formVersionService,
                        FormSubmissionMetaRepository submissionMetaRepository,
-                       FormVersionRepository versionRepository) {
+                       FormVersionRepository versionRepository,
+                       SchemaService schemaService) {
         this.formRepository      = formRepository;
         this.formFieldRepository = formFieldRepository;
         this.userRepository      = userRepository;
@@ -54,6 +57,7 @@ public class FormService {
         this.formVersionService  = formVersionService;
         this.submissionMetaRepository = submissionMetaRepository;
         this.versionRepository   = versionRepository;
+        this.schemaService       = schemaService;
     }
 
     /** Returns forms the user has access to manage (Owner or Admin or Builder).
@@ -142,6 +146,21 @@ public class FormService {
         response.setVisibility(form.getVisibility() != null ? form.getVisibility().name() : "PUBLIC");
         response.setTableName(form.getTableName());
         response.setPublishedAt(form.getPublishedAt());
+
+        // ── SRS §4.3 Schema Drift Detection (Initial Access) ─────────────────
+        if (form.getStatus() == FormStatusEnum.PUBLISHED || form.getStatus() == FormStatusEnum.ARCHIVED) {
+            com.sttl.formbuilder.entity.FormVersion activeV = formVersionService.getActiveVersion(formId).orElse(null);
+            if (activeV != null) {
+                List<FormField> activeFields = formFieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(activeV.getId());
+                List<String> drift = schemaService.detectDrift(form, activeFields);
+                if (!drift.isEmpty()) {
+                    throw new BusinessException(
+                            "Form Unavailable: this form's database structure is out of sync. Missing columns: " + String.join(", ", drift),
+                            HttpStatus.CONFLICT
+                    );
+                }
+            }
+        }
         // 2. Resolve appropriate version and Fields
         com.sttl.formbuilder.entity.FormVersion version;
         boolean canEdit = permissionService.canConfigureForm(user, form);

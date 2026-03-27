@@ -110,7 +110,8 @@ export default function SubmissionsPage() {
       setTotalRows(payload.totalElements || 0);
     } catch (err) {
       if (err.response?.status === 403) { setError("FORBIDDEN"); return; }
-      setError(err.message || "Failed to load submissions.");
+      const msg = err.response?.data?.message || err.message || "Failed to load submissions.";
+      setError(msg);
     } finally {
       setLoading(false);
     }

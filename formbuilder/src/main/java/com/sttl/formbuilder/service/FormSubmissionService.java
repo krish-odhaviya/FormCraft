@@ -46,6 +46,7 @@ public class FormSubmissionService {
     private final FormSubmissionMetaRepository submissionMetaRepository;
     private final FormVersionRepository formVersionRepository;
     private final FormFieldRepository fieldRepository;
+    private final SchemaService schemaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -75,6 +76,19 @@ public class FormSubmissionService {
         ruleEngineService.validateSubmission(fields, values);
 
         String tableName = form.getTableName();
+
+        // ── SRS §4.3 Schema Drift Detection at Submit Time ───────────────────
+        // Block the submission if the physical table is out of sync with the
+        // form definition. This prevents silent partial writes or SQL errors.
+        List<String> driftedColumns = schemaService.detectDrift(form, fields);
+        if (!driftedColumns.isEmpty()) {
+            throw new BusinessException(
+                    "Submission blocked: the form's data table is out of sync. " +
+                            "Missing columns: " + String.join(", ", driftedColumns) + ". " +
+                            "Please contact an administrator.",
+                    HttpStatus.CONFLICT
+            );
+        }
 
         Map<String, String> fieldTypes = new HashMap<>();
         Map<String, FormField> fieldMap = new HashMap<>();
@@ -499,8 +513,18 @@ public class FormSubmissionService {
         FormVersion version = formVersionRepository.findById(request.getFormVersionId())
                 .orElseThrow(() -> new BusinessException("Version not found", HttpStatus.NOT_FOUND));
 
-        // Structural validation: check unknown fields
+        // ── SRS §4.3 Schema Drift Detection ──────────────────────────────────
         List<FormField> activeFields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(version.getId());
+        List<String> driftedColumns = schemaService.detectDrift(form, activeFields);
+        if (!driftedColumns.isEmpty()) {
+            throw new BusinessException(
+                    "Cannot save draft: the data table is out of sync. " +
+                            "Missing columns: " + String.join(", ", driftedColumns),
+                    HttpStatus.CONFLICT
+            );
+        }
+
+        // Structural validation: check unknown fields
         Set<String> allowedKeys = activeFields.stream()
                 .filter(f -> !List.of("SECTION", "LABEL", "PAGE_BREAK", "GROUP").contains(f.getFieldType()))
                 .map(FormField::getFieldKey)
@@ -590,6 +614,16 @@ public class FormSubmissionService {
         FormVersion version = meta.getFormVersion();
 
         List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(version.getId());
+
+        // ── SRS §4.3 Schema Drift Detection ──────────────────────────────────
+        List<String> driftedColumns = schemaService.detectDrift(form, fields);
+        if (!driftedColumns.isEmpty()) {
+            throw new BusinessException(
+                    "Cannot resume draft: the data table is out of sync. " +
+                            "Missing columns: " + String.join(", ", driftedColumns),
+                    HttpStatus.CONFLICT
+            );
+        }
         String dataSql = buildSelectSql(fields, form.getTableName()) + " WHERE id = ?";
         Map<String, Object> data = jdbcTemplate.queryForMap(dataSql, meta.getDataRowId());
         
@@ -804,6 +838,17 @@ public class FormSubmissionService {
         }
 
         List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(targetVersion.getId());
+        
+        // ── SRS §4.3 Schema Drift Detection — prevent SQL error ──────────────
+        List<String> driftedColumns = schemaService.detectDrift(form, fields);
+        if (!driftedColumns.isEmpty()) {
+            throw new BusinessException(
+                    "Cannot view submissions: the form's data table is out of sync. " +
+                            "Missing columns: " + String.join(", ", driftedColumns) + ". " +
+                            "Fix the database to view data.",
+                    HttpStatus.CONFLICT
+            );
+        }
 
         // ── Valid field keys (to prevent SQL injection on sort column) ─────────
         Set<String> validKeys = fields.stream()
@@ -891,6 +936,16 @@ public class FormSubmissionService {
         }
         
         List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(targetVersion.getId());
+
+        // ── SRS §4.3 Schema Drift Detection — prevent SQL error ──────────────
+        List<String> driftedColumns = schemaService.detectDrift(form, fields);
+        if (!driftedColumns.isEmpty()) {
+            throw new BusinessException(
+                    "Cannot export submissions: the form's data table is out of sync. " +
+                            "Missing columns: " + String.join(", ", driftedColumns),
+                    HttpStatus.CONFLICT
+            );
+        }
 
         String sql = buildSelectSql(fields, tableName)
                 + buildWhere(fields, search, versionId)

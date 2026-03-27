@@ -322,7 +322,10 @@ function FormPageContent() {
       } catch (err) {
         if (err.response?.status === 403)      setMessage("forbidden");
         else if (err.response?.status === 401) setMessage("unauthorized");
-        else                                   setMessage("error");
+        else if (err.response?.status === 409) {
+          setErrorMessage(err.response.data?.message || "This form is unavailable due to a database sync issue.");
+          setMessage("error");
+        } else                                 setMessage("error");
       } finally {
         setLoading(false);
       }
@@ -533,8 +536,15 @@ function FormPageContent() {
       }
     } catch (err) {
       if (err.response?.status === 409) {
-        setErrorMessage("This form has been updated by the owner. Please reload the page to get the latest version.");
-        setMessage("version_conflict");
+        const msg = err.response?.data?.message || "";
+        // Distinguish between version mismatch and schema drift (both are 409)
+        if (msg.toLowerCase().includes("out of sync") || msg.toLowerCase().includes("drift")) {
+          setErrorMessage(msg);
+          setMessage("error"); // Show as a standard error with the backend's drift message
+        } else {
+          setErrorMessage("This form has been updated by the owner. Please reload the page to get the latest version.");
+          setMessage("version_conflict");
+        }
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else if (err.response?.status === 400 && Array.isArray(err.response.data?.errors)) {
         const errorsMap = {};
@@ -840,8 +850,8 @@ function FormPageContent() {
                     disabled={submitting || message === "success" || (isPreview && currentPage === formPages.length - 1)}
                     className={`flex items-center justify-center gap-2 px-8 py-3 rounded-xl text-sm font-bold shadow-lg transition-all ${
                       isPreview && currentPage === formPages.length - 1
-                        ? "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300"
-                        : "bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white"
+                        ? "bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none"
+                        : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95"
                     }`}
                   >
                     {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

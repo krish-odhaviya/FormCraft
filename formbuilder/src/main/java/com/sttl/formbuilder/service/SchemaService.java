@@ -1,6 +1,7 @@
 package com.sttl.formbuilder.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -83,6 +84,19 @@ public class SchemaService {
                 form.setTableName(tableName);
             } else {
                 alterTable(tableName, fields);
+
+                // ── Drift check after ALTER TABLE ────────────────────────────────
+                // alterTable() adds missing columns. If drift still exists after
+                // that, something went wrong. Block the publish.
+                List<String> remainingDrift = detectDrift(form, fields);
+                if (!remainingDrift.isEmpty()) {
+                    throw new RuntimeException(
+                            "Publish blocked: schema drift detected after migration. " +
+                                    "Missing columns in table '" + tableName + "': " +
+                                    String.join(", ", remainingDrift) + ". " +
+                                    "Manual intervention required."
+                    );
+                }
             }
 
             // 5. Update definitionJson snapshot for the draft
@@ -100,6 +114,61 @@ public class SchemaService {
             e.printStackTrace();
             throw new RuntimeException("Publish failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Detects schema drift for a single form.
+     *
+     * Drift = a field exists in the form definition but its column is missing
+     * from the physical submission table in PostgreSQL.
+     *
+     * Layout-only fields (SECTION, LABEL, PAGE_BREAK, GROUP) are excluded —
+     * they produce no DB columns.
+     *
+     * @param form   the Form entity (must have tableName set and status = PUBLISHED)
+     * @param fields the active field definitions for this form
+     * @return list of field keys that are missing from the DB table.
+     *         Empty list = no drift.
+     */
+    public List<String> detectDrift(Form form, List<FormField> fields) {
+        String tableName = form.getTableName();
+
+        // If no table exists yet, there is nothing to check
+        if (tableName == null || tableName.isBlank()) {
+            return List.of();
+        }
+
+        // Fetch actual columns from PostgreSQL (lowercase, case-insensitive comparison)
+        String columnQuery = "SELECT column_name FROM information_schema.columns WHERE table_name = ?";
+        Set<String> existingColumns;
+        try {
+            existingColumns = jdbcTemplate
+                    .queryForList(columnQuery, String.class, tableName)
+                    .stream()
+                    .map(String::toLowerCase)
+                    .collect(Collectors.toSet());
+        } catch (Exception e) {
+            // Table itself does not exist — everything is missing
+            return fields.stream()
+                    .filter(f -> !LAYOUT_TYPES.contains(f.getFieldType()))
+                    .filter(f -> !Boolean.TRUE.equals(f.getIsDeleted()))
+                    .map(f -> f.getFieldKey().toLowerCase())
+                    .collect(Collectors.toList());
+        }
+
+        // Find field keys that are in the form definition but absent from the table
+        List<String> missingColumns = new ArrayList<>();
+        for (FormField field : fields) {
+            if (LAYOUT_TYPES.contains(field.getFieldType())) continue;
+            if (Boolean.TRUE.equals(field.getIsDeleted())) continue;
+
+            String expectedColumn = field.getFieldKey().toLowerCase();
+            if (!existingColumns.contains(expectedColumn)) {
+                missingColumns.add(expectedColumn);
+            }
+        }
+
+        return missingColumns;
     }
 
     /**
