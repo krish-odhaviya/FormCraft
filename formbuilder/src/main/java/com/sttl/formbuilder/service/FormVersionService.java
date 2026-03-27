@@ -107,10 +107,13 @@ public class FormVersionService {
         if (fields.isEmpty()) {
             throw new BusinessException("Cannot publish a version with no fields.", HttpStatus.BAD_REQUEST);
         }
+        version.setDefinitionJson(generateDefinitionJson(fields));
+        versionRepository.save(version);
+    }
 
-        String json;
+    public String generateDefinitionJson(List<FormField> fields) {
         try {
-            json = objectMapper.writeValueAsString(fields.stream()
+            return objectMapper.writeValueAsString(fields.stream()
                     .map(f -> {
                         var node = objectMapper.createObjectNode();
                         node.put("fieldKey",   f.getFieldKey());
@@ -122,7 +125,6 @@ public class FormVersionService {
                         if (f.getConditions() != null) node.put("conditions", f.getConditions());
                         if (f.getOptions()    != null && !f.getOptions().isEmpty()) node.set("options", objectMapper.valueToTree(f.getOptions()));
                         
-                        // Populate UI config node
                         var ui = node.putObject("uiConfig");
                         if (f.getPlaceholder() != null) ui.put("placeholder", f.getPlaceholder());
                         if (f.getHelpText() != null) ui.put("helpText", f.getHelpText());
@@ -142,7 +144,6 @@ public class FormVersionService {
                         if (f.getSelectionMode() != null) ui.put("selectionMode", f.getSelectionMode());
                         if (f.getMaxSelections() != null) ui.put("maxSelections", f.getMaxSelections());
 
-                        // Populate Validation node
                         var val = node.putObject("validation");
                         if (f.getMinLength() != null) val.put("minLength", f.getMinLength());
                         if (f.getMaxLength() != null) val.put("maxLength", f.getMaxLength());
@@ -161,9 +162,6 @@ public class FormVersionService {
         } catch (Exception e) {
             throw new BusinessException("Failed to serialize fields: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
-
-        version.setDefinitionJson(json);
-        versionRepository.save(version);
     }
 
     @Transactional

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sttl.formbuilder.Enums.FormStatusEnum;
 import com.sttl.formbuilder.dto.*;
 import com.sttl.formbuilder.entity.Form;
-import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.entity.FormSubmissionMeta;
 import com.sttl.formbuilder.entity.FormSubmissionMeta.SubmissionStatus;
@@ -994,5 +993,97 @@ public class FormSubmissionService {
         String sql = "UPDATE " + form.getTableName() + " SET is_delete = true WHERE id IN (" + placeholders + ")";
 
         jdbcTemplate.update(sql, submissionIds.toArray());
+    }
+
+    /**
+     * Fetches a single submission for the detail view.
+     *
+     * SRS View #10: always render using the submission's own form_version_id,
+     * never the current active version.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getSubmissionDetail(java.util.UUID formId, java.util.UUID submissionId) {
+
+        // ── 1. Load the form ──────────────────────────────────────────────────
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
+
+        // ── 2. Load submission metadata ───────────────────────────────────────
+        // Use dataRowId (passed as submissionId) to find the meta record
+        FormSubmissionMeta meta = submissionMetaRepository.findByFormIdAndDataRowIdAndIsDeletedFalse(formId, submissionId)
+                .orElseThrow(() -> new BusinessException("Submission not found", HttpStatus.NOT_FOUND));
+
+        // Guard: submission must belong to this form
+        if (!meta.getForm().getId().equals(formId)) {
+            throw new BusinessException("Submission does not belong to this form", HttpStatus.FORBIDDEN);
+        }
+
+        // ── 3. Load field definitions from the version snapshot ───────────────
+        FormVersion version = meta.getFormVersion();
+        List<Map<String, Object>> fields = new ArrayList<>();
+
+        if (version != null && version.getDefinitionJson() != null) {
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                List<Map<String, Object>> parsed = mapper.readValue(
+                    version.getDefinitionJson(),
+                    new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {}
+                );
+                // Preserve layout order
+                parsed.sort(java.util.Comparator.comparingInt(
+                    f -> f.get("fieldOrder") instanceof Number n ? n.intValue() : 0
+                ));
+                fields = parsed;
+            } catch (Exception e) {
+                // Fallback to fields repository if snapshot is corrupt
+                fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(version.getId())
+                    .stream()
+                    .map(f -> {
+                        Map<String, Object> m = new java.util.LinkedHashMap<>();
+                        m.put("fieldKey",   f.getFieldKey());
+                        m.put("fieldLabel", f.getFieldLabel());
+                        m.put("fieldType",  f.getFieldType());
+                        m.put("fieldOrder", f.getFieldOrder());
+                        if (f.getOptions() != null) m.put("options", f.getOptions());
+                        return m;
+                    })
+                    .collect(Collectors.toList());
+            }
+        }
+
+        // ── 4. Fetch the actual submitted values from the per-form table ───────
+        Map<String, Object> values = new java.util.LinkedHashMap<>();
+        String tableName = form.getTableName();
+
+        if (tableName != null && !tableName.isBlank() && meta.getDataRowId() != null) {
+            try {
+                String sql = "SELECT * FROM " + tableName + " WHERE id = ?";
+                List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, meta.getDataRowId());
+                if (!rows.isEmpty()) {
+                    values = rows.get(0);
+                }
+            } catch (Exception e) {
+                // Ignore
+            }
+        }
+
+        // ── 5. Build the response ──────────────────────────────────────────────
+        Map<String, Object> response = new java.util.LinkedHashMap<>();
+
+        Map<String, Object> metadata = new java.util.LinkedHashMap<>();
+        metadata.put("submissionId",   meta.getId());
+        metadata.put("dataRowId",      meta.getDataRowId());
+        metadata.put("submittedBy",    meta.getSubmittedBy() != null ? meta.getSubmittedBy() : "Anonymous");
+        metadata.put("submittedAt",    meta.getSubmittedAt());
+        metadata.put("status",         meta.getStatus().name());
+        metadata.put("createdAt",      meta.getCreatedAt());
+        metadata.put("versionNumber",  version != null ? version.getVersionNumber() : null);
+        metadata.put("formName",       form.getName());
+
+        response.put("metadata", metadata);
+        response.put("fields",   fields);
+        response.put("values",   values);
+
+        return response;
     }
 }

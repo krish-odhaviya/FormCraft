@@ -12,7 +12,7 @@ import {
   Link2, Heading1, AlignLeft as AlignLeftIcon, GitBranch,
   History, CheckCircle2, Archive, FilePen, ChevronDown as ChevronDownIcon,
   Loader2, ExternalLink, BookOpen, Eye, Users, ShieldAlert, UserPlus, Shield,
-  AlertCircle, RotateCcw
+  AlertCircle, RotateCcw, Search
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
@@ -168,6 +168,8 @@ export default function BuilderPage() {
           message = "You do not have permission to edit this form.";
         } else if (status === 404) {
           message = "The form you are looking for could not be found.";
+        } else if (status === 409) {
+          message = err.response.data?.message || "Form has been changed: a schema drift was detected.";
         } else {
           console.error("Failed to fetch form:", err);
           message = "Server Error. Something went wrong on our end. Please try again later.";
@@ -557,7 +559,7 @@ export default function BuilderPage() {
       toast.success("Form published!");
       router.push("/");
     } catch (e) {
-      console.error(e);
+      // console.error(e);
       toast.error("Publish failed. " + (e.response?.data?.message || ""));
       setPublishing(false);
     }
@@ -603,11 +605,12 @@ export default function BuilderPage() {
     const isUnauthorized = errorState?.status === 401;
     const isServerError = errorState?.status === 500;
     const isNotFound = errorState?.status === 404;
+    const isConflict = errorState?.status === 409;
 
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-50 px-6 text-center">
         <div className="w-24 h-24 bg-red-100/50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-red-100">
-          {isForbidden || isUnauthorized ? (
+          {isForbidden || isUnauthorized || isConflict ? (
             <ShieldAlert size={48} className="text-red-500" />
           ) : isServerError ? (
             <AlertCircle size={48} className="text-red-500" />
@@ -618,6 +621,7 @@ export default function BuilderPage() {
         <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-3">
           {isUnauthorized ? "Login Required" : 
            isForbidden ? "Access Denied" : 
+           isConflict ? "Schema Sync Error" :
            isServerError ? "Server Error" : 
            isNotFound ? "Form Not Found" : "Error Loading Form"}
         </h2>
@@ -653,7 +657,7 @@ export default function BuilderPage() {
     const preview = (() => {
       switch (field.fieldType) {
         case "TEXTAREA":
-          return <div className="w-full h-24 bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 shadow-inner">{placeholder}</div>;
+          return <div className="w-full h-16 bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-400 shadow-inner italic flex items-center">{placeholder}</div>;
 
         case "RADIO":
           return (
@@ -1070,12 +1074,13 @@ export default function BuilderPage() {
           onDragOver={handleDragOver}
           onDragEnter={handleCanvasDragEnter}
           onDragLeave={handleCanvasDragLeave}
-          className={`flex-1 overflow-y-auto p-8 lg:p-12 flex justify-center pb-40 custom-scrollbar transition-all duration-300 ${
+          className={`flex-1 overflow-y-auto p-6 lg:p-8 flex justify-center pb-40 custom-scrollbar transition-all duration-300 ${
             isDraggingOverCanvas && !dragOverFieldId ? "bg-indigo-50/40 shadow-[inset_0_0_40px_rgba(99,102,241,0.1)]" : ""
           }`}
           onClick={() => setActiveFieldId(null)}
         >
           <div className="w-full max-w-3xl space-y-5">
+            
             {localFields.length === 0 ? (
               <div className={`h-72 border-[3px] border-dashed rounded-3xl flex flex-col items-center justify-center transition-colors duration-300 ${
                 isDraggingOverCanvas 
@@ -1117,7 +1122,7 @@ export default function BuilderPage() {
                       }}
                       onDrop={(e) => handleDropOnField(e, realIndex)}
                       onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); e.currentTarget.blur(); }}
-                      className={`group relative bg-white rounded-[24px] transition-all duration-200 ease-in-out cursor-pointer border-2 outline-none ${
+                      className={`group relative bg-white rounded-2xl transition-all duration-200 ease-in-out cursor-pointer border-2 outline-none ${
                         dragOverFieldId === field.id
                           ? "border-t-[6px] border-t-indigo-500 border-indigo-200 shadow-xl scale-[1.02] z-30"
                           : activeFieldId === field.id
@@ -1145,8 +1150,8 @@ export default function BuilderPage() {
                         } catch { }
                         return null;
                       })()}
-                      <div className={`p-8 pl-16 ${field.fieldType === "GROUP" ? "" : "pointer-events-none"}`}>
-                        <label className="block text-lg font-bold text-slate-900 mb-5 tracking-tight">
+                      <div className={`p-4 pl-12 ${field.fieldType === "GROUP" ? "" : "pointer-events-none"}`}>
+                        <label className="block text-sm font-bold text-slate-900 mb-2 tracking-tight">
                           {field.fieldLabel} {field.required && <span className="text-red-500 ml-1">*</span>}
                         </label>
                         {renderFieldPreview(field)}
@@ -2086,7 +2091,7 @@ export default function BuilderPage() {
                       setUpdateStatus({ type: 'success', message: 'Settings saved!' });
                       setTimeout(() => setUpdateStatus(null), 3000);
                     } catch (err) {
-                      console.error("Failed to update visibility", err);
+                     
                       setUpdateStatus({ type: 'error', message: 'Failed to save settings.' });
                       setTimeout(() => setUpdateStatus(null), 3000);
                     } finally {

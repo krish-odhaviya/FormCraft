@@ -455,12 +455,20 @@ export default function SubmissionsPage() {
       cell: (row) => formatCellValue(row[col.fieldKey], col.fieldType, row.id, col.fieldKey, col.uiConfig),
       style: { minWidth: "160px" },
     })),
-    ...(canDelete
-      ? [{
-          name: "Actions",
-          right: "true",
-          width: "80px",
-          cell: (row) => (
+    {
+      name: "Actions",
+      right: "true",
+      width: "120px",
+      cell: (row) => (
+        <div className="flex items-center gap-1">
+          <Link
+            href={`/forms/${formId}/submissions/${row.id}`}
+            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            title="View Detail"
+          >
+            <FileText size={16} />
+          </Link>
+          {canDelete && (
             <button
               onClick={() => handleDelete(row.id)}
               className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -468,9 +476,10 @@ export default function SubmissionsPage() {
             >
               <Trash2 size={16} />
             </button>
-          ),
-        }]
-      : []),
+          )}
+        </div>
+      ),
+    },
   ];
 
   // ── Error state ───────────────────────────────────────────────────────────

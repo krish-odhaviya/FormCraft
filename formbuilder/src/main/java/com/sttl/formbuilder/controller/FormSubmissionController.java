@@ -105,23 +105,23 @@ public class FormSubmissionController {
 
     /**
      * GET /api/v1/forms/{formId}/submissions
-     * Returns paginated submissions. Supports ?page, ?size, ?sort, ?search.
+     * Returns paginated submissions for a specific form.
      */
     @GetMapping("/forms/{formId}/submissions")
-    public ResponseEntity<ApiResponse<PagedSubmissionsResponse>> getSubmissions(
+    public ResponseEntity<?> getSubmissions(
             @PathVariable UUID formId,
-            @RequestParam(defaultValue = "") String search,
+            @RequestParam(required = false) String search,
             @RequestParam(required = false) UUID versionId,
-            @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+            @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        Form form = resolveForm(formId);
         User user = resolveOptionalUser(currentUser);
+        Form form = resolveForm(formId);
 
         if (!permissionService.canViewSubmissions(user, form)) {
             return ApiResponseUtil.error(
-                    "Access denied to view submissions",
+                    "Access denied to view submissions for this form",
                     null, HttpStatus.FORBIDDEN, request);
         }
 
@@ -130,26 +130,28 @@ public class FormSubmissionController {
     }
 
     /**
-     * GET /api/v1/forms/{formId}/submissions/export?search=&format=csv|pdf|word|xlsx
-     * Downloads all matching submissions as a file.
+     * GET /api/v1/forms/{formId}/submissions/export
+     * Exports all submissions for a specific form as XLSX.
      */
     @GetMapping("/forms/{formId}/submissions/export")
-    public ResponseEntity<byte[]> exportSubmissions(
+    public ResponseEntity<?> exportSubmissions(
             @PathVariable UUID formId,
-            @RequestParam(defaultValue = "") String search,
+            @RequestParam(required = false) String search,
             @RequestParam(required = false) UUID versionId,
-            @RequestParam(defaultValue = "csv") String format,
-            @AuthenticationPrincipal UserDetails currentUser) {
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
 
-        Form form = resolveForm(formId);
         User user = resolveOptionalUser(currentUser);
+        Form form = resolveForm(formId);
 
         if (!permissionService.canViewSubmissions(user, form)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            return ApiResponseUtil.error(
+                    "Access denied to export submissions for this form",
+                    null, HttpStatus.FORBIDDEN, request);
         }
 
-        SubmissionsResponse data = formSubmissionService.exportSubmissions(formId, search, versionId);
-        return exportService.export(data, format);
+        SubmissionsResponse response = formSubmissionService.exportSubmissions(formId, search, versionId);
+        return exportService.export(response, "xlsx");
     }
 
     /**
@@ -157,42 +159,42 @@ public class FormSubmissionController {
      * Soft-deletes a single submission.
      */
     @DeleteMapping("/forms/{formId}/submissions/{submissionId}")
-    public ResponseEntity<ApiResponse<String>> deleteSubmission(
+    public ResponseEntity<?> deleteSubmission(
             @PathVariable UUID formId,
             @PathVariable UUID submissionId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        Form form = resolveForm(formId);
         User user = resolveOptionalUser(currentUser);
+        Form form = resolveForm(formId);
 
         if (!permissionService.canDeleteSubmissions(user, form)) {
             return ApiResponseUtil.error(
-                    "Access denied to delete submissions",
+                    "Access denied to delete submissions for this form",
                     null, HttpStatus.FORBIDDEN, request);
         }
 
         formSubmissionService.softDeleteSubmission(formId, submissionId);
-        return ApiResponseUtil.success("Row deleted successfully", "Submission deleted successfully", request);
+        return ApiResponseUtil.success("Deleted successfully", "Submission deleted successfully", request);
     }
 
     /**
      * POST /api/v1/forms/{formId}/submissions/bulk-delete
-     * Soft-deletes multiple submissions at once.
+     * Soft-deletes multiple submissions.
      */
     @PostMapping("/forms/{formId}/submissions/bulk-delete")
-    public ResponseEntity<ApiResponse<String>> bulkDeleteSubmissions(
+    public ResponseEntity<?> bulkDeleteSubmissions(
             @PathVariable UUID formId,
             @RequestBody List<UUID> submissionIds,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        Form form = resolveForm(formId);
         User user = resolveOptionalUser(currentUser);
+        Form form = resolveForm(formId);
 
         if (!permissionService.canDeleteSubmissions(user, form)) {
             return ApiResponseUtil.error(
-                    "Access denied to bulk delete submissions",
+                    "Access denied to delete submissions for this form",
                     null, HttpStatus.FORBIDDEN, request);
         }
 
@@ -210,5 +212,33 @@ public class FormSubmissionController {
     private User resolveOptionalUser(UserDetails currentUser) {
         if (currentUser == null) return null;
         return userRepository.findByUsername(currentUser.getUsername()).orElse(null);
+    }
+
+    /**
+     * GET /api/v1/forms/{formId}/submissions/{submissionId}
+     * Returns full submission detail for the read-only detail view.
+     */
+    @GetMapping("/forms/{formId}/submissions/{submissionId}")
+    public ResponseEntity<?> getSubmissionDetail(
+            @PathVariable UUID formId,
+            @PathVariable UUID submissionId,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
+
+        User user = resolveOptionalUser(currentUser);
+        Form form = resolveForm(formId);
+
+        if (!permissionService.canViewSubmissions(user, form)) {
+            return ApiResponseUtil.error(
+                    "Access denied to view submissions for this form",
+                    null, HttpStatus.FORBIDDEN, request);
+        }
+
+        try {
+            java.util.Map<String, Object> detail = formSubmissionService.getSubmissionDetail(formId, submissionId);
+            return ApiResponseUtil.success(detail, "Submission detail fetched", request);
+        } catch (BusinessException e) {
+            return ApiResponseUtil.error(e.getMessage(), null, e.getStatus(), request);
+        }
     }
 }

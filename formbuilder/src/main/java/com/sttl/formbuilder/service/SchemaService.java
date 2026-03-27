@@ -17,6 +17,8 @@ import com.sttl.formbuilder.entity.FormVersion;
 import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.repository.FormRepository;
 import com.sttl.formbuilder.util.SqlTypeMapper;
+import com.sttl.formbuilder.exception.BusinessException;
+import org.springframework.http.HttpStatus;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -53,16 +55,26 @@ public class SchemaService {
             // 2. Resolve fields for the draft
             List<FormField> fields = fieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(draftVersion.getId());
             if (fields.isEmpty()) {
-                throw new RuntimeException("No fields defined — add at least one field before publishing");
+                throw new BusinessException("No fields defined — add at least one field before publishing", HttpStatus.BAD_REQUEST);
             }
+
+            // ── Change Detection — Block publishing if nothing changed from active version ──
+            formVersionService.getActiveVersion(formId).ifPresent(active -> {
+                String activeJson = active.getDefinitionJson();
+                String draftJson = formVersionService.generateDefinitionJson(fields);
+                if (activeJson != null && activeJson.equals(draftJson)) {
+                    throw new BusinessException("You have to change something to create new version this form", HttpStatus.BAD_REQUEST);
+                }
+            });
 
             // 3. Validate field keys against reserved words
             for (FormField f : fields) {
                 if (LAYOUT_TYPES.contains(f.getFieldType())) continue;
                 String key = f.getFieldKey().toLowerCase();
                 if (RESERVED_COLUMNS.contains(key) || key.trim().isEmpty()) {
-                    throw new RuntimeException(
-                            "Field key '" + f.getFieldKey() + "' is invalid or reserved and cannot be used.");
+                    throw new BusinessException(
+                            "Field key '" + f.getFieldKey() + "' is invalid or reserved and cannot be used.",
+                            HttpStatus.BAD_REQUEST);
                 }
             }
 
@@ -90,11 +102,12 @@ public class SchemaService {
                 // that, something went wrong. Block the publish.
                 List<String> remainingDrift = detectDrift(form, fields);
                 if (!remainingDrift.isEmpty()) {
-                    throw new RuntimeException(
+                    throw new BusinessException(
                             "Publish blocked: schema drift detected after migration. " +
                                     "Missing columns in table '" + tableName + "': " +
                                     String.join(", ", remainingDrift) + ". " +
-                                    "Manual intervention required."
+                                    "Manual intervention required.",
+                            HttpStatus.CONFLICT
                     );
                 }
             }
@@ -110,8 +123,9 @@ public class SchemaService {
             form.setPublishedAt(LocalDateTime.now());
             formRepository.save(form);
 
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
-            e.printStackTrace();
             throw new RuntimeException("Publish failed: " + e.getMessage(), e);
         }
     }

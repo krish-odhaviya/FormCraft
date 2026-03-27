@@ -114,6 +114,9 @@ export const api = {
       },
     }),
 
+  getSubmissionDetail: (formId, submissionId) =>
+    API.get(`/forms/${formId}/submissions/${submissionId}`),
+
   deleteSubmission: (formId, submissionId) =>
     API.delete(`/forms/${formId}/submissions/${submissionId}`),
 

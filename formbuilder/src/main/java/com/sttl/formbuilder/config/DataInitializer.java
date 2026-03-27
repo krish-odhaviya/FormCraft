@@ -4,6 +4,8 @@ import com.sttl.formbuilder.entity.*;
 import com.sttl.formbuilder.entity.Module;
 import com.sttl.formbuilder.repository.*;
 import com.sttl.formbuilder.service.SchemaService;
+import com.sttl.formbuilder.service.FormVersionService;
+import com.sttl.formbuilder.Enums.FormStatusEnum;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Configuration;
@@ -26,6 +28,7 @@ public class DataInitializer implements CommandLineRunner {
     private final FormRepository formRepository;
     private final FormFieldRepository formFieldRepository;
     private final SchemaService schemaService;
+    private final FormVersionService formVersionService;
 
     @Override
     @Transactional
@@ -214,8 +217,17 @@ public class DataInitializer implements CommandLineRunner {
                 continue;
             }
 
+            // Only check the ACTIVE version's fields for published forms
+            FormVersion activeVer = formVersionService.getActiveVersion(form.getId()).orElse(null);
+            if (activeVer == null) {
+                System.out.println("[SchemaDrift] WARNING: Form '" + form.getName() +
+                        "' (id=" + form.getId() + ") is PUBLISHED but has no active version.");
+                driftFound = true;
+                continue;
+            }
+
             List<FormField> activeFields = formFieldRepository
-                    .findByFormIdAndIsDeletedFalseOrderByFieldOrder(form.getId());
+                    .findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(activeVer.getId());
 
             List<String> missingColumns = schemaService.detectDrift(form, activeFields);
 

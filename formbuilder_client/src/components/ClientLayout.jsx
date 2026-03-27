@@ -10,9 +10,9 @@ import { ConfirmationProvider } from "@/context/ConfirmationContext";
 
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
-  const isAuthPage = pathname === "/login" || pathname === "/register";
+  const isPublicPage = pathname === "/login" || pathname === "/register" || pathname.includes("/builder") || pathname.endsWith("/view");
 
-  if (isAuthPage) {
+  if (isPublicPage) {
     return (
       <AuthProvider>
         <FormsProvider>

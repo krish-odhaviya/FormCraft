@@ -147,7 +147,7 @@ public class FormService {
         response.setTableName(form.getTableName());
         response.setPublishedAt(form.getPublishedAt());
 
-        // ── SRS §4.3 Schema Drift Detection (Initial Access) ─────────────────
+        // ── SRS §4.3 Schema Drift Detection ──────────────────────────────────
         if (form.getStatus() == FormStatusEnum.PUBLISHED || form.getStatus() == FormStatusEnum.ARCHIVED) {
             com.sttl.formbuilder.entity.FormVersion activeV = formVersionService.getActiveVersion(formId).orElse(null);
             if (activeV != null) {
@@ -155,7 +155,7 @@ public class FormService {
                 List<String> drift = schemaService.detectDrift(form, activeFields);
                 if (!drift.isEmpty()) {
                     throw new BusinessException(
-                            "Form Unavailable: this form's database structure is out of sync. Missing columns: " + String.join(", ", drift),
+                            "Form has been changed: schema drift detected. Missing columns: " + String.join(", ", drift),
                             HttpStatus.CONFLICT
                     );
                 }
