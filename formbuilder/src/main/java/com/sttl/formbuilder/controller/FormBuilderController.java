@@ -2,8 +2,7 @@ package com.sttl.formbuilder.controller;
 
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
-import com.sttl.formbuilder.dto.AddFieldRequest;
-import com.sttl.formbuilder.dto.ReorderFieldsRequest;
+import com.sttl.formbuilder.dto.*;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.entity.FormVersion;
@@ -146,6 +145,29 @@ public class FormBuilderController {
         assertAuthenticated(currentUser);
         formBuilderService.reorderFields(formId, requestBody, currentUser.getUsername());
         return ApiResponseUtil.success("Reordered successfully", "Fields reordered successfully", request);
+    }
+
+    @GetMapping("/forms/{formId}/validations")
+    public ResponseEntity<ApiResponse<List<ValidationRuleDTO>>> getValidations(
+            @PathVariable UUID formId,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
+
+        assertAuthenticated(currentUser);
+        List<ValidationRuleDTO> validations = formBuilderService.getValidations(formId, currentUser.getUsername());
+        return ApiResponseUtil.success(validations, "Validations fetched successfully", request);
+    }
+
+    @PostMapping("/forms/{formId}/validations")
+    public ResponseEntity<ApiResponse<String>> saveValidations(
+            @PathVariable UUID formId,
+            @RequestBody List<ValidationRuleDTO> validations,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
+
+        assertAuthenticated(currentUser);
+        formBuilderService.saveValidations(formId, validations, currentUser.getUsername());
+        return ApiResponseUtil.success("Saved successfully", "Validations saved successfully", request);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

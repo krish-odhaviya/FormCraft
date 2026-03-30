@@ -20,6 +20,7 @@ import { useForms } from "@/context/FormsContext";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/context/ConfirmationContext";
 import { toast } from "react-hot-toast";
+import CustomValidationsPanel from "@/components/builder/CustomValidationsPanel";
 
 const FIELD_CATEGORIES = [
   {
@@ -211,10 +212,15 @@ export default function BuilderPage() {
     updateLocalField(fieldId, "conditions", JSON.stringify(condObj));
   };
 
-  const generateFieldKey = (label, suffix) =>
-    (label || "field").toLowerCase().trim()
+  const generateFieldKey = (label, suffix) => {
+    let key = (label || "field").toLowerCase().trim()
       .replace(/\s+/g, "_")
-      .replace(/[^a-z0-9_]/g, "") + "_" + suffix;
+      .replace(/[^a-z0-9_]/g, "");
+    if (/^[0-9]/.test(key)) {
+      key = "f_" + key;
+    }
+    return key + "_" + suffix;
+  };
 
   const createNewField = (type, order) => {
     const isOptionsBased = OPTIONS_BASED_TYPES.includes(type);
@@ -1190,10 +1196,18 @@ export default function BuilderPage() {
             >
               <Lock size={16} /> Access
             </button>
+            <button
+              onClick={() => setSidebarTab('validations')}
+              className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all duration-200 ${sidebarTab === 'validations' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+            >
+              <ShieldCheck size={16} /> Logic
+            </button>
           </div>
         </div>
 
-        {sidebarTab === 'fields' ? (
+        {sidebarTab === 'validations' ? (
+          <CustomValidationsPanel formId={formId} fields={localFields} />
+        ) : sidebarTab === 'fields' ? (
           <>
             <div className="border-b border-slate-100 bg-white">
               {activeField ? (

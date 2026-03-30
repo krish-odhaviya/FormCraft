@@ -30,7 +30,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import com.sttl.formbuilder.dto.FieldDto;
+import com.sttl.formbuilder.dto.ValidationRuleDTO;
 import com.sttl.formbuilder.dto.internal.FormRuleDTO;
+import com.sttl.formbuilder.repository.*;
 
 @Service
 @RequiredArgsConstructor
@@ -41,6 +43,7 @@ public class FormBuilderService {
     private final PermissionService permissionService;
     private final FormVersionService formVersionService;
     private final FormSubmissionMetaRepository submissionMetaRepository;
+    private final FieldValidationRepository validationRepository;
     private final ObjectMapper                objectMapper;
 
     public FormField addField(UUID formId, AddFieldRequest request, String currentUsername) {
@@ -317,5 +320,44 @@ public class FormBuilderService {
         }
 
         fieldRepository.saveAll(fields);
+    }
+
+    @Transactional
+    public List<ValidationRuleDTO> getValidations(UUID formId, String currentUsername) {
+        FormVersion draft = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+        return validationRepository.findByFormVersionOrderByExecutionOrderAsc(draft).stream()
+                .map(v -> {
+                    ValidationRuleDTO dto = new ValidationRuleDTO();
+                    dto.setId(v.getId().toString());
+                    dto.setScope(v.getScope());
+                    dto.setFieldKey(v.getFieldKey());
+                    dto.setExpression(v.getExpression());
+                    dto.setErrorMessage(v.getErrorMessage());
+                    dto.setExecutionOrder(v.getExecutionOrder());
+                    return dto;
+                }).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void saveValidations(UUID formId, List<ValidationRuleDTO> requests, String currentUsername) {
+        FormVersion draft = formVersionService.getOrCreateDraftVersion(formId, currentUsername);
+        
+        // Delete existing for this draft
+        validationRepository.deleteByFormVersion(draft);
+        
+        if (requests == null) return;
+
+        List<com.sttl.formbuilder.entity.FieldValidation> entities = requests.stream().map(req -> {
+            com.sttl.formbuilder.entity.FieldValidation v = new com.sttl.formbuilder.entity.FieldValidation();
+            v.setFormVersion(draft);
+            v.setScope(req.getScope());
+            v.setFieldKey(req.getFieldKey());
+            v.setExpression(req.getExpression());
+            v.setErrorMessage(req.getErrorMessage());
+            v.setExecutionOrder(req.getExecutionOrder() != null ? req.getExecutionOrder() : 0);
+            return v;
+        }).collect(Collectors.toList());
+
+        validationRepository.saveAll(entities);
     }
 }

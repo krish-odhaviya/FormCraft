@@ -8,8 +8,7 @@ import com.sttl.formbuilder.dto.ActivateVersionResult;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.repository.FormSubmissionMetaRepository;
-import com.sttl.formbuilder.repository.FormRepository;
-import com.sttl.formbuilder.repository.FormVersionRepository;
+import com.sttl.formbuilder.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -42,6 +41,7 @@ public class FormVersionService {
     private final FormVersionRepository versionRepository;
     private final FormRepository formRepository;
     private final FormFieldRepository fieldRepository;
+    private final FieldValidationRepository validationRepository;
     private final FormSubmissionMetaRepository submissionMetaRepository;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
@@ -208,6 +208,22 @@ public class FormVersionService {
             return nf;
         }).toList();
         fieldRepository.saveAll(newFields);
+
+        // Also clone FieldValidations
+        List<com.sttl.formbuilder.entity.FieldValidation> sourceValidations = 
+            validationRepository.findByFormVersionOrderByExecutionOrderAsc(source);
+        
+        List<com.sttl.formbuilder.entity.FieldValidation> targetValidations = sourceValidations.stream().map(v -> {
+            com.sttl.formbuilder.entity.FieldValidation tv = new com.sttl.formbuilder.entity.FieldValidation();
+            tv.setFormVersion(target);
+            tv.setScope(v.getScope());
+            tv.setFieldKey(v.getFieldKey());
+            tv.setExpression(v.getExpression());
+            tv.setErrorMessage(v.getErrorMessage());
+            tv.setExecutionOrder(v.getExecutionOrder());
+            return tv;
+        }).toList();
+        validationRepository.saveAll(targetValidations);
     }
 
     // ── Activate ──────────────────────────────────────────────────────────────

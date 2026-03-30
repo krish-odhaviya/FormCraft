@@ -156,9 +156,11 @@ export const api = {
   removePermission: (formId, permissionId) =>
     API.delete(`/forms/${formId}/permissions/${permissionId}`),
 
-  // ── Form Builder ──────────────────────────────────────────────────────────
   reorderFields: (formId, fieldIds) =>
     API.post(`/forms/${formId}/fields/reorder`, { fieldIds }),
+
+  getValidations: (formId) => API.get(`/forms/${formId}/validations`),
+  saveValidations: (formId, validations) => API.post(`/forms/${formId}/validations`, validations),
 
   // ── File Upload ───────────────────────────────────────────────────────────
   /**

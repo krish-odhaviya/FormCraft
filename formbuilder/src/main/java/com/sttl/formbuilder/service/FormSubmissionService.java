@@ -11,10 +11,7 @@ import com.sttl.formbuilder.entity.FormSubmissionMeta.SubmissionStatus;
 import com.sttl.formbuilder.entity.FormVersion;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.exception.ValidationException;
-import com.sttl.formbuilder.repository.FormFieldRepository;
-import com.sttl.formbuilder.repository.FormRepository;
-import com.sttl.formbuilder.repository.FormSubmissionMetaRepository;
-import com.sttl.formbuilder.repository.FormVersionRepository;
+import com.sttl.formbuilder.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -45,6 +42,8 @@ public class FormSubmissionService {
     private final FormSubmissionMetaRepository submissionMetaRepository;
     private final FormVersionRepository formVersionRepository;
     private final FormFieldRepository fieldRepository;
+    private final FieldValidationRepository validationRepository;
+    private final ExpressionEvaluatorService expressionEvaluator;
     private final SchemaService schemaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -76,15 +75,11 @@ public class FormSubmissionService {
 
         String tableName = form.getTableName();
 
-        // ── SRS §4.3 Schema Drift Detection at Submit Time ───────────────────
-        // Block the submission if the physical table is out of sync with the
-        // form definition. This prevents silent partial writes or SQL errors.
+        // ── Schema Drift Detection ───────────────────────────────────────────
         List<String> driftedColumns = schemaService.detectDrift(form, fields);
         if (!driftedColumns.isEmpty()) {
             throw new BusinessException(
-                    "Submission blocked: the form's data table is out of sync. " +
-                            "Missing columns: " + String.join(", ", driftedColumns) + ". " +
-                            "Please contact an administrator.",
+                    "Submission blocked: form table out of sync. Missing: " + String.join(", ", driftedColumns),
                     HttpStatus.CONFLICT
             );
         }
@@ -93,20 +88,16 @@ public class FormSubmissionService {
         Map<String, FormField> fieldMap = new HashMap<>();
 
         for (FormField f : fields) {
-            if (Boolean.TRUE.equals(f.getIsDeleted())) {
-                continue;
-            }
-            if (List.of("SECTION", "LABEL", "PAGE_BREAK", "GROUP").contains(f.getFieldType())) {
-                continue;
-            }
+            if (Boolean.TRUE.equals(f.getIsDeleted())) continue;
+            if (List.of("SECTION", "LABEL", "PAGE_BREAK", "GROUP").contains(f.getFieldType())) continue;
             fieldTypes.put(f.getFieldKey(), f.getFieldType());
             fieldMap.put(f.getFieldKey(), f);
         }
 
-        Set<String> allowedKeys = fieldTypes.keySet();
         Map<String, String> errors = new LinkedHashMap<>();
+        Set<String> allowedKeys = fieldTypes.keySet();
 
-        // ── Required field validation ─────────────────────────────────────────
+        // ── Validation Loop ──────────────────────────────────────────────────
         for (FormField field : fields) {
             if (Boolean.TRUE.equals(field.getIsDeleted())) continue;
             String key = field.getFieldKey();
@@ -114,50 +105,80 @@ public class FormSubmissionService {
             Object val = values.get(key);
             String label = field.getFieldLabel();
 
-            if (field.getRequired() == null || !field.getRequired()) continue;
-
+            // Skip hidden fields (Logic conditions)
             if (field.getConditions() != null && !field.getConditions().trim().isEmpty()) {
                 try {
                     FormRuleDTO conds = objectMapper.readValue(field.getConditions(), FormRuleDTO.class);
-                    boolean isActive = true;
                     if (conds != null) {
                         boolean rulePasses = ruleEngineService.evaluateRule(conds, values);
-                        if ("hide".equalsIgnoreCase(conds.getAction()) && rulePasses) isActive = false;
-                        else if ("hide".equalsIgnoreCase(conds.getAction()) && !rulePasses) isActive = true;
-                        else if ("show".equalsIgnoreCase(conds.getAction()) && !rulePasses) isActive = false;
+                        if ("hide".equalsIgnoreCase(conds.getAction()) && rulePasses) continue;
+                        if ("show".equalsIgnoreCase(conds.getAction()) && !rulePasses) continue;
                     }
-                    if (!isActive) continue;
                 } catch (Exception e) {
-                    System.err.println("Condition parsing failed for field " + key);
+                    System.err.println("Condition check failed for " + key + ": " + e.getMessage());
                 }
             }
 
-            boolean isEmpty = false;
-            if (val == null) isEmpty = true;
-            else if (val instanceof String s && s.trim().isEmpty()) isEmpty = true;
-            else if (val instanceof List<?> l && l.isEmpty()) isEmpty = true;
-            else if (val instanceof Map<?, ?> m && m.isEmpty()) isEmpty = true;
-            else if ("STAR_RATING".equalsIgnoreCase(fieldType)) {
-                try {
-                    if (Integer.parseInt(val.toString()) <= 0) isEmpty = true;
-                } catch (NumberFormatException e) {
-                    isEmpty = true;
-                }
-            } else if ("LINEAR_SCALE".equalsIgnoreCase(fieldType)) {
-                if (val.toString().trim().isEmpty()) isEmpty = true;
-            } else if ("LOOKUP_DROPDOWN".equalsIgnoreCase(fieldType)) {
-                if (field.getSelectionMode() != null && field.getSelectionMode().equalsIgnoreCase("multiple")) {
-                    if (!(val instanceof List) || ((List<?>) val).isEmpty()) isEmpty = true;
-                } else {
-                    if (val instanceof Map<?, ?> m && m.get("value") == null) isEmpty = true;
-                    else if (val == null) isEmpty = true;
+            // Required check
+            if (Boolean.TRUE.equals(field.getRequired())) {
+                boolean isEmpty = (val == null);
+                if (!isEmpty && val instanceof String s) isEmpty = s.trim().isEmpty();
+                if (!isEmpty && val instanceof List<?> l) isEmpty = l.isEmpty();
+                
+                if (isEmpty) {
+                    errors.put(key, "'" + label + "' is required.");
+                    continue;
                 }
             }
 
-            if (isEmpty) errors.put(key, "'" + label + "' is required.");
+            // Targeted Custom Validations (Injection)
+            // Skip further validation if already has an error
+            if (errors.containsKey(key)) continue;
         }
 
-        // ── Field-level validation ────────────────────────────────────────────
+        // ── Custom Validation Engine (Cross-field) ───────────────────────────
+        List<com.sttl.formbuilder.entity.FieldValidation> customRules = 
+                validationRepository.findByFormVersionOrderByExecutionOrderAsc(activeVersion);
+
+        // Context enrichment: Map Labels to Slugs for easier validation (e.g., "Full Name" -> full_name)
+        Map<String, Object> enrichedContext = new HashMap<>(values);
+        for (FormField f : fields) {
+            if (f.getFieldLabel() != null && !f.getFieldLabel().trim().isEmpty()) {
+                String slug = f.getFieldLabel().toLowerCase().trim().replaceAll("[^a-z0-9]+", "_");
+                if (slug.isEmpty()) slug = "field_" + f.getFieldKey().replaceAll("[^a-z0-9]", "");
+                if (Character.isDigit(slug.charAt(0))) slug = "f_" + slug;
+                
+                if (!enrichedContext.containsKey(slug)) {
+                    enrichedContext.put(slug, values.get(f.getFieldKey()));
+                }
+            }
+        }
+
+        for (com.sttl.formbuilder.entity.FieldValidation rule : customRules) {
+            String scope = (rule.getScope() != null) ? rule.getScope().toUpperCase() : "FIELD";
+            
+            if ("FIELD".equals(scope) && rule.getFieldKey() != null) {
+                if (errors.containsKey(rule.getFieldKey())) continue;
+                
+                Map<String, Object> context = new HashMap<>(enrichedContext);
+                context.put("value", values.get(rule.getFieldKey()));
+                context.put("val", values.get(rule.getFieldKey()));
+                
+                if (!expressionEvaluator.evaluate(rule.getExpression(), context)) {
+                    errors.put(rule.getFieldKey(), rule.getErrorMessage());
+                }
+            } else if ("FORM".equals(scope)) {
+                if (!expressionEvaluator.evaluate(rule.getExpression(), enrichedContext)) {
+                    String targetKey = (rule.getFieldKey() != null && !rule.getFieldKey().isEmpty()) 
+                                 ? rule.getFieldKey() : "form";
+                    if (!errors.containsKey(targetKey)) {
+                        errors.put(targetKey, rule.getErrorMessage());
+                    }
+                }
+            }
+        }
+
+        // ── Final Data Cleanup for switch ──────────────────────────────────────
         for (FormField field : fields) {
             if (Boolean.TRUE.equals(field.getIsDeleted())) continue;
             String key = field.getFieldKey();
