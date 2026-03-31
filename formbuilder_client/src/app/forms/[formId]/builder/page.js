@@ -21,6 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useConfirm } from "@/context/ConfirmationContext";
 import { toast } from "react-hot-toast";
 import CustomValidationsPanel from "@/components/builder/CustomValidationsPanel";
+import ConfirmationModal from "@/components/common/ConfirmationModal";
 
 const FIELD_CATEGORIES = [
   {
@@ -122,6 +123,11 @@ export default function BuilderPage() {
   const [dragOverGroupKey, setDragOverGroupKey] = useState(null);
   const [isDraggingOverCanvas, setIsDraggingOverCanvas] = useState(false);
   const [dragOverFieldId, setDragOverFieldId] = useState(null);
+  const [lastSavedFields, setLastSavedFields] = useState([]);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [nextUrl, setNextUrl] = useState(null);
+
+  const isDirty = JSON.stringify(localFields) !== JSON.stringify(lastSavedFields);
 
   useEffect(() => {
     if (formId) {
@@ -145,7 +151,9 @@ export default function BuilderPage() {
         }
 
         setFormFromServer(formRes.data);
-        setLocalFields(formRes.data.fields || []);
+        const fields = formRes.data.fields || [];
+        setLocalFields(fields);
+        setLastSavedFields(fields);
         if (formRes.data.status === "ARCHIVED") {
           setIsArchived(true);
         }
@@ -502,6 +510,7 @@ export default function BuilderPage() {
       const res = await api.saveDraft(formId, payload);
       if (res.data) {
         setLocalFields(res.data);
+        setLastSavedFields(res.data);
       }
       toast.success("Form saved successfully!");
     } catch (e) {
@@ -561,13 +570,83 @@ export default function BuilderPage() {
     setPublishing(true);
     try {
       const payload = getFieldsPayload();
-      await api.publishForm(formId, payload);
+      const res = await api.publishForm(formId, payload);
+      
+      // Mark as not dirty before navigation
+      if (res.data?.fields) {
+        setLastSavedFields(res.data.fields);
+      } else {
+        setLastSavedFields([...localFields]);
+      }
+      
       toast.success("Form published!");
       router.push("/");
     } catch (e) {
       // console.error(e);
       toast.error("Publish failed. " + (e.response?.data?.message || ""));
       setPublishing(false);
+    }
+  };
+
+  // Browser level protection (Tab close / Refresh)
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = ""; // Standard way to show browser confirmation
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  // Internal Navigation Protection
+  useEffect(() => {
+    // Intercept clicks on links
+    const handleAnchorClick = (e) => {
+      if (!isDirty) return;
+      
+      let target = e.target;
+      while (target && target.tagName !== "A") target = target.parentElement;
+      
+      if (target && target.href && target.origin === window.location.origin) {
+        const url = new URL(target.href);
+        // Don't block if it's just a hash change or the same page
+        if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+        
+        e.preventDefault();
+        setNextUrl(target.href);
+        setShowUnsavedModal(true);
+      }
+    };
+
+    // Intercept browser back/forward
+    const handlePopState = (e) => {
+      if (!isDirty) return;
+      
+      // Push state back to prevent immediate navigation
+      window.history.pushState(null, "", window.location.href);
+      setNextUrl("/"); // Default to dashboard for back button if target unknown
+      setShowUnsavedModal(true);
+    };
+
+    document.addEventListener("click", handleAnchorClick, true);
+    window.addEventListener("popstate", handlePopState);
+    
+    return () => {
+      document.removeEventListener("click", handleAnchorClick, true);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [isDirty]);
+
+  const handleConfirmLeave = () => {
+    setShowUnsavedModal(false);
+    // Temporarily bypass guard by syncing fields
+    setLastSavedFields([...localFields]);
+    if (nextUrl) {
+      router.push(nextUrl);
+    } else {
+      router.back();
     }
   };
 
@@ -2290,6 +2369,17 @@ export default function BuilderPage() {
           </div>
         )}
       </aside>
+
+      <ConfirmationModal 
+        isOpen={showUnsavedModal}
+        onClose={() => setShowUnsavedModal(false)}
+        onConfirm={handleConfirmLeave}
+        title="Unsaved Changes"
+        message="You have unsaved changes. Are you sure you want to leave without saving?"
+        confirmText="Leave"
+        cancelText="Stay"
+        type="warning"
+      />
     </div>
   );
 }
