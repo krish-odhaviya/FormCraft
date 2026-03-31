@@ -228,6 +228,30 @@ public class FormSubmissionController {
         return ApiResponseUtil.success("Restored successfully", "Submission restored successfully", request);
     }
 
+    /**
+     * POST /api/v1/forms/{formId}/submissions/bulk-restore
+     * Restores multiple soft-deleted submissions.
+     */
+    @PostMapping("/forms/{formId}/submissions/bulk-restore")
+    public ResponseEntity<?> bulkRestoreSubmissions(
+            @PathVariable UUID formId,
+            @RequestBody List<UUID> submissionIds,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
+
+        User user = resolveOptionalUser(currentUser);
+        Form form = resolveForm(formId);
+
+        if (!permissionService.canDeleteSubmissions(user, form)) {
+            return ApiResponseUtil.error(
+                    "Access denied to restore submissions for this form",
+                    null, HttpStatus.FORBIDDEN, request);
+        }
+
+        formSubmissionService.restoreSubmissionsBulk(formId, submissionIds);
+        return ApiResponseUtil.success("Restored successfully", "Submissions restored successfully", request);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Form resolveForm(UUID formId) {

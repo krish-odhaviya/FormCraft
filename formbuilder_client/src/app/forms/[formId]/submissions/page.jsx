@@ -226,6 +226,27 @@ export default function SubmissionsPage() {
     }
   };
 
+  const handleBulkRestore = async () => {
+    if (selectedRows.length === 0) return;
+    const confirmed = await confirm({
+      title: "Bulk Restore",
+      message: `Are you sure you want to restore ${selectedRows.length} selected submission(s)?`,
+      confirmText: `Restore ${selectedRows.length}`,
+      type: "info"
+    });
+    
+    if (!confirmed) return;
+    try {
+      await api.restoreSubmissionsBulk(formId, selectedRows.map((r) => r.id));
+      setClearSelectionToggle((t) => !t);
+      setSelectedRows([]);
+      fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId, showDeleted);
+      toast.success(`${selectedRows.length} submissions restored.`);
+    } catch {
+      toast.error("Failed to bulk restore submissions.");
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (selectedRows.length === 0) return;
     const confirmed = await confirm({
@@ -560,10 +581,11 @@ export default function SubmissionsPage() {
           <div className="flex items-center gap-3">
             {selectedRows.length > 0 && (
               <button
-                onClick={handleBulkDelete}
-                className="flex items-center gap-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                onClick={showDeleted ? handleBulkRestore : handleBulkDelete}
+                className={`flex items-center gap-2 ${showDeleted ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100" : "bg-red-50 text-red-600 hover:bg-red-100 border-red-200"} border px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm`}
               >
-                <Trash2 size={16} /> Delete Selected ({selectedRows.length})
+                {showDeleted ? <FileDown size={16} className="rotate-180" /> : <Trash2 size={16} />}
+                {showDeleted ? "Restore Selected" : "Delete Selected"} ({selectedRows.length})
               </button>
             )}
 

@@ -98,6 +98,7 @@ export const api = {
   archiveForm: (formId) => API.post(`/forms/${formId}/archive`),
   restoreForm: (formId) => API.post(`/forms/${formId}/reactivate`),
   restoreSubmission: (formId, submissionId) => API.post(`/forms/${formId}/submissions/${submissionId}/restore`),
+  restoreSubmissionsBulk: (formId, submissionIds) => API.post(`/forms/${formId}/submissions/bulk-restore`, submissionIds),
 
   // ── Submissions ───────────────────────────────────────────────────────────
   /**

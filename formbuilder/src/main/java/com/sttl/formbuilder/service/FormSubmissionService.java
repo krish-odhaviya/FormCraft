@@ -1054,8 +1054,34 @@ public class FormSubmissionService {
     }
 
     /**
-     * Fetches a single submission for the detail view.
-     *
+     * Bulk restores soft-deleted submissions.
+     */
+    @Transactional
+    public void restoreSubmissionsBulk(java.util.UUID formId, List<java.util.UUID> submissionIds) {
+        if (submissionIds == null || submissionIds.isEmpty()) return;
+
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
+
+        String placeholders = String.join(",", Collections.nCopies(submissionIds.size(), "?"));
+        
+        // 1. Restore in dynamic table
+        String sql = "UPDATE " + form.getTableName() + " SET is_delete = false, updated_at = CURRENT_TIMESTAMP WHERE id IN (" + placeholders + ")";
+        jdbcTemplate.update(sql, submissionIds.toArray());
+
+        // 2. Restore in Metadata
+        for (UUID sid : submissionIds) {
+            Optional<FormSubmissionMeta> metaOpt = submissionMetaRepository.findArchivedByFormIdAndDataRowId(formId, sid);
+            if (metaOpt.isPresent()) {
+                FormSubmissionMeta meta = metaOpt.get();
+                meta.setIsDeleted(false);
+                meta.setUpdatedAt(LocalDateTime.now());
+                meta.setRestoredAt(LocalDateTime.now());
+                submissionMetaRepository.save(meta);
+            }
+        }
+    }
+     /*
      * SRS View #10: always render using the submission's own form_version_id,
      * never the current active version.
      */
