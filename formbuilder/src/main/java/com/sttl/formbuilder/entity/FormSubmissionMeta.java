@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 )
 @Getter
 @Setter
+@org.hibernate.annotations.Where(clause = "is_deleted = false")
 public class FormSubmissionMeta {
 
     @Id
@@ -71,6 +72,8 @@ public class FormSubmissionMeta {
 
     @Column(nullable = false)
     private Boolean isDeleted = false;
+
+    private java.time.LocalDateTime restoredAt;
 
     public enum SubmissionStatus {
         DRAFT, SUBMITTED

@@ -41,4 +41,7 @@ public interface FormSubmissionMetaRepository extends JpaRepository<FormSubmissi
     boolean existsLiveSubmissions(@Param("formId") UUID formId);
 
     Optional<FormSubmissionMeta> findByFormIdAndSubmittedByAndStatusAndIsDeletedFalse(UUID formId, String submittedBy, SubmissionStatus status);
+
+    @Query(value = "SELECT * FROM form_submission_meta WHERE form_id = :formId AND data_row_id = :dataRowId AND is_deleted = true", nativeQuery = true)
+    Optional<FormSubmissionMeta> findArchivedByFormIdAndDataRowId(@Param("formId") UUID formId, @Param("dataRowId") UUID dataRowId);
 }

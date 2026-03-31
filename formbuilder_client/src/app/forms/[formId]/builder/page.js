@@ -111,14 +111,14 @@ export default function BuilderPage() {
   const [activeFieldId, setActiveFieldId] = useState(null);
   const [publishedForms, setPublishedForms] = useState([]);
   const [activeTab, setActiveTab] = useState('settings');
-  const [sidebarTab, setSidebarTab] = useState('fields'); 
-  const [permissions, setPermissions] = useState([]); 
+  const [sidebarTab, setSidebarTab] = useState('fields');
+  const [permissions, setPermissions] = useState([]);
   const [visibility, setVisibility] = useState('PUBLIC');
   const [newPermissionUser, setNewPermissionUser] = useState("");
   const [newPermissionRole, setNewPermissionRole] = useState("VIEWER");
   const [isUpdatingForm, setIsUpdatingForm] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState(null); 
-  const [errorState, setErrorState] = useState(null); 
+  const [updateStatus, setUpdateStatus] = useState(null);
+  const [errorState, setErrorState] = useState(null);
   const [isAddingPermission, setIsAddingPermission] = useState(false);
   const [dragOverGroupKey, setDragOverGroupKey] = useState(null);
   const [isDraggingOverCanvas, setIsDraggingOverCanvas] = useState(false);
@@ -143,11 +143,11 @@ export default function BuilderPage() {
     const fetchForm = async () => {
       try {
         const formRes = await api.getForm(formId, { mode: 'builder' });
-        
+
         if (formRes.data.canEdit === false) {
-           setErrorState({ status: 403, message: "You do not have permission to edit this form." });
-           setLoading(false);
-           return;
+          setErrorState({ status: 403, message: "You do not have permission to edit this form." });
+          setLoading(false);
+          return;
         }
 
         setFormFromServer(formRes.data);
@@ -157,20 +157,20 @@ export default function BuilderPage() {
         if (formRes.data.status === "ARCHIVED") {
           setIsArchived(true);
         }
-        
+
         setVisibility(formRes.data.visibility || 'PUBLIC');
-        
+
         try {
-           const permsRes = await api.getPermissions(formId);
-           setPermissions(permsRes.data || []);
+          const permsRes = await api.getPermissions(formId);
+          setPermissions(permsRes.data || []);
         } catch (pErr) {
-           console.warn("Could not fetch permissions (might be a non-owner)", pErr);
+          console.warn("Could not fetch permissions (might be a non-owner)", pErr);
         }
 
       } catch (err) {
         const status = err.response?.status;
         let message = "An unexpected error occurred while loading the form.";
-        
+
         if (status === 401) {
           message = "Unauthorized. Please login to access the form builder.";
         } else if (status === 403) {
@@ -190,7 +190,7 @@ export default function BuilderPage() {
       }
     };
     if (formId) {
-      fetchForm().catch(() => {});
+      fetchForm().catch(() => { });
     }
   }, [formId, setFormFromServer]);
 
@@ -265,7 +265,7 @@ export default function BuilderPage() {
     e.preventDefault();
     setIsDraggingOverCanvas(false);
     setDragOverFieldId(null);
-    
+
     const newFieldType = e.dataTransfer.getData("newFieldType");
     const existingIdx = e.dataTransfer.getData("existingFieldIndex");
 
@@ -300,7 +300,7 @@ export default function BuilderPage() {
     e.stopPropagation();
     setIsDraggingOverCanvas(false);
     setDragOverFieldId(null);
-    
+
     const newFieldType = e.dataTransfer.getData("newFieldType");
     const existingFieldIndex = e.dataTransfer.getData("existingFieldIndex");
     const newFields = [...localFields];
@@ -324,7 +324,7 @@ export default function BuilderPage() {
     e.preventDefault();
     e.stopPropagation();
     setDragOverFieldId(null);
-    
+
     const newFieldType = e.dataTransfer.getData("newFieldType");
     const existingFieldIndex = e.dataTransfer.getData("existingFieldIndex");
 
@@ -528,7 +528,7 @@ export default function BuilderPage() {
 
   const handlePublish = async () => {
     if (localFields.length === 0) return toast.error("Add at least one field before publishing");
-    
+
     // Client-side validation
     const emptyFields = localFields.filter(f => !f.fieldLabel?.trim());
     if (emptyFields.length > 0) {
@@ -571,14 +571,14 @@ export default function BuilderPage() {
     try {
       const payload = getFieldsPayload();
       const res = await api.publishForm(formId, payload);
-      
+
       // Mark as not dirty before navigation
       if (res.data?.fields) {
         setLastSavedFields(res.data.fields);
       } else {
         setLastSavedFields([...localFields]);
       }
-      
+
       toast.success("Form published!");
       router.push("/");
     } catch (e) {
@@ -605,15 +605,15 @@ export default function BuilderPage() {
     // Intercept clicks on links
     const handleAnchorClick = (e) => {
       if (!isDirty) return;
-      
+
       let target = e.target;
       while (target && target.tagName !== "A") target = target.parentElement;
-      
+
       if (target && target.href && target.origin === window.location.origin) {
         const url = new URL(target.href);
         // Don't block if it's just a hash change or the same page
         if (url.pathname === window.location.pathname && url.search === window.location.search) return;
-        
+
         e.preventDefault();
         setNextUrl(target.href);
         setShowUnsavedModal(true);
@@ -623,7 +623,7 @@ export default function BuilderPage() {
     // Intercept browser back/forward
     const handlePopState = (e) => {
       if (!isDirty) return;
-      
+
       // Push state back to prevent immediate navigation
       window.history.pushState(null, "", window.location.href);
       setNextUrl("/"); // Default to dashboard for back button if target unknown
@@ -632,7 +632,7 @@ export default function BuilderPage() {
 
     document.addEventListener("click", handleAnchorClick, true);
     window.addEventListener("popstate", handlePopState);
-    
+
     return () => {
       document.removeEventListener("click", handleAnchorClick, true);
       window.removeEventListener("popstate", handlePopState);
@@ -704,11 +704,11 @@ export default function BuilderPage() {
           )}
         </div>
         <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight mb-3">
-          {isUnauthorized ? "Login Required" : 
-           isForbidden ? "Access Denied" : 
-           isConflict ? "Schema Sync Error" :
-           isServerError ? "Server Error" : 
-           isNotFound ? "Form Not Found" : "Error Loading Form"}
+          {isUnauthorized ? "Login Required" :
+            isForbidden ? "Access Denied" :
+              isConflict ? "Schema Sync Error" :
+                isServerError ? "Server Error" :
+                  isNotFound ? "Form Not Found" : "Error Loading Form"}
         </h2>
         <p className="text-slate-500 max-w-md mb-10 text-lg leading-relaxed">
           {errorState?.message || "There was a problem loading the form builder. Please check your connection and try again."}
@@ -955,13 +955,13 @@ export default function BuilderPage() {
                         key={child.id}
                         draggable
                         onDragStart={(e) => handleFieldDragStart(e, childIndex)}
-                        onDragOver={(e) => { 
-                          e.preventDefault(); 
-                          e.stopPropagation(); 
-                          setDragOverFieldId(child.id); 
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDragOverFieldId(child.id);
                         }}
-                        onDragLeave={(e) => { 
-                          e.stopPropagation(); 
+                        onDragLeave={(e) => {
+                          e.stopPropagation();
                           if (e.currentTarget && !e.currentTarget.contains(e.relatedTarget)) {
                             setDragOverFieldId(null);
                           }
@@ -971,13 +971,12 @@ export default function BuilderPage() {
                           handleDropOnGroupChild(e, childIndex, field.fieldKey);
                         }}
                         onClick={(e) => { e.stopPropagation(); setActiveFieldId(child.id); e.currentTarget.blur(); }}
-                        className={`p-5 rounded-2xl border-2 transition-all duration-200 cursor-pointer bg-white relative ${
-                          dragOverFieldId === child.id 
-                            ? "border-t-[6px] border-t-indigo-500 border-indigo-200 shadow-lg scale-[1.02] z-30" 
-                            : activeFieldId === child.id 
-                            ? "border-indigo-500 shadow-md ring-4 ring-indigo-50" 
-                            : "border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow"
-                        }`}
+                        className={`p-5 rounded-2xl border-2 transition-all duration-200 cursor-pointer bg-white relative ${dragOverFieldId === child.id
+                            ? "border-t-[6px] border-t-indigo-500 border-indigo-200 shadow-lg scale-[1.02] z-30"
+                            : activeFieldId === child.id
+                              ? "border-indigo-500 shadow-md ring-4 ring-indigo-50"
+                              : "border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow"
+                          }`}
                       >
                         <div className="flex justify-between items-start mb-3">
                           <label className="text-sm font-bold text-slate-800 tracking-tight">
@@ -1119,7 +1118,7 @@ export default function BuilderPage() {
             <span>You are editing a WORKING COPY for the next version. The live version (v{form.activeVersionNumber}) will remain active until you click Publish again.</span>
           </div>
         )}
-        
+
         <header className="h-[76px] bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-8 shrink-0 z-10 sticky top-0 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="bg-indigo-600 shadow-md shadow-indigo-200 p-2.5 rounded-xl text-white">
@@ -1159,22 +1158,19 @@ export default function BuilderPage() {
           onDragOver={handleDragOver}
           onDragEnter={handleCanvasDragEnter}
           onDragLeave={handleCanvasDragLeave}
-          className={`flex-1 overflow-y-auto p-6 lg:p-8 flex justify-center pb-40 custom-scrollbar transition-all duration-300 ${
-            isDraggingOverCanvas && !dragOverFieldId ? "bg-indigo-50/40 shadow-[inset_0_0_40px_rgba(99,102,241,0.1)]" : ""
-          }`}
+          className={`flex-1 overflow-y-auto p-6 lg:p-8 flex justify-center pb-40 custom-scrollbar transition-all duration-300 ${isDraggingOverCanvas && !dragOverFieldId ? "bg-indigo-50/40 shadow-[inset_0_0_40px_rgba(99,102,241,0.1)]" : ""
+            }`}
           onClick={() => setActiveFieldId(null)}
         >
           <div className="w-full max-w-3xl space-y-5">
-            
+
             {localFields.length === 0 ? (
-              <div className={`h-72 border-[3px] border-dashed rounded-3xl flex flex-col items-center justify-center transition-colors duration-300 ${
-                isDraggingOverCanvas 
-                  ? "border-indigo-400 bg-indigo-50/50 text-indigo-500" 
+              <div className={`h-72 border-[3px] border-dashed rounded-3xl flex flex-col items-center justify-center transition-colors duration-300 ${isDraggingOverCanvas
+                  ? "border-indigo-400 bg-indigo-50/50 text-indigo-500"
                   : "border-slate-200 hover:border-indigo-300 bg-white/50 text-slate-400"
-              }`}>
-                <div className={`p-4 rounded-2xl shadow-sm border mb-4 transition-colors ${
-                  isDraggingOverCanvas ? "bg-indigo-100 border-indigo-200" : "bg-white border-slate-100"
                 }`}>
+                <div className={`p-4 rounded-2xl shadow-sm border mb-4 transition-colors ${isDraggingOverCanvas ? "bg-indigo-100 border-indigo-200" : "bg-white border-slate-100"
+                  }`}>
                   <Plus size={32} className={isDraggingOverCanvas ? "text-indigo-600" : "text-indigo-400"} />
                 </div>
                 <p className={`font-extrabold text-lg tracking-tight ${isDraggingOverCanvas ? "text-indigo-700" : "text-slate-700"}`}>
@@ -1194,25 +1190,24 @@ export default function BuilderPage() {
                       draggable
                       tabIndex={-1}
                       onDragStart={(e) => handleFieldDragStart(e, realIndex)}
-                      onDragOver={(e) => { 
-                        e.preventDefault(); 
-                        e.stopPropagation(); 
-                        setDragOverFieldId(field.id); 
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDragOverFieldId(field.id);
                       }}
-                      onDragLeave={(e) => { 
-                        e.stopPropagation(); 
+                      onDragLeave={(e) => {
+                        e.stopPropagation();
                         if (e.currentTarget && !e.currentTarget.contains(e.relatedTarget)) {
                           setDragOverFieldId(null);
                         }
                       }}
                       onDrop={(e) => handleDropOnField(e, realIndex)}
                       onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); e.currentTarget.blur(); }}
-                      className={`group relative bg-white rounded-2xl transition-all duration-200 ease-in-out cursor-pointer border-2 outline-none ${
-                        dragOverFieldId === field.id
+                      className={`group relative bg-white rounded-2xl transition-all duration-200 ease-in-out cursor-pointer border-2 outline-none ${dragOverFieldId === field.id
                           ? "border-t-[6px] border-t-indigo-500 border-indigo-200 shadow-xl scale-[1.02] z-30"
                           : activeFieldId === field.id
-                          ? "border-indigo-500 shadow-lg ring-4 ring-indigo-50"
-                          : "border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow-md"
+                            ? "border-indigo-500 shadow-lg ring-4 ring-indigo-50"
+                            : "border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow-md"
                         }`}
                     >
                       <div className="absolute left-0 top-0 bottom-0 w-10 flex flex-col items-center justify-center text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50 rounded-l-[22px] border-r border-slate-100 z-10">
@@ -1476,11 +1471,10 @@ export default function BuilderPage() {
                               <button
                                 key={mode}
                                 onClick={() => updateNestedObject(activeField.id, "uiConfig", "selectionMode", mode)}
-                                className={`px-4 py-3 text-xs font-bold rounded-xl border-2 transition-all ${
-                                  (activeField.uiConfig?.selectionMode || 'single') === mode
+                                className={`px-4 py-3 text-xs font-bold rounded-xl border-2 transition-all ${(activeField.uiConfig?.selectionMode || 'single') === mode
                                     ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm"
                                     : "border-slate-200 bg-white text-slate-500 hover:border-indigo-200"
-                                }`}
+                                  }`}
                               >
                                 {mode === 'single' ? 'Single Select' : 'Multi Select'}
                               </button>
@@ -1504,7 +1498,7 @@ export default function BuilderPage() {
                           )}
                         </div>
                       )}
- 
+
                       {activeField.fieldType === "FILE_UPLOAD" && (
                         <div className="space-y-4 pt-5 border-t border-slate-100">
                           <div>
@@ -1711,11 +1705,10 @@ export default function BuilderPage() {
                                     ].map((opt) => (
                                       <label
                                         key={opt.value}
-                                        className={`flex flex-col items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                                          (activeField.validation?.numberFormat || "INTEGER") === opt.value
+                                        className={`flex flex-col items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${(activeField.validation?.numberFormat || "INTEGER") === opt.value
                                             ? "border-indigo-600 bg-indigo-50/60 shadow-sm"
                                             : "border-slate-200 bg-white hover:border-indigo-300"
-                                        }`}
+                                          }`}
                                       >
                                         <input
                                           type="radio"
@@ -2106,7 +2099,7 @@ export default function BuilderPage() {
                                         )}
                                       </div>
                                     ))}
-                                    
+
                                     <button onClick={() => updateCond({ actions: [...cond.actions, { type: "", message: "", targetField: "" }] })}
                                       className="flex items-center justify-center w-full gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700 bg-white border-2 border-dashed border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 py-2.5 rounded-xl transition-all">
                                       <Plus size={16} strokeWidth={2.5} /> Add Business Action
@@ -2128,7 +2121,7 @@ export default function BuilderPage() {
           /* ── FORM ACCESS TAB ── */
           <div className="flex-1 flex flex-col min-h-0 bg-slate-50/50">
             <div className="p-8 space-y-10 overflow-y-auto flex-1 custom-scrollbar">
-              
+
               {/* Visibility Section */}
               <section className="space-y-5">
                 <div className="flex items-center gap-3.5">
@@ -2175,7 +2168,7 @@ export default function BuilderPage() {
                   ))}
                 </div>
 
-                <button 
+                <button
                   onClick={async () => {
                     setIsUpdatingForm(true);
                     try {
@@ -2184,7 +2177,7 @@ export default function BuilderPage() {
                       setUpdateStatus({ type: 'success', message: 'Settings saved!' });
                       setTimeout(() => setUpdateStatus(null), 3000);
                     } catch (err) {
-                     
+
                       setUpdateStatus({ type: 'error', message: 'Failed to save settings.' });
                       setTimeout(() => setUpdateStatus(null), 3000);
                     } finally {
@@ -2192,11 +2185,10 @@ export default function BuilderPage() {
                     }
                   }}
                   disabled={isUpdatingForm || !isOwnerOrAdmin}
-                  className={`w-full mt-4 py-3.5 text-white rounded-xl text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 ${
-                    isOwnerOrAdmin 
-                      ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200" 
+                  className={`w-full mt-4 py-3.5 text-white rounded-xl text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 ${isOwnerOrAdmin
+                      ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
                       : "bg-slate-400 cursor-not-allowed shadow-none"
-                  } disabled:opacity-50`}
+                    } disabled:opacity-50`}
                 >
                   {isUpdatingForm ? <div className="w-5 h-5 border-[3px] border-white/20 border-t-white rounded-full animate-spin" /> : (!isOwnerOrAdmin ? <Lock size={18} /> : <Save size={18} />)}
                   {isOwnerOrAdmin ? "Update Visibility Settings" : "Visibility Settings Locked"}
@@ -2223,91 +2215,90 @@ export default function BuilderPage() {
                     <p className="text-xs font-medium text-slate-500 mt-0.5">Manage specific user access roles</p>
                   </div>
                 </div>
-            {/* 1. Add Permission Input — ONLY for Owner/Admin */}
-            {isOwnerOrAdmin && (
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Username / Email</label>
-                  <div className="relative group">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                      <UserPlus size={18} />
+                {/* 1. Add Permission Input — ONLY for Owner/Admin */}
+                {isOwnerOrAdmin && (
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Username / Email</label>
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                          <UserPlus size={18} />
+                        </div>
+                        <input
+                          type="text"
+                          className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none font-medium placeholder:text-slate-400"
+                          placeholder="Type username..."
+                          value={newPermissionUser}
+                          onChange={(e) => setNewPermissionUser(e.target.value)}
+                        />
+                      </div>
                     </div>
-                    <input
-                      type="text"
-                      className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none font-medium placeholder:text-slate-400"
-                      placeholder="Type username..."
-                      value={newPermissionUser}
-                      onChange={(e) => setNewPermissionUser(e.target.value)}
-                    />
-                  </div>
-                </div>
 
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1.5 block">Select Role</label>
-                    <select
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                      value={newPermissionRole}
-                      onChange={(e) => setNewPermissionRole(e.target.value)}
-                    >
-                      <option value="VIEWER">Viewer</option>
-                      <option value="BUILDER">Builder</option>
-                    </select>
+                    <div className="flex gap-3">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1.5 block">Select Role</label>
+                        <select
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                          value={newPermissionRole}
+                          onChange={(e) => setNewPermissionRole(e.target.value)}
+                        >
+                          <option value="VIEWER">Viewer</option>
+                          <option value="BUILDER">Builder</option>
+                        </select>
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          onClick={async () => {
+                            if (!newPermissionUser) return;
+                            setIsAddingPermission(true);
+                            try {
+                              await api.addPermission(formId, newPermissionUser, newPermissionRole);
+
+                              // Success path
+                              setNewPermissionUser("");
+                              toast.success(`Permission granted to ${newPermissionUser} successfully!`);
+
+                              // Refresh permissions list
+                              const resp = await api.getPermissions(formId);
+                              setPermissions(resp.data || []);
+                            } catch (err) {
+                              console.error("Failed to add permission", err);
+
+                              // Robust error message extraction
+                              const errorMsg = err.response?.data?.message
+                                || err.response?.data?.error
+                                || err.message
+                                || "Failed to add permission. Please try again.";
+
+                              toast.error(errorMsg);
+                            } finally {
+                              setIsAddingPermission(false);
+                            }
+                          }}
+                          disabled={isAddingPermission || !newPermissionUser}
+                          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 h-[42px] min-w-[100px] ${isAddingPermission || !newPermissionUser
+                              ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+                              : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
+                            }`}
+                        >
+                          {isAddingPermission ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <Plus size={16} />
+                              <span>Add</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-end">
-                    <button
-                      onClick={async () => {
-                        if (!newPermissionUser) return;
-                        setIsAddingPermission(true);
-                        try {
-                          await api.addPermission(formId, newPermissionUser, newPermissionRole);
-                          
-                          // Success path
-                          setNewPermissionUser("");
-                          toast.success(`Permission granted to ${newPermissionUser} successfully!`);
-                          
-                          // Refresh permissions list
-                          const resp = await api.getPermissions(formId);
-                          setPermissions(resp.data || []);
-                        } catch (err) {
-                          console.error("Failed to add permission", err);
-                          
-                          // Robust error message extraction
-                          const errorMsg = err.response?.data?.message 
-                            || err.response?.data?.error 
-                            || err.message 
-                            || "Failed to add permission. Please try again.";
-                          
-                          toast.error(errorMsg);
-                        } finally {
-                          setIsAddingPermission(false);
-                        }
-                      }}
-                      disabled={isAddingPermission || !newPermissionUser}
-                      className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 h-[42px] min-w-[100px] ${
-                        isAddingPermission || !newPermissionUser 
-                          ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none" 
-                          : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
-                      }`}
-                    >
-                      {isAddingPermission ? (
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <>
-                          <Plus size={16} />
-                          <span>Add</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+                )}
 
                 <div className="space-y-3">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Active Permissions</label>
                   <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                    
+
                     <div className="flex items-center justify-between p-3.5 bg-slate-100/80 border border-slate-200/80 rounded-xl">
                       <div className="flex items-center gap-3.5">
                         <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-black text-slate-600 uppercase shadow-inner">
@@ -2339,7 +2330,7 @@ export default function BuilderPage() {
                           </div>
                         </div>
                         {isOwnerOrAdmin && (
-                          <button 
+                          <button
                             onClick={async () => {
                               try {
                                 await api.removePermission(formId, p.id);
@@ -2370,7 +2361,7 @@ export default function BuilderPage() {
         )}
       </aside>
 
-      <ConfirmationModal 
+      <ConfirmationModal
         isOpen={showUnsavedModal}
         onClose={() => setShowUnsavedModal(false)}
         onConfirm={handleConfirmLeave}

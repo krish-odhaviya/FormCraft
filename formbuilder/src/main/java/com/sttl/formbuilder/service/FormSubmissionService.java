@@ -784,8 +784,8 @@ public class FormSubmissionService {
     /**
      * Build WHERE clause — always filters deleted rows, optionally applies search
      */
-    private String buildWhere(List<FormField> fields, String search, UUID versionId) {
-        StringBuilder where = new StringBuilder(" WHERE t.is_delete = false");
+    private String buildWhere(List<FormField> fields, String search, UUID versionId, boolean showDeleted) {
+        StringBuilder where = new StringBuilder(" WHERE t.is_delete = ").append(showDeleted);
         
         if (versionId != null) {
             where.append(" AND t.form_version_id = '").append(versionId).append("'");
@@ -833,7 +833,7 @@ public class FormSubmissionService {
     // GET SUBMISSIONS — PAGINATED (uses Spring Pageable)
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional(readOnly = true)
-    public PagedSubmissionsResponse getSubmissionsPaged(java.util.UUID formId, String search, java.util.UUID versionId, Pageable pageable) {
+    public PagedSubmissionsResponse getSubmissionsPaged(java.util.UUID formId, String search, java.util.UUID versionId, boolean showDeleted, Pageable pageable) {
 
         Form form = formRepository.findById(formId)
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
@@ -897,7 +897,7 @@ public class FormSubmissionService {
 
         // ── Build SQL parts ───────────────────────────────────────────────────
         String selectSql = buildSelectSql(fields, tableName);
-        String whereSql = buildWhere(fields, search, versionId);
+        String whereSql = buildWhere(fields, search, targetVersion.getId(), showDeleted);
         String orderSql = " ORDER BY t." + orderCol + " " + orderDir;
 
         // ── COUNT query (for totalElements) ───────────────────────────────────
@@ -968,7 +968,7 @@ public class FormSubmissionService {
         }
 
         String sql = buildSelectSql(fields, tableName)
-                + buildWhere(fields, search, versionId)
+                + buildWhere(fields, search, targetVersion.getId(), false)
                 + " ORDER BY t.id DESC";
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
@@ -990,10 +990,15 @@ public class FormSubmissionService {
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
             throw new BusinessException("Form is not in a state that allows deleting submissions", HttpStatus.BAD_REQUEST);
         }
+
+        // 1. Mark in the dynamic data table
         jdbcTemplate.update(
-                "UPDATE " + form.getTableName() + " SET is_delete = true WHERE id = ?",
+                "UPDATE " + form.getTableName() + " SET is_delete = true, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                 submissionId
         );
+
+        // 2. Mark in the metadata table
+        submissionMetaRepository.softDeleteByDataRowId(formId, submissionId);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1011,9 +1016,41 @@ public class FormSubmissionService {
         }
 
         String placeholders = String.join(",", Collections.nCopies(submissionIds.size(), "?"));
-        String sql = "UPDATE " + form.getTableName() + " SET is_delete = true WHERE id IN (" + placeholders + ")";
-
+        
+        // 1. Mark in the dynamic data table
+        String sql = "UPDATE " + form.getTableName() + " SET is_delete = true, updated_at = CURRENT_TIMESTAMP WHERE id IN (" + placeholders + ")";
         jdbcTemplate.update(sql, submissionIds.toArray());
+
+        // 2. Mark in the metadata table
+        for (UUID sid : submissionIds) {
+            submissionMetaRepository.softDeleteByDataRowId(formId, sid);
+        }
+    }
+
+    /**
+     * Restores a soft-deleted submission.
+     * Requirement: treat as active (isDeleted=false), reset timestamps (updatedAt = now, restoredAt = now).
+     */
+    @Transactional
+    public void restoreSubmission(java.util.UUID formId, java.util.UUID submissionId) {
+        Form form = formRepository.findById(formId)
+                .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
+
+        // Use native query to bypass @Where(is_deleted=false)
+        FormSubmissionMeta meta = submissionMetaRepository.findArchivedByFormIdAndDataRowId(formId, submissionId)
+                .orElseThrow(() -> new BusinessException("Archived submission not found", HttpStatus.NOT_FOUND));
+
+        // 1. Restore in dynamic table
+        jdbcTemplate.update(
+            "UPDATE " + form.getTableName() + " SET is_delete = false, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            submissionId
+        );
+
+        // 2. Restore in Metadata
+        meta.setIsDeleted(false);
+        meta.setUpdatedAt(LocalDateTime.now());
+        meta.setRestoredAt(LocalDateTime.now());
+        submissionMetaRepository.save(meta);
     }
 
     /**

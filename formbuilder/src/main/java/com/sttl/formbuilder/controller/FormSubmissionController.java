@@ -112,6 +112,7 @@ public class FormSubmissionController {
             @PathVariable UUID formId,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) UUID versionId,
+            @RequestParam(defaultValue = "false") boolean showDeleted,
             @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
@@ -125,7 +126,7 @@ public class FormSubmissionController {
                     null, HttpStatus.FORBIDDEN, request);
         }
 
-        PagedSubmissionsResponse response = formSubmissionService.getSubmissionsPaged(formId, search, versionId, pageable);
+        PagedSubmissionsResponse response = formSubmissionService.getSubmissionsPaged(formId, search, versionId, showDeleted, pageable);
         return ApiResponseUtil.success(response, "Submissions fetched successfully", request);
     }
 
@@ -200,6 +201,31 @@ public class FormSubmissionController {
 
         formSubmissionService.softDeleteSubmissionsBulk(formId, submissionIds);
         return ApiResponseUtil.success("Rows deleted successfully", "Submissions deleted successfully", request);
+    }
+
+    /**
+     * POST /api/v1/forms/{formId}/submissions/{submissionId}/restore
+     * Restores a single soft-deleted submission.
+     */
+    @PostMapping("/forms/{formId}/submissions/{submissionId}/restore")
+    public ResponseEntity<?> restoreSubmission(
+            @PathVariable UUID formId,
+            @PathVariable UUID submissionId,
+            @AuthenticationPrincipal UserDetails currentUser,
+            HttpServletRequest request) {
+
+        User user = resolveOptionalUser(currentUser);
+        Form form = resolveForm(formId);
+
+        // Standard requirement: restoring is usually restricted to those who can delete/manage
+        if (!permissionService.canDeleteSubmissions(user, form)) {
+            return ApiResponseUtil.error(
+                    "Access denied to restore submissions for this form",
+                    null, HttpStatus.FORBIDDEN, request);
+        }
+
+        formSubmissionService.restoreSubmission(formId, submissionId);
+        return ApiResponseUtil.success("Restored successfully", "Submission restored successfully", request);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

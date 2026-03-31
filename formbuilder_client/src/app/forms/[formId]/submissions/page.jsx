@@ -52,6 +52,7 @@ export default function SubmissionsPage() {
   const [canDelete,             setCanDelete]             = useState(false);
   const [versions,              setVersions]              = useState([]);
   const [selectedVersionId,     setSelectedVersionId]     = useState("");
+  const [showDeleted,           setShowDeleted]           = useState(false);
 
   const debounceRef = useRef(null);
 
@@ -79,7 +80,7 @@ export default function SubmissionsPage() {
   // ── Fetch one page of submissions ─────────────────────────────────────────
   // Previously used raw fetch() with a hardcoded localhost URL.
   // Now goes through api.getSubmissionsPaged() defined in formService.js.
-  const fetchSubmissions = useCallback(async (pg, size, srch, sb, sd, vid) => {
+  const fetchSubmissions = useCallback(async (pg, size, srch, sb, sd, vid, viewDeleted) => {
     setLoading(true);
     try {
       // Permission check via form metadata
@@ -101,7 +102,7 @@ export default function SubmissionsPage() {
 
       // All fetch logic now goes through the centralized api
       const res = await api.getSubmissionsPaged(formId, {
-        page: pg, size, search: srch, sortBy: sb, sortDir: sd, versionId: vid || undefined
+        page: pg, size, search: srch, sortBy: sb, sortDir: sd, versionId: vid || undefined, showDeleted: viewDeleted
       });
 
       const payload = res.data || {};
@@ -124,11 +125,15 @@ export default function SubmissionsPage() {
       setVersions(allVersions);
       // Auto-select the active version by default
       const active = allVersions.find(v => v.isActive);
-      if (active) setSelectedVersionId(active.id);
+      if (active) {
+        setSelectedVersionId(active.id);
+        // Force an immediate fetch with the newly set version to avoid global data leak
+        fetchSubmissions(page, perPage, search, sortBy, sortDir, active.id, showDeleted);
+      }
     } catch {
       toast.error("Failed to load form versions.");
     }
-  }, [formId]);
+  }, [formId, page, perPage, search, sortBy, sortDir, showDeleted, fetchSubmissions]);
 
   useEffect(() => {
     if (formId) {
@@ -137,19 +142,19 @@ export default function SubmissionsPage() {
   }, [formId, fetchVersions]);
 
   useEffect(() => {
-    if (formId) fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId);
-  }, [formId, selectedVersionId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (formId) fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId, showDeleted);
+  }, [formId, selectedVersionId, showDeleted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── react-data-table callbacks ────────────────────────────────────────────
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    fetchSubmissions(newPage, perPage, search, sortBy, sortDir, selectedVersionId);
+    fetchSubmissions(newPage, perPage, search, sortBy, sortDir, selectedVersionId, showDeleted);
   };
 
   const handlePerRowsChange = (newPerPage, newPage) => {
     setPerPage(newPerPage);
     setPage(newPage);
-    fetchSubmissions(newPage, newPerPage, search, sortBy, sortDir, selectedVersionId);
+    fetchSubmissions(newPage, newPerPage, search, sortBy, sortDir, selectedVersionId, showDeleted);
   };
 
   const handleSort = (column, direction) => {
@@ -159,7 +164,7 @@ export default function SubmissionsPage() {
     setSortDir(dir);
     setPage(1);
     setResetPaginationToggle((t) => !t);
-    fetchSubmissions(1, perPage, search, key, dir, selectedVersionId);
+    fetchSubmissions(1, perPage, search, key, dir, selectedVersionId, showDeleted);
   };
 
   // ── Debounced search ──────────────────────────────────────────────────────
@@ -171,7 +176,7 @@ export default function SubmissionsPage() {
       setSearch(val);
       setPage(1);
       setResetPaginationToggle((t) => !t);
-      fetchSubmissions(1, perPage, val, sortBy, sortDir, selectedVersionId);
+      fetchSubmissions(1, perPage, val, sortBy, sortDir, selectedVersionId, showDeleted);
     }, 400);
   };
 
@@ -180,15 +185,15 @@ export default function SubmissionsPage() {
     setSearch("");
     setPage(1);
     setResetPaginationToggle((t) => !t);
-    fetchSubmissions(1, perPage, "", sortBy, sortDir, selectedVersionId);
+    fetchSubmissions(1, perPage, "", sortBy, sortDir, selectedVersionId, showDeleted);
   };
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (submissionId) => {
     const confirmed = await confirm({
-      title: "Delete Submission",
-      message: "Are you sure you want to delete this submission? This action cannot be undone.",
-      confirmText: "Delete",
+      title: "Archive Submission",
+      message: "Are you sure you want to archive this submission? You can restore it later from the trash tab.",
+      confirmText: "Archive",
       type: "danger"
     });
     
@@ -196,10 +201,28 @@ export default function SubmissionsPage() {
     try {
       await api.deleteSubmission(formId, submissionId);
       setSelectedRows((prev) => prev.filter((r) => r.id !== submissionId));
-      fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId);
-      toast.success("Submission deleted.");
+      fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId, showDeleted);
+      toast.success("Submission archived.");
     } catch {
-      toast.error("Failed to delete submission.");
+      toast.error("Failed to archive submission.");
+    }
+  };
+
+  const handleRestore = async (submissionId) => {
+    const confirmed = await confirm({
+      title: "Restore Submission",
+      message: "This will return the submission to the active list. Audit timestamps will be updated.",
+      confirmText: "Restore",
+      type: "info"
+    });
+    
+    if (!confirmed) return;
+    try {
+      await api.restoreSubmission(formId, submissionId);
+      fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId, showDeleted);
+      toast.success("Submission restored.");
+    } catch {
+      toast.error("Failed to restore submission.");
     }
   };
 
@@ -217,8 +240,8 @@ export default function SubmissionsPage() {
       await api.deleteSubmissionsBulk(formId, selectedRows.map((r) => r.id));
       setClearSelectionToggle((t) => !t);
       setSelectedRows([]);
-      fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId);
-      toast.success(`${selectedRows.length} submissions deleted.`);
+      fetchSubmissions(page, perPage, search, sortBy, sortDir, selectedVersionId, showDeleted);
+      toast.success(`${selectedRows.length} submissions archived.`);
     } catch {
       toast.error("Failed to bulk delete submissions.");
     }
@@ -461,18 +484,29 @@ export default function SubmissionsPage() {
       width: "120px",
       cell: (row) => (
         <div className="flex items-center gap-1">
-          <Link
-            href={`/forms/${formId}/submissions/${row.id}`}
-            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-            title="View Detail"
-          >
-            <FileText size={16} />
-          </Link>
-          {canDelete && (
+          {showDeleted ? (
+            <button
+               onClick={() => handleRestore(row.id)}
+               className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+               title="Restore Submission"
+            >
+              <FileDown size={16} className="rotate-180" />
+            </button>
+          ) : (
+            <Link
+              href={`/forms/${formId}/submissions/${row.id}`}
+              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+              title="View Detail"
+            >
+              <FileText size={16} />
+            </Link>
+          )}
+
+          {canDelete && !showDeleted && (
             <button
               onClick={() => handleDelete(row.id)}
               className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Delete Submission"
+              title="Archive Submission"
             >
               <Trash2 size={16} />
             </button>
@@ -598,26 +632,44 @@ export default function SubmissionsPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Version Filter:</label>
-              <div className="relative">
-                <select
-                  value={selectedVersionId}
-                  onChange={(e) => {
-                    setSelectedVersionId(e.target.value);
-                    setPage(1);
-                    setResetPaginationToggle(t => !t);
-                  }}
-                  className="appearance-none pl-4 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-700 min-w-[140px]"
-                >
-                  <option value="">All Versions</option>
-                  {versions.filter(v => !v.isDraftWorkingCopy).map(v => (
-                    <option key={v.id} value={v.id}>
-                      Version {v.versionNumber} {v.isActive ? "(Current)" : ""}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Version:</label>
+                <div className="relative">
+                  <select
+                    value={selectedVersionId}
+                    onChange={(e) => {
+                      setSelectedVersionId(e.target.value);
+                      setPage(1);
+                      setResetPaginationToggle(t => !t);
+                    }}
+                    className="appearance-none pl-4 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-700 min-w-[140px]"
+                  >
+                    {versions.filter(v => !v.isDraftWorkingCopy).map(v => (
+                      <option key={v.id} value={v.id}>
+                        V{v.versionNumber} {v.isActive ? "(Active)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="w-px h-8 bg-slate-200 mx-1"></div>
+
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                 <button 
+                   onClick={() => setShowDeleted(false)}
+                   className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${!showDeleted ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                 >
+                   Submissions
+                 </button>
+                 <button 
+                   onClick={() => setShowDeleted(true)}
+                   className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${showDeleted ? "bg-white text-red-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                 >
+                   Trash
+                 </button>
               </div>
             </div>
           </div>

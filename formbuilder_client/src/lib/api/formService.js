@@ -49,7 +49,7 @@ export const api = {
   getDashboardStats: () => API.get("/dashboard/stats"),
 
   // ── Forms ─────────────────────────────────────────────────────────────────
-  getAllForms: ({ page = 1, size = 10, sortBy = "createdAt", sortDir = "desc" } = {}) => 
+  getAllForms: ({ page = 1, size = 10, sortBy = "createdAt", sortDir = "desc" } = {}) =>
     API.get("/forms", {
       params: {
         page: page > 0 ? page - 1 : 0,
@@ -86,31 +86,33 @@ export const api = {
   saveDraft: (formId, fields) => API.post(`/forms/${formId}/draft`, fields),
 
   // ── Public Draft Save & Resume ──────────────────────────────────────────
-  saveDraftSubmission: (formId, formVersionId, data) => 
+  saveDraftSubmission: (formId, formVersionId, data) =>
     API.post("/submissions/draft", { formId, formVersionId, data }),
 
-  getDraftSubmission: (formId) => 
+  getDraftSubmission: (formId) =>
     API.get(`/submissions/draft?formId=${formId}`),
 
-  publishForm: (formId, fields = null) => 
+  publishForm: (formId, fields = null) =>
     API.post(`/forms/${formId}/publish`, fields ? { fields } : null),
 
   archiveForm: (formId) => API.post(`/forms/${formId}/archive`),
-  reactivateForm: (formId) => API.post(`/forms/${formId}/reactivate`),
+  restoreForm: (formId) => API.post(`/forms/${formId}/reactivate`),
+  restoreSubmission: (formId, submissionId) => API.post(`/forms/${formId}/submissions/${submissionId}/restore`),
 
   // ── Submissions ───────────────────────────────────────────────────────────
   /**
    * Paginated submissions — replaces the raw fetch() in submissions/page.jsx.
    * Spring expects 0-based page index; this method converts from 1-based.
    */
-  getSubmissionsPaged: (formId, { page = 1, size = 10, search = "", sortBy = "id", sortDir = "desc", versionId = null } = {}) =>
+  getSubmissionsPaged: (formId, { page = 1, size = 10, search = "", sortBy = "id", sortDir = "desc", versionId = null, showDeleted = false } = {}) =>
     API.get(`/forms/${formId}/submissions`, {
       params: {
         page: page > 0 ? page - 1 : 0,
         size,
         search,
         sort: `${sortBy},${sortDir}`,
-        versionId: versionId || undefined
+        versionId: versionId || undefined,
+        showDeleted
       },
     }),
 
