@@ -34,12 +34,12 @@ public class ExpressionEvaluatorService {
 
     // --- Tokenizer ---
     enum TokenType {
-        AND("&&"), OR("\\|\\|"), NOT("!"),
-        EQ("=="), NEQ("!="), GTE(">="), LTE("<="), GT(">"), LT("<"),
+        AND("&&"), OR("\\|\\|"),
+        EQ("=="), NEQ("!="), GTE(">="), LTE("<="), GT(">"), LT("<"), NOT("!"),
         LP("\\("), RP("\\)"),
         NUMBER("-?\\d+(\\.\\d+)?"),
         STRING("'[^']*'"),
-        IDENTIFIER("[a-zA-Z_][a-zA-Z0-9_]*"),
+        IDENTIFIER("[a-zA-Z_][a-zA-Z0-9_\\.]*"),
         WHITESPACE("\\s+");
 
         public final Pattern pattern;
@@ -203,7 +203,7 @@ public class ExpressionEvaluatorService {
             } else if (t.type == TokenType.STRING) {
                 return t.value.substring(1, t.value.length() - 1);
             } else if (t.type == TokenType.IDENTIFIER) {
-                return data.get(t.value);
+                return data != null ? data.get(t.value) : null;
             } else {
                 throw new RuntimeException("Unexpected token style: " + t.value);
             }
