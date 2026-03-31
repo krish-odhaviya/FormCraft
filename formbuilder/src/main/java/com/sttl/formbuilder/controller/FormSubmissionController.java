@@ -2,6 +2,8 @@ package com.sttl.formbuilder.controller;
 
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
+import com.sttl.formbuilder.dto.DraftRequest;
+import com.sttl.formbuilder.dto.DraftResponse;
 import com.sttl.formbuilder.dto.PagedSubmissionsResponse;
 import com.sttl.formbuilder.dto.SubmissionsResponse;
 import com.sttl.formbuilder.dto.SubmitFormRequest;
@@ -25,7 +27,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -68,7 +72,7 @@ public class FormSubmissionController {
      */
     @PostMapping("/submissions/draft")
     public ResponseEntity<?> saveDraft(
-            @Valid @RequestBody com.sttl.formbuilder.dto.DraftRequest draftRequest,
+            @Valid @RequestBody DraftRequest draftRequest,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
@@ -78,7 +82,7 @@ public class FormSubmissionController {
 
         UUID submissionId = formSubmissionService.saveDraft(draftRequest, currentUser.getUsername());
         
-        java.util.Map<String, Object> data = new java.util.HashMap<>();
+        Map<String, Object> data = new HashMap<>();
         data.put("submissionId", submissionId);
         data.put("status", "DRAFT");
         
@@ -99,7 +103,7 @@ public class FormSubmissionController {
             return ApiResponseUtil.success(null, "No draft (not logged in)", request);
         }
 
-        com.sttl.formbuilder.dto.DraftResponse draft = formSubmissionService.getDraft(formId, currentUser.getUsername());
+        DraftResponse draft = formSubmissionService.getDraft(formId, currentUser.getUsername());
         return ApiResponseUtil.success(draft, "Draft fetched successfully", request);
     }
 
@@ -285,7 +289,7 @@ public class FormSubmissionController {
         }
 
         try {
-            java.util.Map<String, Object> detail = formSubmissionService.getSubmissionDetail(formId, submissionId);
+            Map<String, Object> detail = formSubmissionService.getSubmissionDetail(formId, submissionId);
             return ApiResponseUtil.success(detail, "Submission detail fetched", request);
         } catch (BusinessException e) {
             return ApiResponseUtil.error(e.getMessage(), null, e.getStatus(), request);

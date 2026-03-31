@@ -4,9 +4,12 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import com.sttl.formbuilder.entity.FormField;
 
 @Data
 @Getter
@@ -26,7 +29,7 @@ public class FieldDto {
     private Map<String, Object> validation;
     private Map<String, Object> uiConfig;
 
-    public static FieldDto fromEntity(com.sttl.formbuilder.entity.FormField f) {
+    public static FieldDto fromEntity(FormField f) {
         FieldDto fd = new FieldDto();
         fd.setId(f.getId());
         fd.setFieldKey(f.getFieldKey());
@@ -39,11 +42,11 @@ public class FieldDto {
 
         // --- Map Options ---
         if (f.getOptions() != null) {
-            fd.setOptions(new java.util.ArrayList<>(f.getOptions()));
+            fd.setOptions(new ArrayList<>(f.getOptions()));
         }
 
         // --- Map Validation ---
-        java.util.Map<String, Object> validationMap = new java.util.HashMap<>();
+        Map<String, Object> validationMap = new HashMap<>();
         if (f.getMinLength()         != null) validationMap.put("minLength",         f.getMinLength());
         if (f.getMaxLength()         != null) validationMap.put("maxLength",         f.getMaxLength());
         if (f.getMinValue()          != null) validationMap.put("min",               f.getMinValue());
@@ -59,7 +62,7 @@ public class FieldDto {
         fd.setValidation(validationMap);
 
         // --- Map UI Config ---
-        java.util.Map<String, Object> uiMap = new java.util.HashMap<>();
+        Map<String, Object> uiMap = new HashMap<>();
         if (f.getPlaceholder()  != null) uiMap.put("placeholder",  f.getPlaceholder());
         if (f.getHelpText()     != null) uiMap.put("helpText",      f.getHelpText());
         if (f.getDefaultValue() != null) uiMap.put("defaultValue",  f.getDefaultValue());

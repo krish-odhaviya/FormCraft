@@ -4,6 +4,7 @@ import com.sttl.formbuilder.Enums.FormStatusEnum;
 import com.sttl.formbuilder.dto.AddFieldRequest;
 import com.sttl.formbuilder.dto.ReorderFieldsRequest;
 import com.sttl.formbuilder.entity.FormField;
+import com.sttl.formbuilder.entity.FieldValidation;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.entity.FormVersion;
 import com.sttl.formbuilder.repository.FormFieldRepository;
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
 import com.sttl.formbuilder.dto.FieldDto;
 import com.sttl.formbuilder.dto.ValidationRuleDTO;
 import com.sttl.formbuilder.dto.internal.FormRuleDTO;
-import com.sttl.formbuilder.repository.*;
+import com.sttl.formbuilder.repository.FieldValidationRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -347,8 +348,8 @@ public class FormBuilderService {
         
         if (requests == null) return;
 
-        List<com.sttl.formbuilder.entity.FieldValidation> entities = requests.stream().map(req -> {
-            com.sttl.formbuilder.entity.FieldValidation v = new com.sttl.formbuilder.entity.FieldValidation();
+        List<FieldValidation> entities = requests.stream().map(req -> {
+            FieldValidation v = new FieldValidation();
             v.setFormVersion(draft);
             v.setScope(req.getScope());
             v.setFieldKey(req.getFieldKey());

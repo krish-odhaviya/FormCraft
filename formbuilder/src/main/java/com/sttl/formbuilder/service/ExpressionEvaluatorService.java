@@ -1,11 +1,15 @@
 package com.sttl.formbuilder.service;
 
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 public class ExpressionEvaluatorService {
 
@@ -19,7 +23,8 @@ public class ExpressionEvaluatorService {
             Object result = parser.parseExpression();
             return isTrue(result);
         } catch (Exception e) {
-            System.err.println("Expression Evaluation Error: [" + expression + "] | Available Keys: " + (data != null ? data.keySet() : "none") + " | Error: " + e.getMessage());
+            log.warn("Expression Evaluation Error: [{}] | Available Keys: {} | Error: {}", 
+                    expression, (data != null ? data.keySet() : "none"), e.getMessage());
             return false;
         }
     }

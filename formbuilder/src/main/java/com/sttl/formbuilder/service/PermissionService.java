@@ -8,7 +8,9 @@ import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.entity.UserRole;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormPermissionRepository;
+import com.sttl.formbuilder.repository.UserRoleRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -16,45 +18,46 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PermissionService {
 
     private final FormPermissionRepository permissionRepository;
-    private final com.sttl.formbuilder.repository.UserRoleRepository userRoleRepository;
+    private final UserRoleRepository userRoleRepository;
 
 
     public boolean canViewForm(User user, Form form) {
         if (form == null) return false;
         VisibilityType vis = form.getVisibility() != null ? form.getVisibility() : VisibilityType.PUBLIC;
         
-        System.out.println("Checking canViewForm: user=" + (user != null ? user.getUsername() : "ANONYMOUS") + 
-                           " form=" + form.getId() + " visibility=" + vis);
+        log.debug("Checking canViewForm: user={} form={} visibility={}", 
+                (user != null ? user.getUsername() : "ANONYMOUS"), form.getId(), vis);
         
         if (vis == VisibilityType.PUBLIC) {
-            System.out.println("  PUBLIC form - access granted");
+            log.debug("  PUBLIC form - access granted");
             return true;
         }
         if (user == null) {
-            System.out.println("  Anonymous user on non-public form - access denied");
+            log.debug("  Anonymous user on non-public form - access denied");
             return false;
         }
         if (isSystemAdmin(user)) {
-            System.out.println("  ADMIN user - access granted");
+            log.debug("  ADMIN user - access granted");
             return true;
         }
         // Owner always has access
         if (form.getOwner() != null && user != null && form.getOwner().getId().equals(user.getId())) {
-            System.out.println("  OWNER user - access granted");
+            log.debug("  OWNER user - access granted");
             return true;
         }
         if (vis == VisibilityType.LINK) {
-            System.out.println("  LINK form - access granted to authenticated user=" + user.getUsername());
+            log.debug("  LINK form - access granted to authenticated user={}", user.getUsername());
             return true; // Authenticated users can view LINK forms
         }
         // RESTRICTED: Check explicit permission
         boolean hasRole = hasFormRole(user, form, null);
-        System.out.println("  RESTRICTED form - checking permissions for user=" + user.getUsername() + ": result=" + hasRole);
+        log.debug("  RESTRICTED form - checking permissions for user={}: result={}", user.getUsername(), hasRole);
         return hasRole; // Any role (VIEWER or BUILDER)
     }
 
@@ -182,35 +185,35 @@ public class PermissionService {
     private boolean hasFormRole(User user, Form form, FormRole requiredRole) {
         if (user == null || form == null) return false;
         
-        System.out.println("    Checking hasFormRole: user=" + user.getUsername() + " form=" + form.getId() + " required=" + requiredRole);
+        log.debug("    Checking hasFormRole: user={} form={} required={}", user.getUsername(), form.getId(), requiredRole);
         Optional<FormPermission> permOpt = permissionRepository.findByUserAndForm(user, form);
         
         if (permOpt.isPresent()) {
             FormPermission perm = permOpt.get();
-            System.out.println("    Permission found: role=" + perm.getRole());
+            log.debug("    Permission found: role={}", perm.getRole());
             
             // Check expiry
             if (perm.getExpiryDate() != null && perm.getExpiryDate().isBefore(LocalDateTime.now())) {
-                System.out.println("    Permission EXPIRED");
+                log.debug("    Permission EXPIRED");
                 return false;
             }
             
             if (requiredRole == null) {
-                 System.out.println("    Access granted (any role)");
+                 log.debug("    Access granted (any role)");
                  return true;
             }
             
             if (perm.getRole() == FormRole.BUILDER) {
-                 System.out.println("    Access granted (BUILDER role)");
+                 log.debug("    Access granted (BUILDER role)");
                  return true; // BUILDER can do everything a VIEWER can
             }
             
             boolean match = perm.getRole() == requiredRole;
-            System.out.println("    Role match check: " + (match ? "SUCCESS" : "FAIL"));
+            log.debug("    Role match check: {}", (match ? "SUCCESS" : "FAIL"));
             return match;
         }
         
-        System.out.println("    No explicit permission found in repository");
+        log.debug("    No explicit permission found in repository");
         return false;
     }
 }

@@ -8,11 +8,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import com.sttl.formbuilder.exception.ValidationException;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 public class RuleEngineService {
 
@@ -119,18 +122,16 @@ public class RuleEngineService {
             if (rule.getActions() == null || rule.getActions().isEmpty()) continue;
 
             // ── DEBUG LOGGING ──────────────────────────────────────────────────────
-            System.out.println("[RuleEngine] Field: " + field.getFieldKey());
-            System.out.println("[RuleEngine] Actions count: " + rule.getActions().size());
-            rule.getActions().forEach(a -> System.out.println(
-                "[RuleEngine]   Action → type=" + a.getType() +
-                " targetField=" + a.getTargetField() +
-                " value=" + a.getValue() +
-                " message=" + a.getMessage()));
+            log.debug("[RuleEngine] Field: {}", field.getFieldKey());
+            log.debug("[RuleEngine] Actions count: {}", rule.getActions().size());
+            rule.getActions().forEach(a -> log.debug(
+                "[RuleEngine]   Action → type={} targetField={} value={} message={}",
+                a.getType(), a.getTargetField(), a.getValue(), a.getMessage()));
             // ──────────────────────────────────────────────────────────────────────
 
             // Check condition (evaluates ALL rules for match based on logic).
             boolean isMatch = evaluateRule(rule, answers);
-            System.out.println("[RuleEngine] isMatch=" + isMatch + " | answers=" + answers);
+            log.debug("[RuleEngine] isMatch={} | answers={}", isMatch, answers);
 
             if (isMatch) {
                 for (RuleActionDTO action : rule.getActions()) {
@@ -206,7 +207,7 @@ public class RuleEngineService {
                             String targetStr = targetValue.toString().trim();
                             if (!targetStr.isEmpty()) {
                                 try {
-                                    if (!java.util.regex.Pattern.compile(pattern).matcher(targetStr).matches()) {
+                                    if (!Pattern.compile(pattern).matcher(targetStr).matches()) {
                                         String msg = action.getMessage() != null && !action.getMessage().trim().isEmpty() 
                                                 ? action.getMessage() 
                                                 : "'" + action.getTargetField() + "' is not in a valid format.";

@@ -4,6 +4,7 @@ import com.sttl.formbuilder.dto.RegisterUserRequest;
 import com.sttl.formbuilder.dto.UserResponseDto;
 import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.entity.UserRole;
+import com.sttl.formbuilder.entity.Role;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.RoleRepository;
 import com.sttl.formbuilder.repository.UserRepository;
@@ -89,7 +90,7 @@ public class AuthService {
             data.put("id", user.getId());
 
             userRoleRepository.findFirstByUser(user).ifPresent(ur -> {
-                com.sttl.formbuilder.entity.Role customRole = ur.getRole();
+                Role customRole = ur.getRole();
                 data.put("customRole", customRole.getRoleName());
                 data.put("canCreateForm", customRole.isCanCreateForm());
                 data.put("canEditForm", customRole.isCanEditForm());

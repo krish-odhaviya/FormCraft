@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.entity.FormVersion;
+import com.sttl.formbuilder.entity.FieldValidation;
 import com.sttl.formbuilder.dto.ActivateVersionResult;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormFieldRepository;
@@ -210,11 +211,11 @@ public class FormVersionService {
         fieldRepository.saveAll(newFields);
 
         // Also clone FieldValidations
-        List<com.sttl.formbuilder.entity.FieldValidation> sourceValidations = 
+        List<FieldValidation> sourceValidations = 
             validationRepository.findByFormVersionOrderByExecutionOrderAsc(source);
         
-        List<com.sttl.formbuilder.entity.FieldValidation> targetValidations = sourceValidations.stream().map(v -> {
-            com.sttl.formbuilder.entity.FieldValidation tv = new com.sttl.formbuilder.entity.FieldValidation();
+        List<FieldValidation> targetValidations = sourceValidations.stream().map(v -> {
+            FieldValidation tv = new FieldValidation();
             tv.setFormVersion(target);
             tv.setScope(v.getScope());
             tv.setFieldKey(v.getFieldKey());

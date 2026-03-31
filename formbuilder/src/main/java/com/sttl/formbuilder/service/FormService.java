@@ -14,6 +14,7 @@ import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormSubmissionMetaRepository;
 import com.sttl.formbuilder.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -25,8 +26,10 @@ import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.repository.FormRepository;
 import com.sttl.formbuilder.repository.FormVersionRepository;
+import com.sttl.formbuilder.entity.FormVersion;
 import com.sttl.formbuilder.service.SchemaService;
 
+@Slf4j
 @Service
 public class FormService {
 
@@ -123,10 +126,8 @@ public class FormService {
 
         User user = currentUsername != null ? userRepository.findByUsername(currentUsername).orElse(null) : null;
 
-        System.out.println("FormService.getFormWithStructure: formId=" + formId +
-                " mode=" + mode +
-                " visibility=" + form.getVisibility() +
-                " user=" + (user != null ? user.getUsername() : "ANONYMOUS"));
+        log.info("FormService.getFormWithStructure: formId={}, mode={}, visibility={}, user={}",
+                formId, mode, form.getVisibility(), (user != null ? user.getUsername() : "ANONYMOUS"));
 
         if (!permissionService.canViewForm(user, form)) {
             if (user == null) {
@@ -149,7 +150,7 @@ public class FormService {
 
         // ── SRS §4.3 Schema Drift Detection ──────────────────────────────────
         if (form.getStatus() == FormStatusEnum.PUBLISHED || form.getStatus() == FormStatusEnum.ARCHIVED) {
-            com.sttl.formbuilder.entity.FormVersion activeV = formVersionService.getActiveVersion(formId).orElse(null);
+            FormVersion activeV = formVersionService.getActiveVersion(formId).orElse(null);
             if (activeV != null) {
                 List<FormField> activeFields = formFieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(activeV.getId());
                 List<String> drift = schemaService.detectDrift(form, activeFields);
@@ -162,7 +163,7 @@ public class FormService {
             }
         }
         // 2. Resolve appropriate version and Fields
-        com.sttl.formbuilder.entity.FormVersion version;
+        FormVersion version;
         boolean canEdit = permissionService.canConfigureForm(user, form);
         
         if ("builder".equalsIgnoreCase(mode) && canEdit) {
@@ -227,7 +228,7 @@ public class FormService {
             throw new RuntimeException("Access denied: only owners or builders can archive");
         }
 
-        form.setStatus(com.sttl.formbuilder.Enums.FormStatusEnum.ARCHIVED);
+        form.setStatus(FormStatusEnum.ARCHIVED);
         return formRepository.save(form);
     }
 
@@ -248,11 +249,11 @@ public class FormService {
         }
 
         // Guard: only ARCHIVED forms can be reactivated
-        if (form.getStatus() != com.sttl.formbuilder.Enums.FormStatusEnum.ARCHIVED) {
+        if (form.getStatus() != FormStatusEnum.ARCHIVED) {
             throw new RuntimeException("Only archived forms can be reactivated. Current status: " + form.getStatus());
         }
 
-        form.setStatus(com.sttl.formbuilder.Enums.FormStatusEnum.DRAFT);
+        form.setStatus(FormStatusEnum.DRAFT);
         return formRepository.save(form);
     }
 }

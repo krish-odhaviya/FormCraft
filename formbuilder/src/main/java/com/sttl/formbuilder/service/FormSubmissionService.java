@@ -3,16 +3,27 @@ package com.sttl.formbuilder.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sttl.formbuilder.Enums.FormStatusEnum;
-import com.sttl.formbuilder.dto.*;
+import com.sttl.formbuilder.dto.SubmitFormRequest;
+import com.sttl.formbuilder.dto.DraftRequest;
+import com.sttl.formbuilder.dto.DraftResponse;
+import com.sttl.formbuilder.dto.FieldDto;
+import com.sttl.formbuilder.dto.PagedSubmissionsResponse;
+import com.sttl.formbuilder.dto.SubmissionsResponse;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.FormField;
 import com.sttl.formbuilder.entity.FormSubmissionMeta;
 import com.sttl.formbuilder.entity.FormSubmissionMeta.SubmissionStatus;
 import com.sttl.formbuilder.entity.FormVersion;
+import com.sttl.formbuilder.entity.FieldValidation;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.exception.ValidationException;
-import com.sttl.formbuilder.repository.*;
+import com.sttl.formbuilder.repository.FormRepository;
+import com.sttl.formbuilder.repository.FormSubmissionMetaRepository;
+import com.sttl.formbuilder.repository.FormVersionRepository;
+import com.sttl.formbuilder.repository.FormFieldRepository;
+import com.sttl.formbuilder.repository.FieldValidationRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -32,6 +43,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FormSubmissionService {
@@ -115,7 +127,7 @@ public class FormSubmissionService {
                         if ("show".equalsIgnoreCase(conds.getAction()) && !rulePasses) continue;
                     }
                 } catch (Exception e) {
-                    System.err.println("Condition check failed for " + key + ": " + e.getMessage());
+                    log.error("Condition check failed for {}: {}", key, e.getMessage());
                 }
             }
 
@@ -137,7 +149,7 @@ public class FormSubmissionService {
         }
 
         // ── Custom Validation Engine (Cross-field) ───────────────────────────
-        List<com.sttl.formbuilder.entity.FieldValidation> customRules = 
+        List<FieldValidation> customRules = 
                 validationRepository.findByFormVersionOrderByExecutionOrderAsc(activeVersion);
 
         // Context enrichment: Map Labels to Slugs for easier validation (e.g., "Full Name" -> full_name)
@@ -154,7 +166,7 @@ public class FormSubmissionService {
             }
         }
 
-        for (com.sttl.formbuilder.entity.FieldValidation rule : customRules) {
+        for (FieldValidation rule : customRules) {
             String scope = (rule.getScope() != null) ? rule.getScope().toUpperCase() : "FIELD";
             
             if ("FIELD".equals(scope) && rule.getFieldKey() != null) {
@@ -523,7 +535,7 @@ public class FormSubmissionService {
     // ─────────────────────────────────────────────────────────────────────────
 
     @Transactional
-    public java.util.UUID saveDraft(DraftRequest request, String username) {
+    public UUID saveDraft(DraftRequest request, String username) {
         if (username == null) throw new BusinessException("User must be authenticated to save a draft", HttpStatus.UNAUTHORIZED);
 
         UUID formId = request.getFormId();
