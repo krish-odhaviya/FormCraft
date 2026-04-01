@@ -11,18 +11,27 @@ import {
   FilePlus, 
   Loader2, 
   AlertCircle,
-  ShieldAlert
+  ShieldAlert,
+  Info
 } from "lucide-react";
 
+/**
+ * SRS §3.2 / §4.4 Form Metadata View (Create)
+ * - name: display name (any text, shown in UI)
+ * - code: stable, URL-safe slug (lowercase + underscores, immutable after save)
+ * - description: optional free text
+ */
 export default function NewFormPage() {
   const router = useRouter();
   const { addForm } = useForms();
   const { user, hasModule } = useAuth();
   
-  const [name, setName] = useState("");
+  const [name, setName]               = useState("");
+  const [code, setCode]               = useState("");
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(false);
   const [description, setDescription] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [error, setError]             = useState("");
+  const [loading, setLoading]         = useState(false);
 
   // Permission Check — uses hasModule which reads from the DB-assigned menu
   const isAdmin = user?.customRole === "SYSTEM_ADMIN" || user?.roles?.includes("ROLE_SYSTEM_ADMIN");
@@ -45,16 +54,54 @@ export default function NewFormPage() {
     );
   }
 
+  // Derive code from name if the user hasn't manually edited it
+  const deriveCode = (nameVal) => {
+    return nameVal
+      .toLowerCase()
+      .replace(/[\s\-]/g, "_")        // spaces and hyphens → underscore
+      .replace(/[^a-z0-9_]/g, "")    // remove other chars
+      .replace(/^[^a-z]+/, "")        // strip leading non-letter chars
+      .substring(0, 100);
+  };
+
+  const handleNameChange = (e) => {
+    const val = e.target.value;
+    setName(val);
+    if (!codeManuallyEdited) {
+      setCode(deriveCode(val));
+    }
+    if (error) setError("");
+  };
+
+  const handleCodeChange = (e) => {
+    const val = e.target.value
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "");
+    setCode(val);
+    setCodeManuallyEdited(true);
+    if (error) setError("");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (name.trim().length < 3 || name.trim().length > 50) {
-      setError("Form name must be between 3 and 50 characters.");
+    // Validate name
+    if (!name.trim()) {
+      setError("Form name is required.");
       return;
     }
-    // Requirement 1 Regex: Must start with letter, only letters, numbers, underscores
-    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(name.trim())) {
-      setError("Form name must start with a letter and contain only letters, numbers, and underscores (no spaces).");
+    if (name.trim().length > 255) {
+      setError("Form name cannot exceed 255 characters.");
+      return;
+    }
+
+    // Validate code (SRS §4.1: code must be 3-100 chars, lowercase, alphanumeric+underscore)
+    if (!code.trim()) {
+      setError("Form code is required.");
+      return;
+    }
+    if (!/^[a-z][a-z0-9_]{2,99}$/.test(code.trim())) {
+      setError("Form code must be 3–100 characters, start with a letter, and use only lowercase letters, numbers, or underscores.");
       return;
     }
     if (description.length > 1000) {
@@ -66,7 +113,7 @@ export default function NewFormPage() {
     setLoading(true);
 
     try {
-      const formResponse = await api.createForm(name.trim(), description.trim() || null);
+      const formResponse = await api.createForm(name.trim(), code.trim(), description.trim() || null);
 
       const form = formResponse.data;
       addForm(form);
@@ -117,12 +164,13 @@ export default function NewFormPage() {
         {error && (
           <div className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
             <AlertCircle size={18} className="text-red-600 mt-0.5 shrink-0" />
-            <p>{error}</p>
+            <p style={{ whiteSpace: "pre-line" }}>{error}</p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Form Name Input */}
+          
+          {/* Form Name Input (display name, free text) */}
           <div className="space-y-2">
             <label htmlFor="form-name" className="block text-sm font-semibold text-slate-700">
               Form Name <span className="text-red-500">*</span>
@@ -130,20 +178,43 @@ export default function NewFormPage() {
             <input
               id="form-name"
               type="text"
-              placeholder="e.g., Customer Feedback Survey"
+              placeholder="e.g., Employee Onboarding Survey"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
               value={name}
-              onChange={(e) => {
-                const val = e.target.value.toLowerCase();
-                // Auto-transform: spaces/hyphens to underscore, remove other symbols
-                const transformed = val.replace(/[\s-]/g, "_").replace(/[^a-z0-9_]/g, "");
-                setName(transformed);
-                if (error) setError("");
-              }}
-              maxLength={50}
+              onChange={handleNameChange}
+              maxLength={255}
               autoFocus
               disabled={loading}
             />
+            <p className="text-xs text-slate-400">The display name shown to users in the UI.</p>
+          </div>
+
+          {/* Form Code Input (slug, immutable once saved) */}
+          <div className="space-y-2">
+            <label htmlFor="form-code" className="block text-sm font-semibold text-slate-700">
+              Form Code <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                id="form-code"
+                type="text"
+                placeholder="e.g., employee_onboarding"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400 font-mono"
+                value={code}
+                onChange={handleCodeChange}
+                maxLength={100}
+                disabled={loading}
+              />
+            </div>
+            {/* Immutability notice */}
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <Info size={14} className="text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-700">
+                <strong>Immutable after creation.</strong> This code is used in form URLs (e.g.{" "}
+                <code className="bg-amber-100 px-1 rounded">/f/{code || "employee_onboarding"}</code>
+                ) and as the database table name. Choose carefully — it cannot be changed once saved.
+              </p>
+            </div>
           </div>
 
           {/* Form Description Input */}

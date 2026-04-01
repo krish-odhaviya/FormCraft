@@ -76,6 +76,7 @@ public class FormController {
         List<Map<String, Object>> content = formsPage.getContent().stream().map(form -> {
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("id", form.getId());
+            map.put("code", form.getCode());
             map.put("name", form.getName());
             map.put("description", form.getDescription());
             map.put("createdAt", form.getCreatedAt());
@@ -143,6 +144,7 @@ public class FormController {
 
         Form form = formService.createForm(
                 requestBody.getName(),
+                requestBody.getCode(),
                 requestBody.getDescription(),
                 currentUser.getUsername()
         );

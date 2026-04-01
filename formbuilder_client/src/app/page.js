@@ -18,7 +18,9 @@ import {
   Users,
   Bell,
   Lock,
-  RotateCcw
+  RotateCcw,
+  Link2,
+  Check
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
@@ -33,11 +35,12 @@ function DashboardContent() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("ALL"); // ALL, LIVE, SHARED, DRAFTS, ARCHIVED
+  const [activeTab, setActiveTab] = useState("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(9);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
+  const [copiedId, setCopiedId] = useState(null);
 
   const isAdmin = user?.customRole === "SYSTEM_ADMIN" || user?.roles?.includes("ROLE_SYSTEM_ADMIN");
   const canCreate = isAdmin || user?.canCreateForm;
@@ -339,13 +342,38 @@ function DashboardContent() {
                         <BarChart2 size={20} />
                       </Link>
                     )}
+
+                    {/* External link — admin preview via formId */}
                     <Link
-                      href={`/forms/${form.code || form.id}/view`}
+                      href={`/f/${form.code}`}
                       className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-slate-100"
-                      title="Live View"
+                      title="Preview Form"
                     >
                       <ExternalLink size={20} />
                     </Link>
+
+                    {/* Copy public link — visible for all published forms */}
+                    {form.status === "PUBLISHED" && (
+                      <button
+                        onClick={() => {
+                          const formCode = form.code;
+                          if (!formCode) {
+                            toast.error("This form has no public link yet. Please restart the server to enable code-based links.");
+                            return;
+                          }
+                          const url = `${window.location.origin}/f/${formCode}`;
+                          navigator.clipboard.writeText(url).then(() => {
+                            setCopiedId(form.id);
+                            toast.success("Public link copied!");
+                            setTimeout(() => setCopiedId(null), 2000);
+                          });
+                        }}
+                        className="p-3.5 bg-slate-50 text-slate-600 rounded-2xl hover:bg-emerald-50 hover:text-emerald-600 transition-all border border-slate-100"
+                        title={form.code ? `Copy public link: /f/${form.code}` : "Copy public link (restart server to enable)"}
+                      >
+                        {copiedId === form.id ? <Check size={20} className="text-emerald-500" /> : <Link2 size={20} />}
+                      </button>
+                    )}
 
                     {form.status !== "ARCHIVED" && canArchiveAny && (
                       <button

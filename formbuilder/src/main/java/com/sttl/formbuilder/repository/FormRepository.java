@@ -50,6 +50,9 @@ public interface FormRepository extends JpaRepository<Form, UUID> {
     /** Find by immutable form code. */
     Optional<Form> findByCode(String code);
 
+    /** Check if a form code is already taken (for uniqueness enforcement). */
+    boolean existsByCode(String code);
+
     long countByOwner(User owner);
     long countByOwnerAndStatus(User owner, FormStatusEnum status);
     long countByStatus(FormStatusEnum status);

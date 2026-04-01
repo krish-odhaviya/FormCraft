@@ -31,7 +31,7 @@ public class Form {
     @Column(unique = true, nullable = false, updatable = false, length = 100)
     private String code;
 
-    @Column(nullable = false, length = 150)
+    @Column(nullable = false, length = 255)
     private String name;
 
     private String description;
@@ -70,10 +70,11 @@ public class Form {
     private List<FormVersion> versions = new ArrayList<>();
 
     @PrePersist
-    public void generateCode() {
+    public void validateCode() {
         if (this.code == null || this.code.isBlank()) {
-            // Default: a short UUID-based code, can be overridden by caller
-            this.code = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+            // SRS requirement: code is mandatory and must be user-defined.
+            // The DTO validation should catch this first; this is a last-resort guard.
+            throw new IllegalStateException("Form code must be provided before saving.");
         }
     }
 }

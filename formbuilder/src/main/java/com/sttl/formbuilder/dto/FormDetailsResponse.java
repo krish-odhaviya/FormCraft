@@ -12,6 +12,7 @@ import java.util.UUID;
 public class FormDetailsResponse {
 
     private UUID id;
+    private String code;
     private String name;
     private String description;
     private LocalDateTime createdAt;

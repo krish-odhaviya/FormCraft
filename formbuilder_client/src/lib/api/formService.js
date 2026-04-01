@@ -70,7 +70,13 @@ export const api = {
   getFormByCode: (code, params = {}) =>
     API.get(`/forms/code/${code}`, { params }),
 
-  createForm: (name, description) => API.post("/forms", { name, description }),
+  /**
+   * SRS §3.2 — Create a new form.
+   * @param {string} name       - Human-readable display name
+   * @param {string} code       - Stable, URL-safe code (slug). Immutable after creation.
+   * @param {string} description - Optional description
+   */
+  createForm: (name, code, description) => API.post("/forms", { name, code, description }),
 
   submitForm: (formId, values, formVersionId) =>
     API.post("/forms/submit", { formId, values, formVersionId }),
@@ -85,7 +91,35 @@ export const api = {
 
   saveDraft: (formId, fields) => API.post(`/forms/${formId}/draft`, fields),
 
-  // ── Public Draft Save & Resume ──────────────────────────────────────────
+  // ── Runtime Form APIs (SRS §4.1) ─────────────────────────────────────────
+  /**
+   * GET /runtime/forms/{formCode}
+   * Resolves the active form definition for runtime rendering.
+   * Only works for PUBLISHED forms with an active version.
+   */
+  getRuntimeForm: (formCode) => API.get(`/runtime/forms/${formCode}`),
+
+  /**
+   * POST /runtime/forms/{formCode}/submissions/draft
+   * Saves a partial draft submission. Requires authentication.
+   */
+  saveDraftByCode: (formCode, formVersionId, data) =>
+    API.post(`/runtime/forms/${formCode}/submissions/draft`, { formVersionId, data }),
+
+  /**
+   * GET the existing draft for the current user on this form (by code).
+   */
+  getDraftByCode: (formCode) =>
+    API.get(`/runtime/forms/${formCode}/submissions/draft`),
+
+  /**
+   * POST /runtime/forms/{formCode}/submissions/submit
+   * Final authoritative submission — validated server-side.
+   */
+  submitByCode: (formCode, values, formVersionId) =>
+    API.post(`/runtime/forms/${formCode}/submissions/submit`, { values, formVersionId }),
+
+  // ── Public Draft Save & Resume (legacy, keyed by formId) ─────────────────
   saveDraftSubmission: (formId, formVersionId, data) =>
     API.post("/submissions/draft", { formId, formVersionId, data }),
 

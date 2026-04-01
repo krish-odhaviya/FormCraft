@@ -85,6 +85,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/forms/submit").permitAll()
                         .requestMatchers(HttpMethod.POST, "/forms/*/evaluate").permitAll()
 
+                        // ── SRS §4.1 Runtime Form Endpoints ───────────────
+                        // GET form definition by code — allow anonymous (visibility enforced in controller)
+                        .requestMatchers(HttpMethod.GET,  "/runtime/forms/**").permitAll()
+                        // POST submit — allow anonymous (PUBLIC forms; controller enforces permission)
+                        .requestMatchers(HttpMethod.POST, "/runtime/forms/*/submissions/submit").permitAll()
+
                         // ── Admin APIs ────────────────────────────────────
                         .requestMatchers(HttpMethod.GET,    "/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")
                         .requestMatchers(HttpMethod.POST,   "/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")

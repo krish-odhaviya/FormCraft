@@ -96,18 +96,24 @@ public class FormService {
     /** Creates a form tagged with the current user as owner.
      *  Requires: "Create New Form" module.
      */
-    public Form createForm(String name, String description, String currentUsername) {
+    public Form createForm(String name, String code, String description, String currentUsername) {
         moduleAccessService.assertHasModule(currentUsername, ModuleAccessService.MODULE_CREATE_FORM);
 
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
 
+        // Validate uniqueness of code (SRS: code is globally unique)
+        if (formRepository.existsByCode(code)) {
+            throw new BusinessException("A form with code '" + code + "' already exists. Please choose a different code.", HttpStatus.CONFLICT);
+        }
+        // Also check name uniqueness per owner
         if (formRepository.existsByNameAndOwner(name, user)) {
             throw new BusinessException("You already have a form with that name", HttpStatus.CONFLICT);
         }
 
         Form form = new Form();
         form.setName(name);
+        form.setCode(code);
         form.setDescription(description);
         form.setCreatedByUsername(currentUsername);
         form.setOwner(user);
@@ -139,6 +145,7 @@ public class FormService {
 
         FormDetailsResponse response = new FormDetailsResponse();
         response.setId(form.getId());
+        response.setCode(form.getCode());
         response.setName(form.getName());
         response.setDescription(form.getDescription());
         response.setCreatedAt(form.getCreatedAt());
