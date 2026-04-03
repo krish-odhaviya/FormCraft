@@ -324,13 +324,14 @@ function ValueRenderer({ field, value }) {
     case "DROPDOWN":
     case "LOOKUP_DROPDOWN": {
         const isMultiple = field.selectionMode === "multiple";
-        if (isMultiple) {
+        if (isMultiple && value) {
             try {
-                const items = typeof value === "string" ? JSON.parse(value) : value;
+                let items = typeof value === "string" ? JSON.parse(value) : value;
+                if (!Array.isArray(items)) items = [items];
                 return (
                     <div className="flex flex-wrap gap-2">
-                        {items.map((item, i) => {
-                            const label = typeof item === 'object' ? item.label : String(item);
+                        {items.filter(Boolean).map((item, i) => {
+                            const label = typeof item === 'object' ? (item.label || item.value) : String(item);
                             return (
                                 <span key={i} className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100">
                                     {label}

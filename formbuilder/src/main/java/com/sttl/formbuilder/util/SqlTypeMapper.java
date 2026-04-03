@@ -8,8 +8,11 @@ public class SqlTypeMapper {
             // Standard short strings
             case "TEXT", "EMAIL", "RADIO" -> "VARCHAR(255)";
 
-            // Long strings or JSON/Comma-separated arrays
-            case "TEXTAREA", "CHECKBOX_GROUP" -> "TEXT";
+            // Long strings
+            case "TEXTAREA" -> "TEXT";
+            
+            // Multiple selection or complex objects stored as JSONB
+            case "CHECKBOX_GROUP", "MC_GRID", "TICK_BOX_GRID", "DROPDOWN", "LOOKUP_DROPDOWN" -> "JSONB";
 
             // Numbers
             // NUMERIC(20,10) handles INTEGER (truncated at save), DECIMAL, and PERCENTAGE
@@ -32,9 +35,6 @@ public class SqlTypeMapper {
 
             // File upload stores the file path / URL string
             case "FILE_UPLOAD" -> "VARCHAR(500)";
-
-            // MC Grid stores a JSON object: { "Row 1": "Col 2", "Row 2": "Col 1" }
-            case "MC_GRID", "TICK_BOX_GRID", "DROPDOWN", "LOOKUP_DROPDOWN" -> "JSONB";
 
             case "SECTION",
                  "LABEL",

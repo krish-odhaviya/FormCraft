@@ -13,7 +13,12 @@ export function evaluateFormula(formula, formValues) {
   try {
     // Replace {fieldKey} placeholders with numeric values
     const expression = formula.replace(/\{([^}]+)\}/g, (_, key) => {
-      const val = Number(formValues[key]);
+      let rawVal = formValues[key];
+      // If it's a lookup object {value, label}, extract the value
+      if (rawVal && typeof rawVal === 'object' && 'value' in rawVal) {
+        rawVal = rawVal.value;
+      }
+      const val = Number(rawVal);
       return isNaN(val) ? "0" : String(val);
     });
 

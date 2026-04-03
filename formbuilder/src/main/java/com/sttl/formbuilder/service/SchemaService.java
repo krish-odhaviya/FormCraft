@@ -67,9 +67,21 @@ public class SchemaService {
                 }
             });
 
-            // 3. Validate field keys against reserved words
+            // 3. Validate field keys and configuration
             for (FormField f : fields) {
                 if (LAYOUT_TYPES.contains(f.getFieldType())) continue;
+
+                if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())) {
+                    if (f.getSourceTable() == null || f.getSourceTable().isBlank() ||
+                        f.getSourceColumn() == null || f.getSourceColumn().isBlank() ||
+                        f.getSourceDisplayColumn() == null || f.getSourceDisplayColumn().isBlank()) {
+                        throw new BusinessException(
+                            "Field '" + f.getFieldLabel() + "' is configured as a Lookup but is missing mandatory table/column settings. " +
+                            "Please specify the Source Table, Value Column, and Display Column in the builder.",
+                            HttpStatus.BAD_REQUEST);
+                    }
+                }
+
                 String key = f.getFieldKey().toLowerCase();
                 if (RESERVED_COLUMNS.contains(key) || key.trim().isEmpty()) {
                     throw new BusinessException(

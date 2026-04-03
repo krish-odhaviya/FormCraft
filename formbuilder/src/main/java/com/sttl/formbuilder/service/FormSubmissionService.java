@@ -59,6 +59,8 @@ public class FormSubmissionService {
     private final SchemaService schemaService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private static final Set<String> LAYOUT_TYPES = Set.of("SECTION", "LABEL", "PAGE_BREAK", "GROUP");
+
     // ─────────────────────────────────────────────────────────────────────────
     // SUBMIT
     // ─────────────────────────────────────────────────────────────────────────
@@ -472,7 +474,7 @@ public class FormSubmissionService {
                     try { val = objectMapper.writeValueAsString(val); }
                     catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize checkbox: " + key); }
                 }
-                placeholdersList.add("?");
+                placeholdersList.add("?::jsonb");
             }
             case "MC_GRID", "TICK_BOX_GRID" -> {
                 if (val instanceof Map) {
@@ -501,26 +503,23 @@ public class FormSubmissionService {
                             throw new RuntimeException("Failed to serialize lookup: " + key);
                         }
                     }
-                    placeholdersList.add("?::jsonb");
                 } else {
                     if (val instanceof Map<?, ?> map) val = map.get("value");
                     if (val instanceof String s && !s.trim().isEmpty()) {
                         try { val = UUID.fromString(s.trim()); } catch(Exception e) { /* keep as string if not uuid */ }
                     }
-                    placeholdersList.add("?");
+                    // Since LOOKUP_DROPDOWN is a JSONB column (SqlTypeMapper), we must provide valid JSON.
+                    // A single value like UUID or String should be wrapped in quotes.
+                    try { val = objectMapper.writeValueAsString(val); }
+                    catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize lookup value: " + key); }
                 }
+                placeholdersList.add("?::jsonb");
             }
             case "DROPDOWN" -> {
                 FormField f = fieldMap.get(key);
-                if (f != null && "multiple".equalsIgnoreCase(f.getSelectionMode())) {
-                    if (val instanceof List) {
-                        try { val = objectMapper.writeValueAsString(val); }
-                        catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize dropdown: " + key); }
-                    }
-                    placeholdersList.add("?::jsonb");
-                } else {
-                    placeholdersList.add("?");
-                }
+                try { val = objectMapper.writeValueAsString(val); }
+                catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize dropdown: " + key); }
+                placeholdersList.add("?::jsonb");
             }
             default -> {
                 if (val instanceof String s && s.trim().isEmpty()) val = null;
@@ -656,7 +655,7 @@ public class FormSubmissionService {
                     HttpStatus.CONFLICT
             );
         }
-        String dataSql = buildSelectSql(fields, form.getTableName()) + " WHERE id = ?";
+        String dataSql = buildSelectSql(form.getTableName(), fields) + " WHERE id = ?";
         Map<String, Object> data = jdbcTemplate.queryForMap(dataSql, meta.getDataRowId());
         
         // Remove system columns from returned data
@@ -739,40 +738,44 @@ public class FormSubmissionService {
     /**
      * Build SELECT + JOIN SQL for lookup fields
      */
-    private String buildSelectSql(List<FormField> fields, String tableName) {
-        StringBuilder select = new StringBuilder("SELECT t.id");
+    private String buildSelectSql(String tableName, List<FormField> fields) {
+        StringBuilder select = new StringBuilder("SELECT t.id, t.created_at, t.updated_at, t.is_draft, t.form_version_id");
         StringBuilder joins = new StringBuilder();
 
         for (FormField f : fields) {
-            if ("SECTION".equalsIgnoreCase(f.getFieldType())
-                    || "LABEL".equalsIgnoreCase(f.getFieldType())
-                    || "PAGE_BREAK".equalsIgnoreCase(f.getFieldType())
-                    || "GROUP".equalsIgnoreCase(f.getFieldType())
+            String key = f.getFieldKey();
+            String type = f.getFieldType();
+            
+            if (key == null || LAYOUT_TYPES.contains(type)) continue;
 
-            ) continue;
+            String quotedKey = "\"" + key + "\"";
 
-            if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
-                    && f.getSourceTable() != null && f.getSourceColumn() != null) {
+            if ("LOOKUP_DROPDOWN".equalsIgnoreCase(type) && f.getSourceTable() != null && f.getSourceColumn() != null) {
                 if ("multiple".equalsIgnoreCase(f.getSelectionMode())) {
-                    select.append(", CAST(t.").append(f.getFieldKey()).append(" AS TEXT) AS ").append(f.getFieldKey());
+                    // JSONB column - extract as clean string
+                    select.append(", t.").append(quotedKey).append(" #>> '{}' AS ").append(quotedKey);
                 } else {
-                    String alias = "ref_" + f.getFieldKey();
-                    String displayCol = f.getSourceDisplayColumn() != null
-                            ? f.getSourceDisplayColumn() : f.getSourceColumn();
-                    select.append(", ").append(alias).append(".").append(displayCol)
-                            .append(" AS ").append(f.getFieldKey());
-                    joins.append(" LEFT JOIN ").append(f.getSourceTable()).append(" ").append(alias)
-                            .append(" ON CAST(t.").append(f.getFieldKey()).append(" AS TEXT) = CAST(")
-                            .append(alias).append(".").append(f.getSourceColumn()).append(" AS TEXT)");
+                    // Single select - use JOIN
+                    String alias = "ref_" + key;
+                    String displayCol = f.getSourceDisplayColumn() != null ? f.getSourceDisplayColumn() : f.getSourceColumn();
+                    select.append(", ").append(alias).append(".\"").append(displayCol).append("\" AS ").append(quotedKey);
+                    
+                    joins.append(" LEFT JOIN \"").append(f.getSourceTable()).append("\" ").append(alias)
+                            .append(" ON (t.").append(quotedKey).append(" #>> '{}') = CAST(").append(alias).append(".\"").append(f.getSourceColumn()).append("\" AS TEXT)");
                 }
-            } else if ("MC_GRID".equalsIgnoreCase(f.getFieldType()) || "TICK_BOX_GRID".equalsIgnoreCase(f.getFieldType())) {
-                select.append(", CAST(t.").append(f.getFieldKey()).append(" AS TEXT) AS ").append(f.getFieldKey());
+            } else if (isJsonType(type)) {
+                // Complex types stored as JSONB
+                select.append(", t.").append(quotedKey).append(" #>> '{}' AS ").append(quotedKey);
             } else {
-                select.append(", t.").append(f.getFieldKey());
+                // Standard types
+                select.append(", t.").append(quotedKey);
             }
         }
+        return select.toString() + " FROM \"" + tableName + "\" t" + joins.toString();
+    }
 
-        return select.toString() + " FROM " + tableName + " t" + joins.toString();
+    private boolean isJsonType(String type) {
+        return Set.of("MC_GRID", "TICK_BOX_GRID", "DROPDOWN", "CHECKBOX_GROUP").contains(type.toUpperCase());
     }
 
     /**
@@ -781,13 +784,13 @@ public class FormSubmissionService {
     private String buildJoinsOnly(List<FormField> fields) {
         StringBuilder joins = new StringBuilder();
         for (FormField f : fields) {
-            if ("LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
+            String key = f.getFieldKey();
+            if (key != null && "LOOKUP_DROPDOWN".equalsIgnoreCase(f.getFieldType())
                     && f.getSourceTable() != null && f.getSourceColumn() != null 
                     && !"multiple".equalsIgnoreCase(f.getSelectionMode())) {
-                String alias = "ref_" + f.getFieldKey();
-                joins.append(" LEFT JOIN ").append(f.getSourceTable()).append(" ").append(alias)
-                        .append(" ON CAST(t.").append(f.getFieldKey()).append(" AS TEXT) = CAST(")
-                        .append(alias).append(".").append(f.getSourceColumn()).append(" AS TEXT)");
+                String alias = "ref_" + key;
+                joins.append(" LEFT JOIN \"").append(f.getSourceTable()).append("\" ").append(alias)
+                        .append(" ON (t.\"").append(key).append("\" #>> '{}') = CAST(").append(alias).append(".\"").append(f.getSourceColumn()).append("\" AS TEXT)");
             }
         }
         return joins.toString();
@@ -908,7 +911,7 @@ public class FormSubmissionService {
         }
 
         // ── Build SQL parts ───────────────────────────────────────────────────
-        String selectSql = buildSelectSql(fields, tableName);
+        String selectSql = buildSelectSql(tableName, fields);
         String whereSql = buildWhere(fields, search, targetVersion.getId(), showDeleted);
         String orderSql = " ORDER BY t." + orderCol + " " + orderDir;
 
@@ -979,7 +982,7 @@ public class FormSubmissionService {
             );
         }
 
-        String sql = buildSelectSql(fields, tableName)
+        String sql = buildSelectSql(tableName, fields)
                 + buildWhere(fields, search, targetVersion.getId(), false)
                 + " ORDER BY t.id DESC";
 
@@ -1153,13 +1156,33 @@ public class FormSubmissionService {
 
         if (tableName != null && !tableName.isBlank() && meta.getDataRowId() != null) {
             try {
-                String sql = "SELECT * FROM " + tableName + " WHERE id = ?";
+                // Using the specific fields from the form version snapshot to build a proper SELECT with JOINS and JSONB casts
+                List<FormField> activeFields = fields.stream()
+                        .map(m -> {
+                            FormField ff = new FormField();
+                            ff.setFieldKey(Objects.toString(m.get("fieldKey"), null));
+                            ff.setFieldType(Objects.toString(m.get("fieldType"), null));
+                            ff.setSelectionMode(Objects.toString(m.get("selectionMode"), null));
+                            ff.setSourceTable(Objects.toString(m.get("sourceTable"), null));
+                            ff.setSourceColumn(Objects.toString(m.get("sourceColumn"), null));
+                            ff.setSourceDisplayColumn(Objects.toString(m.get("sourceDisplayColumn"), null));
+                            return ff;
+                        })
+                        .filter(f -> f.getFieldKey() != null)
+                        .collect(Collectors.toList());
+
+                String sql = buildSelectSql(tableName, activeFields) + " WHERE t.id = ?";
                 List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, meta.getDataRowId());
                 if (!rows.isEmpty()) {
                     values = rows.get(0);
                 }
             } catch (Exception e) {
-                // Ignore
+                // Fallback to basic SELECT if buildSelectSql fails
+                try {
+                    String sql = "SELECT * FROM " + tableName + " WHERE id = ?";
+                    List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, meta.getDataRowId());
+                    if (!rows.isEmpty()) values = rows.get(0);
+                } catch(Exception e2) {}
             }
         }
 

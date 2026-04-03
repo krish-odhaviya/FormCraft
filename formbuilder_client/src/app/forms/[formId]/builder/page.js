@@ -472,6 +472,16 @@ export default function BuilderPage() {
       return;
     }
 
+    const invalidLookups = localFields.filter(f =>
+      f.fieldType === "LOOKUP_DROPDOWN" &&
+      (!f.uiConfig?.sourceTable || !f.uiConfig?.sourceDisplayColumn)
+    );
+    if (invalidLookups.length > 0) {
+      const names = invalidLookups.map(f => f.fieldLabel || f.fieldType).join(", ");
+      toast.error(`Lookup Error: Field(s) [${names}] must have a Source Form and Display Column selected.`);
+      return;
+    }
+
     // SRS §10 — Max 50 fields per form
     if (localFields.length > 50) {
       toast.error(
@@ -533,6 +543,16 @@ export default function BuilderPage() {
     const emptyFields = localFields.filter(f => !f.fieldLabel?.trim());
     if (emptyFields.length > 0) {
       toast.error(`Cannot publish: One or more fields are missing a name.`);
+      return;
+    }
+
+    const invalidLookups = localFields.filter(f =>
+      f.fieldType === "LOOKUP_DROPDOWN" &&
+      (!f.uiConfig?.sourceTable || !f.uiConfig?.sourceDisplayColumn)
+    );
+    if (invalidLookups.length > 0) {
+      const names = invalidLookups.map(f => f.fieldLabel || f.fieldType).join(", ");
+      toast.error(`Publish Blocked: Lookup field(s) [${names}] are missing configuration (Source Form or Display Column).`);
       return;
     }
 

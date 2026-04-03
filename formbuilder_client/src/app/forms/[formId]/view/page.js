@@ -28,7 +28,11 @@ function evaluateConditions(field, formValues) {
 
   const results = cond.rules.map((rule) => {
     if (!rule.fieldKey) return false;
-    const fieldValue = formValues[rule.fieldKey] != null ? String(formValues[rule.fieldKey]) : "";
+    let rv = formValues[rule.fieldKey];
+    // Rule values should compare against the underlying ID if it's a lookup object
+    if (rv && typeof rv === "object" && "value" in rv) rv = rv.value;
+    const fieldValue = rv != null ? String(rv) : "";
+    
     switch (rule.operator) {
       case "equals":      return fieldValue === String(rule.value);
       case "notEquals":   return fieldValue !== String(rule.value);
@@ -68,7 +72,7 @@ const CustomSelect = ({ options, value, onChange, placeholder, isDisabled, maxSe
 
   const selectedItems = isMultiple 
     ? (Array.isArray(value) ? value : []) 
-    : (value ? [value] : []);
+    : (value != null && value !== "" ? [value] : []);
 
   const toggleOption = (opt) => {
     if (!isMultiple) {
@@ -93,7 +97,10 @@ const CustomSelect = ({ options, value, onChange, placeholder, isDisabled, maxSe
     onChange(updated);
   };
 
-  const getLabel = (v) => typeof v === 'object' ? v.label : v;
+  const getLabel = (v) => {
+    if (v == null) return "";
+    return typeof v === 'object' ? (v.label || v.value || "") : v;
+  };
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -224,7 +231,10 @@ function FormPageContent() {
       if (cond?.actions?.length > 0 && cond?.rules?.length > 0) {
         const ruleResults = (cond.rules || []).map((rule) => {
           if (!rule.fieldKey) return false;
-          const fv = formValues[rule.fieldKey] != null ? String(formValues[rule.fieldKey]) : "";
+          let val = formValues[rule.fieldKey];
+          if (val && typeof val === "object" && "value" in val) val = val.value;
+          const fv = val != null ? String(val) : "";
+
           switch (rule.operator) {
             case "equals":      return fv === String(rule.value);
             case "notEquals":   return fv !== String(rule.value);
@@ -436,7 +446,10 @@ function FormPageContent() {
       if (!cond.rules || cond.rules.length === 0) return;
       const results = cond.rules.map((rule) => {
         if (!rule.fieldKey) return false;
-        const fv = visibleValues[rule.fieldKey] != null ? String(visibleValues[rule.fieldKey]) : "";
+        let val = visibleValues[rule.fieldKey];
+        if (val && typeof val === "object" && "value" in val) val = val.value;
+        const fv = val != null ? String(val) : "";
+
         switch (rule.operator) {
           case "equals":      return fv === String(rule.value);
           case "notEquals":   return fv !== String(rule.value);
@@ -1270,7 +1283,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
       return (
         <div className={isDisabled ? "opacity-50 pointer-events-none" : ""}>
           <FieldLabel />
-          {opts.length === 0 ? (
+          {lookupData[field.fieldKey] === undefined ? (
             <div className={`${inputClass} text-slate-400 flex items-center justify-center p-8 border-dashed`}>
               <Loader2 size={16} className="animate-spin mr-2" /> Loading options...
             </div>
