@@ -33,6 +33,7 @@ export default function SubmissionDetail() {
       try {
         setLoading(true);
         const res = await api.getSubmissionDetail(formId, submissionId);
+        console.log(res.data);
         setData(res.data);
       } catch (err) {
         toast.error("Failed to load submission detail");
@@ -102,7 +103,7 @@ export default function SubmissionDetail() {
             <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Back to Submissions
           </Link>
           <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest">
-            <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200">ID: {metadata.dataRowId?.substring(0,8)}...</span>
+            <span className="bg-white px-3 py-1.5 rounded-lg border border-slate-200">CODE: {metadata.formCode}</span>
           </div>
         </div>
 
