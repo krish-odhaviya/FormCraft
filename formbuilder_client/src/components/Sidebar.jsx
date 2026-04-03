@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -135,20 +135,23 @@ function getIcon(name) {
   return ICON_MAP[name] || <LayoutDashboard size={18} />;
 }
 
-function MenuItem({ item, depth = 0, isCollapsed }) {
-  const pathname = usePathname();
+function MenuItem({ item, activeItemId, depth = 0, isCollapsed }) {
   const [open, setOpen] = useState(false);
   const hasChildren = item.children && item.children.length > 0;
 
-  // Exact match for "/" to prevent it matching every route
-  const matchesPrefix = (prefix) => {
-    if (!prefix) return false;
-    if (prefix === "/") return pathname === "/";
-    return pathname === prefix || pathname.startsWith(prefix + "/");
-  };
+  // An item is active if it's the specific active route
+  const isActive = item.id === activeItemId;
 
-  const isActive = matchesPrefix(item.prefix);
-  const isGroupActive = hasChildren && item.children.some(c => matchesPrefix(c.prefix));
+  // A group is active if any of its descendants is the active item
+  const isGroupActive = useMemo(() => {
+    if (!hasChildren) return false;
+    const checkAnyActive = (children) => {
+      return children.some(c => 
+        c.id === activeItemId || (c.children && checkAnyActive(c.children))
+      );
+    };
+    return checkAnyActive(item.children);
+  }, [item.children, activeItemId, hasChildren]);
 
   // Auto-open if a child is active
   useEffect(() => {
@@ -180,7 +183,13 @@ function MenuItem({ item, depth = 0, isCollapsed }) {
         {open && !isCollapsed && (
           <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-3">
             {item.children.map(child => (
-              <MenuItem key={child.id} item={child} depth={depth + 1} isCollapsed={isCollapsed} />
+              <MenuItem 
+                key={child.id} 
+                item={child} 
+                activeItemId={activeItemId} 
+                depth={depth + 1} 
+                isCollapsed={isCollapsed} 
+              />
             ))}
           </div>
         )}
@@ -208,9 +217,36 @@ function MenuItem({ item, depth = 0, isCollapsed }) {
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Calculate the most specific active menu item (longest matching prefix)
+  const activeItemId = useMemo(() => {
+    if (!menuItems.length || !pathname) return null;
+
+    const flatten = (items) => {
+      let result = [];
+      items.forEach(item => {
+        if (item.prefix) result.push(item);
+        if (item.children) result.push(...flatten(item.children));
+      });
+      return result;
+    };
+
+    const allLinks = flatten(menuItems);
+    
+    const matches = allLinks
+      .filter(item => {
+        const prefix = item.prefix;
+        if (prefix === "/") return pathname === "/";
+        return pathname === prefix || pathname.startsWith(prefix + "/");
+      })
+      .sort((a, b) => b.prefix.length - a.prefix.length);
+
+    return matches[0]?.id;
+  }, [menuItems, pathname]);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -260,7 +296,14 @@ export default function Sidebar() {
         {menuItems.length === 0 ? (
           <p className="text-xs text-slate-400 px-4 py-6 text-center">{!isCollapsed && "No menu items"}</p>
         ) : (
-          menuItems.map(item => <MenuItem key={item.id} item={item} isCollapsed={isCollapsed} />)
+          menuItems.map(item => (
+            <MenuItem 
+              key={item.id} 
+              item={item} 
+              activeItemId={activeItemId} 
+              isCollapsed={isCollapsed} 
+            />
+          ))
         )}
       </nav>
 
