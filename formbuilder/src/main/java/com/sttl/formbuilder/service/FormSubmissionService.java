@@ -1197,6 +1197,7 @@ public class FormSubmissionService {
         metadata.put("status",         meta.getStatus().name());
         metadata.put("createdAt",      meta.getCreatedAt());
         metadata.put("versionNumber",  version != null ? version.getVersionNumber() : null);
+        metadata.put("formCode",       form.getCode());
         metadata.put("formName",       form.getName());
 
         response.put("metadata", metadata);

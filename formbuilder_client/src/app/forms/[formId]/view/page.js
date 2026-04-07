@@ -1001,7 +1001,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
       return (
         <div>
           <FieldLabel />
-          <input type="number" className={inputClass} placeholder={placeholder}
+          <input type="number" onWheel={(e) => e.target.blur()} className={inputClass} placeholder={placeholder}
             value={value || ""} disabled={isDisabled} readOnly={isReadOnly}
             min={validation.min} max={validation.max} step="any"
             onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />

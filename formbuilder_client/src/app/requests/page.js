@@ -65,11 +65,11 @@ function RequestsManagementContent() {
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
 
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Pending Approvals</h2>
-            <p className="text-sm text-slate-500">{requests.length} items waiting</p>
+      <main className="max-w-4xl mx-auto px-6 py-8">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Pending Approvals</h2>
+            <p className="text-[11px] font-bold text-slate-400">{requests.length} items waiting</p>
           </div>
 
           {loading ? (
@@ -86,26 +86,26 @@ function RequestsManagementContent() {
               <p className="text-slate-500">No pending access requests for your forms.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-3">
               {requests.map((req) => (
-                <div key={req.id} className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row gap-6">
+                <div key={req.id} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row gap-5">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
-                        <User size={20} />
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-9 h-9 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400">
+                        <User size={18} />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-slate-900">@{req.user?.username}</p>
-                        <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">{req.type?.replace('_', ' ')}</p>
+                        <p className="text-xs font-bold text-slate-900">@{req.user?.username}</p>
+                        <p className="text-[9px] uppercase tracking-wider text-slate-400 font-black">{req.type?.replace('_', ' ')}</p>
                       </div>
                     </div>
-                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                      <p className="text-sm font-semibold text-slate-700 mb-1">Reason:</p>
-                      <p className="text-sm text-slate-500 italic">"{req.reason || 'No reason provided'}"</p>
+                    <div className="bg-slate-50/50 rounded-xl p-3 border border-slate-100">
+                      <p className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1">Reason</p>
+                      <p className="text-xs text-slate-600 font-medium leading-relaxed italic">"{req.reason || 'No reason provided'}"</p>
                     </div>
                     {req.form && (
-                      <p className="text-xs text-indigo-600 font-bold mt-4 flex items-center gap-1">
-                        Form: {req.form.name} <ChevronRight size={12} />
+                      <p className="text-[10px] text-indigo-600 font-black mt-3 flex items-center gap-1 uppercase tracking-widest">
+                        Form: {req.form.name} <ChevronRight size={10} />
                       </p>
                     )}
                   </div>
@@ -115,9 +115,9 @@ function RequestsManagementContent() {
                       <button
                          onClick={() => handleProcessRequest(req.id, "APPROVED")}
                          disabled={processingId?.id === req.id}
-                         className="bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-3 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-100"
+                         className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
                       >
-                         {processingId?.id === req.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                         {processingId?.id === req.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                          Approve
                        </button>
                     ) : (
@@ -125,27 +125,27 @@ function RequestsManagementContent() {
                         <button
                           onClick={() => handleProcessRequest(req.id, "APPROVED", "VIEWER")}
                           disabled={processingId?.id === req.id}
-                          className="bg-emerald-600 text-white hover:bg-emerald-700 px-6 py-3 rounded-2xl text-[10px] font-bold transition-all flex items-center gap-2 shadow-lg shadow-emerald-100"
+                          className="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
                         >
-                          {processingId?.id === req.id && processingId?.role === 'VIEWER' ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                          Approve as Viewer
+                          {processingId?.id === req.id && processingId?.role === 'VIEWER' ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                          As Viewer
                         </button>
                         <button
                           onClick={() => handleProcessRequest(req.id, "APPROVED", "BUILDER")}
                           disabled={processingId?.id === req.id}
-                          className="bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-3 rounded-2xl text-[10px] font-bold transition-all flex items-center gap-2 shadow-lg shadow-indigo-100"
+                          className="bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm"
                         >
-                          {processingId?.id === req.id && processingId?.role === 'BUILDER' ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} />}
-                          Approve as Builder
+                          {processingId?.id === req.id && processingId?.role === 'BUILDER' ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
+                          As Builder
                         </button>
                       </>
                     )}
                     <button
                       onClick={() => handleProcessRequest(req.id, "REJECTED")}
                       disabled={processingId?.id === req.id}
-                      className="bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 px-6 py-3 rounded-2xl text-[10px] font-bold transition-all flex items-center gap-2"
+                      className="bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
                     >
-                      <X size={14} />
+                      <X size={12} />
                       Reject
                     </button>
                   </div>

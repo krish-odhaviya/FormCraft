@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirm } from "@/context/ConfirmationContext";
 import {
   FileText, PlusCircle, Shield, LayoutList,
   Users, UserCog, Inbox, LayoutDashboard,
@@ -163,7 +164,7 @@ function MenuItem({ item, activeItemId, depth = 0, isCollapsed }) {
       <div>
         <button
           onClick={() => setOpen(!open)}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+          className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
             open || isGroupActive
               ? "bg-indigo-50 text-indigo-700"
               : "text-slate-600 hover:bg-slate-50"
@@ -200,9 +201,9 @@ function MenuItem({ item, activeItemId, depth = 0, isCollapsed }) {
   return (
     <Link
       href={item.prefix || "#"}
-      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
+      className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
         isActive
-          ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+          ? "bg-indigo-600 text-white shadow-md shadow-indigo-100"
           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
       } ${isCollapsed ? "justify-center px-0" : ""}`}
       title={isCollapsed ? item.moduleName : ""}
@@ -217,10 +218,24 @@ function MenuItem({ item, activeItemId, depth = 0, isCollapsed }) {
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const confirm = useConfirm();
   const pathname = usePathname();
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const handleLogout = async () => {
+    const confirmed = await confirm({
+      title: "Logout Confirmation",
+      message: "Are you sure you want to log out? Any unsaved changes in the builder will be lost.",
+      confirmText: "Logout",
+      type: "danger"
+    });
+    
+    if (confirmed) {
+      logout();
+    }
+  };
 
   // Calculate the most specific active menu item (longest matching prefix)
   const activeItemId = useMemo(() => {
@@ -265,17 +280,17 @@ export default function Sidebar() {
       }`}
     >
       {/* Brand */}
-      <div className={`h-20 flex items-center px-4 border-b border-slate-100 transition-all ${
-        isCollapsed ? "justify-center" : "gap-3 px-6"
+      <div className={`h-16 flex items-center px-3 border-b border-slate-100 transition-all ${
+        isCollapsed ? "justify-center" : "gap-2.5 px-5"
       }`}>
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-            <FileText size={16} className="text-white" />
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <div className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+            <FileText size={14} className="text-white" />
           </div>
           {!isCollapsed && (
             <div className="flex items-center min-w-0">
-              <span className="text-base font-black text-slate-900 tracking-tight truncate">FORMCRAFT</span>
-              <span className="ml-1.5 text-[9px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full uppercase tracking-widest shrink-0">PRO</span>
+              <span className="text-[14px] font-black text-slate-800 tracking-tight truncate uppercase">FormCraft</span>
+              <span className="ml-1.5 text-[8px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full uppercase tracking-widest shrink-0">Pro</span>
             </div>
           )}
         </div>
@@ -309,32 +324,32 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className={`border-t border-slate-100 transition-all ${
-        isCollapsed ? "p-2" : "p-4"
+        isCollapsed ? "p-2" : "p-3"
       }`}>
-        <div className={`flex items-center gap-3 px-3 py-2 ${
+        <div className={`flex items-center gap-2.5 px-2 py-1.5 ${
           isCollapsed ? "justify-center px-0" : ""
         }`}>
-          <div className="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-slate-600 text-xs font-black shrink-0">
-            {user?.username?.charAt(0)?.toUpperCase()}
+          <div className="w-6 h-6 bg-slate-200 rounded-full flex items-center justify-center text-slate-600 text-[10px] font-black shrink-0 uppercase">
+            {user?.username?.charAt(0)}
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-slate-900 truncate">{user?.username}</p>
+              <p className="text-[11px] font-black text-slate-900 truncate">@{user?.username}</p>
             </div>
           )}
           {!isCollapsed && (
             <button 
-              onClick={logout}
-              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors group"
+              onClick={handleLogout}
+              className="p-1 px-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors group flex items-center gap-2"
               title="Logout"
             >
-              <LogOut size={16} />
+              <LogOut size={14} />
             </button>
           )}
         </div>
         {isCollapsed && (
           <button 
-            onClick={logout}
+            onClick={handleLogout}
             className="w-full flex justify-center py-2 mt-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
             title="Logout"
           >

@@ -17,13 +17,13 @@ import { useConfirm } from "@/context/ConfirmationContext";
 
 // ── Table styles ──────────────────────────────────────────────────────────────
 const tableCustomStyles = {
-  headRow:   { style: { backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0", minHeight: "48px" } },
-  headCells: { style: { fontSize: "11px", fontWeight: "700", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", paddingLeft: "24px", paddingRight: "24px" } },
-  rows:      { style: { minHeight: "56px", borderBottom: "1px solid #f1f5f9", "&:hover": { backgroundColor: "#f8fafc" } } },
-  cells:     { style: { paddingLeft: "24px", paddingRight: "24px", fontSize: "13px", color: "#334155" } },
+  headRow:   { style: { backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0", minHeight: "38px" } },
+  headCells: { style: { fontSize: "10px", fontWeight: "800", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.08em", paddingLeft: "16px", paddingRight: "16px" } },
+  rows:      { style: { minHeight: "48px", borderBottom: "1px solid #f1f5f9", "&:hover": { backgroundColor: "#f8fafc" } } },
+  cells:     { style: { paddingLeft: "16px", paddingRight: "16px", fontSize: "12px", color: "#334155" } },
   pagination: {
-    style:          { borderTop: "1px solid #e2e8f0", backgroundColor: "#ffffff", color: "#64748b", fontSize: "13px" },
-    pageButtonsStyle: { borderRadius: "8px", color: "#6366f1", fill: "#6366f1" },
+    style:          { borderTop: "1px solid #e2e8f0", backgroundColor: "#ffffff", color: "#64748b", fontSize: "11px" },
+    pageButtonsStyle: { borderRadius: "6px", color: "#6366f1", fill: "#6366f1" },
   },
 };
 
@@ -560,59 +560,59 @@ export default function SubmissionsPage() {
 
   // ── Main render ───────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 lg:p-10 font-sans">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50/50 p-5 lg:p-8 font-sans">
+      <div className="max-w-7xl mx-auto space-y-5">
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <Link href="/" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 mb-2 transition-colors">
-              <ArrowLeft size={16} className="mr-1" /> Back to Dashboard
+            <Link href="/" className="inline-flex items-center text-[11px] font-bold text-slate-400 hover:text-slate-900 mb-1 transition-colors uppercase tracking-widest">
+              <ArrowLeft size={12} className="mr-1" /> Dashboard
             </Link>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Database size={24} className="text-indigo-600" /> Form Responses
+            <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <Database size={20} className="text-indigo-600" /> Form Responses
             </h1>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 mt-1 font-medium">
               {totalRows} total submission{totalRows !== 1 && "s"}
               {search && ` matching "${search}"`}
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {selectedRows.length > 0 && (
               <button
                 onClick={showDeleted ? handleBulkRestore : handleBulkDelete}
-                className={`flex items-center gap-2 ${showDeleted ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100" : "bg-red-50 text-red-600 hover:bg-red-100 border-red-200"} border px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm`}
+                className={`flex items-center gap-2 ${showDeleted ? "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100" : "bg-red-50 text-red-600 hover:bg-red-100 border-red-200"} border px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-colors shadow-sm`}
               >
-                {showDeleted ? <FileDown size={16} className="rotate-180" /> : <Trash2 size={16} />}
-                {showDeleted ? "Restore Selected" : "Delete Selected"} ({selectedRows.length})
+                {showDeleted ? <FileDown size={14} className="rotate-180" /> : <Trash2 size={14} />}
+                {showDeleted ? "Restore" : "Delete"} ({selectedRows.length})
               </button>
             )}
 
             <Link
               href={`/forms/${formId}/view`}
-              className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm"
+              className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-colors shadow-sm"
             >
-              <Database size={16} className="text-indigo-600" /> Fill Form
+              <Database size={14} className="text-indigo-600" /> Fill Form
             </Link>
 
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
                 disabled={exporting !== null}
-                className="flex items-center gap-2 bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-70 px-4 py-2 rounded-xl text-sm font-medium transition-all shadow-sm"
+                className="flex items-center gap-2 bg-[#0F172A] text-white hover:bg-indigo-600 disabled:opacity-70 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-sm"
               >
                 {exporting ? (
-                  <><Loader2 size={16} className="animate-spin" /> Exporting {exporting.toUpperCase()}...</>
+                  <><Loader2 size={14} className="animate-spin" /> Exporting...</>
                 ) : (
-                  <><FileDown size={16} /> Export Data <ChevronDown size={14} className={`transition-transform duration-200 ${showExportMenu ? "rotate-180" : ""}`} /></>
+                  <><FileDown size={14} /> Export <ChevronDown size={12} className={`transition-transform duration-200 ${showExportMenu ? "rotate-180" : ""}`} /></>
                 )}
               </button>
 
               {showExportMenu && !exporting && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-20">
+                  <div className="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-20">
                     {[
                       { format: "csv",  label: "Export as CSV",  Icon: FileSpreadsheet, color: "text-green-600" },
                       { format: "xlsx", label: "Export as Excel",Icon: FileSpreadsheet, color: "text-emerald-600" },
@@ -636,16 +636,16 @@ export default function SubmissionsPage() {
         </div>
 
         {/* Table card */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-3 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="relative max-w-sm w-full">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 value={searchInput}
                 onChange={handleSearchChange}
-                placeholder="Search submissions..."
-                className="w-full pl-9 pr-8 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                placeholder="Search results..."
+                className="w-full pl-9 pr-8 py-2 text-[13px] bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-medium"
               />
               {searchInput && (
                 <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
@@ -654,9 +654,9 @@ export default function SubmissionsPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Version:</label>
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Version</label>
                 <div className="relative">
                   <select
                     value={selectedVersionId}
@@ -665,30 +665,30 @@ export default function SubmissionsPage() {
                       setPage(1);
                       setResetPaginationToggle(t => !t);
                     }}
-                    className="appearance-none pl-4 pr-10 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-700 min-w-[140px]"
+                    className="appearance-none pl-3 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all font-bold text-slate-700 min-w-[110px]"
                   >
                     {versions.filter(v => !v.isDraftWorkingCopy).map(v => (
                       <option key={v.id} value={v.id}>
-                        V{v.versionNumber} {v.isActive ? "(Active)" : ""}
+                        V{v.versionNumber} {v.isActive ? "(Live)" : ""}
                       </option>
                     ))}
                   </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
               </div>
 
-              <div className="w-px h-8 bg-slate-200 mx-1"></div>
+              <div className="w-px h-6 bg-slate-100 mx-0.5"></div>
 
-              <div className="flex bg-slate-100 p-1 rounded-xl">
+              <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/50">
                  <button 
                    onClick={() => setShowDeleted(false)}
-                   className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${!showDeleted ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                   className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all ${!showDeleted ? "bg-white text-indigo-600 shadow-sm border border-slate-100" : "text-slate-500 hover:text-slate-700"}`}
                  >
-                   Submissions
+                   Inbox
                  </button>
                  <button 
                    onClick={() => setShowDeleted(true)}
-                   className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${showDeleted ? "bg-white text-red-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                   className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all ${showDeleted ? "bg-white text-red-600 shadow-sm border border-slate-100" : "text-slate-500 hover:text-slate-700"}`}
                  >
                    Trash
                  </button>

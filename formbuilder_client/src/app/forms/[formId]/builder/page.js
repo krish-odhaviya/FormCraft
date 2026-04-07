@@ -12,7 +12,7 @@ import {
   Link2, Heading1, AlignLeft as AlignLeftIcon, GitBranch,
   History, CheckCircle2, Archive, FilePen, ChevronDown as ChevronDownIcon,
   Loader2, ExternalLink, BookOpen, Eye, Users, ShieldAlert, UserPlus, Shield,
-  AlertCircle, RotateCcw, Search
+  AlertCircle, RotateCcw, Search, PanelLeft, PanelRight
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
@@ -112,6 +112,8 @@ export default function BuilderPage() {
   const [publishedForms, setPublishedForms] = useState([]);
   const [activeTab, setActiveTab] = useState('settings');
   const [sidebarTab, setSidebarTab] = useState('fields');
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
   const [permissions, setPermissions] = useState([]);
   const [visibility, setVisibility] = useState('PUBLIC');
   const [newPermissionUser, setNewPermissionUser] = useState("");
@@ -359,11 +361,28 @@ export default function BuilderPage() {
       const field = prev.find(f => f.id === id);
       if (!field) return prev;
 
-      let nextFields = prev.map((f) => (f.id === id ? { ...f, [key]: value } : f));
+      let nextFields = prev.map((f) => {
+        if (f.id !== id) return f;
+        
+        let updatedField = { ...f, [key]: value };
 
-      if (key === "fieldKey" && field.fieldType === "GROUP") {
+        // If label changes, also update the fieldKey IF we are in DRAFT phase to avoid breaking schema.
+        // Once published, we should lock the key unless explicitly changed.
+        if (key === "fieldLabel" && form && form.status === "DRAFT") {
+          const currentKey = f.fieldKey || "";
+          const suffix = currentKey.includes("_") ? currentKey.split("_").pop() : Math.random().toString(36).substr(2, 6);
+          updatedField.fieldKey = generateFieldKey(value, suffix);
+        }
+
+        return updatedField;
+      });
+
+      if (key === "fieldLabel" && field.fieldType === "GROUP") {
         const oldKey = field.fieldKey;
-        nextFields = nextFields.map(f => f.parentId === oldKey ? { ...f, parentId: value } : f);
+        const newKey = nextFields.find(f => f.id === id)?.fieldKey;
+        if (newKey) {
+          nextFields = nextFields.map(f => f.parentId === oldKey ? { ...f, parentId: newKey } : f);
+        }
       }
       return nextFields;
     });
@@ -910,7 +929,7 @@ export default function BuilderPage() {
 
           return (
             <div
-              className={`border-2 border-dashed rounded-2xl p-6 min-h-[140px] transition-all duration-300 ease-in-out ${isDragOver
+              className={`border-2 border-dashed rounded-xl p-4 min-h-[120px] transition-all duration-300 ease-in-out ${isDragOver
                 ? "border-indigo-400 bg-indigo-50/50 shadow-[inset_0_4px_20px_rgba(99,102,241,0.05)]"
                 : "border-slate-200 bg-slate-50/50 hover:border-slate-300"
                 }`}
@@ -942,30 +961,29 @@ export default function BuilderPage() {
                 }
               }}
             >
-              <div className="flex items-center gap-2.5 mb-5">
-                <div className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm">
-                  <LayoutTemplate size={16} className="text-indigo-600" />
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-1 bg-white border border-slate-200 rounded-lg shadow-sm">
+                  <LayoutTemplate size={14} className="text-indigo-600" />
                 </div>
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-widest">{field.uiConfig?.title || "Group Collection"}</span>
+                <span className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">{field.uiConfig?.title || "Group Collection"}</span>
               </div>
 
               {children.length === 0 ? (
-                <div className={`flex flex-col items-center justify-center py-10 rounded-xl border-2 border-dashed transition-all duration-200 ${isDragOver
+                <div className={`flex flex-col items-center justify-center py-6 rounded-xl border-2 border-dashed transition-all duration-200 ${isDragOver
                   ? "border-indigo-300 bg-white text-indigo-600"
                   : "border-slate-200 bg-white text-slate-400 hover:border-indigo-200"
                   }`}>
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 transition-all ${isDragOver ? "bg-indigo-50" : "bg-slate-50"
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 transition-all ${isDragOver ? "bg-indigo-50" : "bg-slate-50"
                     }`}>
-                    <Plus size={24} className={isDragOver ? "text-indigo-600" : "text-slate-400"} />
+                    <Plus size={20} className={isDragOver ? "text-indigo-600" : "text-slate-400"} />
                   </div>
-                  <p className="text-sm font-bold text-slate-600">{isDragOver ? "Drop to append" : "Drag elements here"}</p>
-                  <p className="text-xs mt-1 text-slate-400 font-medium">Build nested layouts</p>
+                  <p className="text-xs font-bold text-slate-600">{isDragOver ? "Drop to append" : "Drag elements here"}</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {isDragOver && (
-                    <div className="h-14 rounded-xl border-2 border-dashed border-indigo-400 bg-indigo-50 flex items-center justify-center shadow-sm">
-                      <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Drop to insert</p>
+                    <div className="h-12 rounded-xl border-2 border-dashed border-indigo-400 bg-indigo-50 flex items-center justify-center shadow-sm">
+                      <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">Drop to insert</p>
                     </div>
                   )}
                   {children.map(child => {
@@ -991,19 +1009,19 @@ export default function BuilderPage() {
                           handleDropOnGroupChild(e, childIndex, field.fieldKey);
                         }}
                         onClick={(e) => { e.stopPropagation(); setActiveFieldId(child.id); e.currentTarget.blur(); }}
-                        className={`p-5 rounded-2xl border-2 transition-all duration-200 cursor-pointer bg-white relative ${dragOverFieldId === child.id
-                            ? "border-t-[6px] border-t-indigo-500 border-indigo-200 shadow-lg scale-[1.02] z-30"
+                        className={`p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer bg-white relative ${dragOverFieldId === child.id
+                            ? "border-t-4 border-t-indigo-500 border-indigo-200 shadow-md scale-[1.01] z-30"
                             : activeFieldId === child.id
                               ? "border-indigo-500 shadow-md ring-4 ring-indigo-50"
                               : "border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow"
                           }`}
                       >
-                        <div className="flex justify-between items-start mb-3">
-                          <label className="text-sm font-bold text-slate-800 tracking-tight">
-                            {child.fieldLabel} {child.required && <span className="text-red-500 ml-1">*</span>}
+                        <div className="flex justify-between items-start mb-2">
+                          <label className="text-xs font-bold text-slate-800 tracking-tight">
+                            {child.fieldLabel} {child.required && <span className="text-red-500 ml-0.5">*</span>}
                           </label>
-                          <button onClick={(e) => deleteLocalField(child.id, e)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                            <Trash2 size={16} />
+                          <button onClick={(e) => deleteLocalField(child.id, e)} className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <Trash2 size={14} />
                           </button>
                         </div>
                         <div className="pointer-events-none">
@@ -1063,34 +1081,42 @@ export default function BuilderPage() {
     <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden selection:bg-indigo-100 selection:text-indigo-900">
 
       {/* ── LEFT SIDEBAR ── */}
-      <aside className="w-[300px] bg-white border-r border-slate-200 flex flex-col shrink-0 z-20 shadow-[1px_0_10px_rgba(0,0,0,0.02)] h-screen overflow-hidden">
-        <div className="p-5 border-b border-slate-100 bg-white">
-          <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900 mb-6 transition-colors bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-100">
-            <ArrowLeft size={16} /> Dashboard
-          </Link>
-          <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <Plus size={16} className="text-indigo-500" /> Form Elements
-          </h2>
+      <aside className={`bg-white border-r border-slate-200 flex flex-col shrink-0 z-[60] shadow-[1px_0_10px_rgba(0,0,0,0.02)] h-screen overflow-hidden transition-all duration-300 ease-in-out fixed lg:relative lg:translate-x-0 ${leftSidebarOpen ? "w-[260px] translate-x-0" : "w-0 -translate-x-full lg:w-0"}`}>
+        <div className="p-4 border-b border-slate-100 bg-white flex items-center justify-between">
+          <div className="flex flex-col">
+            <Link href="/" className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-900 mb-2 transition-colors bg-slate-50 hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-100 w-fit">
+              <ArrowLeft size={14} /> Dashboard
+            </Link>
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <Plus size={14} className="text-indigo-500" /> Form Elements
+            </h2>
+          </div>
+          <button
+            onClick={() => setLeftSidebarOpen(false)}
+            className="lg:hidden p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+          >
+            <X size={18} />
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-5 space-y-8 no-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
           {FIELD_CATEGORIES.map((cat, ci) => (
-            <div key={ci} className="space-y-4">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500/40"></span>
+            <div key={ci} className="space-y-3">
+              <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] pl-1 flex items-center gap-2">
+                <span className="w-1 h-1 rounded-full bg-indigo-500/40"></span>
                 {cat.name}
               </h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 {cat.fields.map((type) => (
                   <div
                     key={type.value}
                     draggable
                     onDragStart={(e) => handleSidebarDragStart(e, type.value)}
-                    className="flex flex-col items-center justify-center gap-2.5 p-4 bg-slate-50 border border-slate-100 rounded-2xl cursor-grab hover:bg-white hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-500/5 hover:-translate-y-0.5 active:scale-95 transition-all group"
+                    className="flex flex-col items-center justify-center gap-2 p-3 bg-slate-50 border border-slate-100 rounded-xl cursor-grab hover:bg-white hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-500/5 transition-all group"
                   >
                     <div className="text-slate-400 group-hover:text-indigo-600 transition-colors">
-                      {type.icon}
+                      {type.icon && { ...type.icon, props: { ...type.icon.props, size: 16 } }}
                     </div>
-                    <span className="text-[10px] font-bold text-slate-600 text-center leading-tight">
+                    <span className="text-[9px] font-bold text-slate-600 text-center leading-tight">
                       {type.label}
                     </span>
                   </div>
@@ -1133,45 +1159,70 @@ export default function BuilderPage() {
         )}
 
         {form?.status === 'PUBLISHED' && (
-          <div className="bg-indigo-600 text-white px-4 py-2 flex items-center justify-center gap-3 text-sm font-bold shadow-lg shrink-0 z-30">
-            <ShieldCheck size={18} />
+          <div className="bg-indigo-600 text-white px-4 py-1.5 flex items-center justify-center gap-3 text-xs font-bold shadow-lg shrink-0 z-30">
+            <ShieldCheck size={16} />
             <span>You are editing a WORKING COPY for the next version. The live version (v{form.activeVersionNumber}) will remain active until you click Publish again.</span>
           </div>
         )}
 
-        <header className="h-[76px] bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-8 shrink-0 z-10 sticky top-0 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="bg-indigo-600 shadow-md shadow-indigo-200 p-2.5 rounded-xl text-white">
-              <LayoutTemplate size={20} strokeWidth={2.5} />
+        <header className="h-[64px] bg-white/80 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between px-4 lg:px-6 shrink-0 z-10 sticky top-0 shadow-sm">
+          <div className="flex items-center gap-3 lg:gap-4">
+            <button
+              onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+              title="Toggle Elements"
+            >
+              <PanelLeft size={20} strokeWidth={2.5} />
+            </button>
+            <div className="hidden sm:flex bg-indigo-600 shadow-md shadow-indigo-200 p-2 rounded-xl text-white">
+              <LayoutTemplate size={18} strokeWidth={2.5} />
             </div>
             <div>
-              <div className="flex items-center gap-2.5 mb-0.5">
-                <h1 className="text-lg font-extrabold text-slate-900 leading-tight tracking-tight line-clamp-1">{form.name}</h1>
-                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 uppercase tracking-widest border border-slate-200/60">
+              <div className="flex items-center gap-2 mb-0">
+                <h1 className="text-xs lg:text-base font-extrabold text-slate-900 leading-tight tracking-tight line-clamp-1">{form.name}</h1>
+                <span className="text-[8px] lg:text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 uppercase tracking-widest border border-slate-200/60">
                   {form.status || "DRAFT"}
                 </span>
               </div>
-              <p className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
-                Builder Mode <span className="w-1 h-1 rounded-full bg-slate-300"></span> by {form.ownerName === user?.username ? "you" : (form.ownerName || "unknown")}
+              <p className="text-[9px] lg:text-[10px] font-semibold text-slate-400 flex items-center gap-1.5">
+                Builder Mode <span className="w-0.5 h-0.5 rounded-full bg-slate-300"></span> by {form.ownerName === user?.username ? "you" : (form.ownerName || "unknown")}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3.5">
-            <Link href={`/forms/${formId}/versions`} className="hidden sm:flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 px-4 py-2.5 rounded-xl transition-all border border-transparent hover:border-indigo-100">
-              <GitBranch size={18} /> Versions
+          <div className="flex items-center gap-2 lg:gap-3">
+            <Link href={`/forms/${formId}/versions`} className="hidden md:flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-2 rounded-xl transition-all border border-transparent hover:border-indigo-100">
+              <GitBranch size={16} /> <span className="hidden lg:inline">Versions</span>
             </Link>
-            <Link href={`/forms/${formId}/view?preview=true`} className="hidden sm:flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-4 py-2.5 rounded-xl transition-all border border-transparent hover:border-slate-200">
-              <ClipboardList size={18} /> Preview
+            <Link href={`/forms/${formId}/view?preview=true`} className="hidden md:flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-2 rounded-xl transition-all border border-transparent hover:border-slate-200">
+              <ClipboardList size={16} /> <span className="hidden lg:inline">Preview</span>
             </Link>
-            <div className="w-px h-8 bg-slate-200 mx-1"></div>
-            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95">
-              <Save size={16} className={saving ? "animate-pulse" : ""} /> {saving ? "Saving..." : "Save Draft"}
+            <div className="hidden sm:block w-px h-6 bg-slate-200 mx-1"></div>
+            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 px-3 lg:px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95">
+              <Save size={14} className={saving ? "animate-pulse" : ""} /> <span className="hidden sm:inline">{saving ? "Saving..." : "Save"}</span>
             </button>
-            <button onClick={handlePublish} disabled={publishing} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all active:scale-95">
-              <Rocket size={16} /> {publishing ? "Publishing..." : "Publish Form"}
+            <button onClick={handlePublish} disabled={publishing} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-3 lg:px-5 py-2 rounded-xl text-xs font-bold shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all active:scale-95">
+              <Rocket size={14} /> <span className="hidden sm:inline">{publishing ? "Publishing..." : "Publish"}</span>
+            </button>
+            <button
+              onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+              className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+              title="Toggle Properties"
+            >
+              <PanelRight size={20} strokeWidth={2.5} />
             </button>
           </div>
         </header>
+
+        {/* Backdrop for mobile */}
+        {(leftSidebarOpen || rightSidebarOpen) && (
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[55] lg:hidden animate-in fade-in duration-300"
+            onClick={() => {
+              setLeftSidebarOpen(false);
+              setRightSidebarOpen(false);
+            }}
+          />
+        )}
 
         <div
           onDrop={handleDropOnCanvas}
@@ -1250,9 +1301,9 @@ export default function BuilderPage() {
                         } catch { }
                         return null;
                       })()}
-                      <div className={`p-4 pl-12 ${field.fieldType === "GROUP" ? "" : "pointer-events-none"}`}>
-                        <label className="block text-sm font-bold text-slate-900 mb-2 tracking-tight">
-                          {field.fieldLabel} {field.required && <span className="text-red-500 ml-1">*</span>}
+                      <div className={`p-3 pl-10 ${field.fieldType === "GROUP" ? "" : "pointer-events-none"}`}>
+                        <label className="block text-xs font-bold text-slate-900 mb-2 tracking-tight">
+                          {field.fieldLabel} {field.required && <span className="text-red-500 ml-0.5">*</span>}
                         </label>
                         {renderFieldPreview(field)}
                       </div>
@@ -1275,36 +1326,45 @@ export default function BuilderPage() {
       </main>
 
       {/* ── RIGHT SIDEBAR ── */}
-      <aside className="w-[360px] bg-white border-l border-slate-200 flex flex-col shrink-0 z-20 shadow-[-1px_0_10px_rgba(0,0,0,0.02)] h-screen overflow-hidden">
+      <aside className={`bg-white border-l border-slate-200 flex flex-col shrink-0 z-[60] shadow-[-1px_0_10px_rgba(0,0,0,0.02)] h-screen overflow-hidden transition-all duration-300 ease-in-out fixed right-0 lg:relative lg:translate-x-0 ${rightSidebarOpen ? "w-[320px] translate-x-0" : "w-0 translate-x-full lg:w-0"}`}>
+        <div className="lg:hidden p-3 border-b border-slate-100 bg-white flex justify-end">
+          <button
+            onClick={() => setRightSidebarOpen(false)}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+          >
+            <X size={20} />
+          </button>
+        </div>
         <div className="p-3 border-b border-slate-100 bg-slate-50/80">
-          <div className="flex bg-slate-200/60 p-1.5 rounded-xl">
+          <div className="flex bg-slate-200/60 p-1 rounded-lg">
             <button
               onClick={() => setSidebarTab('fields')}
-              className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all duration-200 ${sidebarTab === 'fields' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+              className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded flex items-center justify-center gap-2 transition-all duration-200 ${sidebarTab === 'fields' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
             >
-              <Settings2 size={16} /> Properties
+              <Settings2 size={14} /> Properties
             </button>
             <button
               onClick={() => setSidebarTab('form')}
-              className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all duration-200 ${sidebarTab === 'form' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+              className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded flex items-center justify-center gap-2 transition-all duration-200 ${sidebarTab === 'form' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
             >
-              <Lock size={16} /> Access
+              <Lock size={14} /> Access
             </button>
             <button
               onClick={() => setSidebarTab('validations')}
-              className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all duration-200 ${sidebarTab === 'validations' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
+              className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded flex items-center justify-center gap-2 transition-all duration-200 ${sidebarTab === 'validations' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
             >
-              <ShieldCheck size={16} /> Logic
+              <ShieldCheck size={14} /> Logic
             </button>
           </div>
         </div>
 
-        {sidebarTab === 'validations' ? (
-          <CustomValidationsPanel formId={formId} fields={localFields} />
-        ) : sidebarTab === 'fields' ? (
-          <>
-            <div className="border-b border-slate-100 bg-white">
-              {activeField ? (
+        <div className="flex-1 min-h-0 flex flex-col">
+          {sidebarTab === 'validations' ? (
+            <CustomValidationsPanel formId={formId} fields={localFields} />
+          ) : sidebarTab === 'fields' ? (
+            <>
+              <div className="border-b border-slate-100 bg-white">
+                {activeField ? (
                 <div className="flex px-4 pt-2">
                   <button
                     onClick={() => setActiveTab('settings')}
@@ -1326,17 +1386,17 @@ export default function BuilderPage() {
               )}
             </div>
 
-            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+            <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
               {!activeField ? (
                 <div className="text-center mt-12 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-slate-200">
-                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-white shadow-sm border border-slate-100 mb-4">
-                    <SlidersHorizontal size={24} className="text-indigo-400" />
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white shadow-sm border border-slate-100 mb-4">
+                    <SlidersHorizontal size={20} className="text-indigo-400" />
                   </div>
-                  <p className="text-sm font-bold text-slate-700">No field selected</p>
-                  <p className="text-xs text-slate-500 mt-1 font-medium leading-relaxed">Click on any field in the canvas to edit its properties.</p>
+                  <p className="text-xs font-bold text-slate-700">No field selected</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-medium leading-relaxed">Click on any field in the canvas to edit its properties.</p>
                 </div>
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-5">
 
                   {activeTab === 'settings' ? (
                     <>
@@ -1344,39 +1404,39 @@ export default function BuilderPage() {
                         {activeField.fieldType.replace(/_/g, " ")}
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="block text-sm font-bold text-slate-800 flex items-center gap-1">
-                          Field Name / Question Title <span className="text-red-500 font-black">*</span>
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                          Question / Label <span className="text-red-500 font-black">*</span>
                         </label>
                         <textarea
                           rows={2}
                           value={activeField.fieldLabel}
                           onChange={(e) => updateLocalField(activeField.id, "fieldLabel", e.target.value)}
-                          className={`w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm text-slate-900 font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm ${!activeField.fieldLabel?.trim() ? 'border-red-300' : 'border-slate-200'}`}
+                          className={`w-full bg-slate-50 border rounded-lg px-3 py-2 text-xs text-slate-900 font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm ${!activeField.fieldLabel?.trim() ? 'border-red-300' : 'border-slate-200'}`}
                           placeholder="Enter your question name..."
                         />
-                        {!activeField.fieldLabel?.trim() && <p className="text-[10px] font-bold text-red-500">Name is required.</p>}
+                        {!activeField.fieldLabel?.trim() && <p className="text-[9px] font-bold text-red-500">Name is required.</p>}
                       </div>
 
                       {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL") && (
-                        <div className="space-y-4 pt-5 border-t border-slate-100">
+                        <div className="space-y-3 pt-4 border-t border-slate-100">
                           <div>
-                            <label className="block text-sm font-bold text-slate-800 mb-1.5">Title</label>
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Title</label>
                             <input
                               type="text"
                               value={activeField.uiConfig?.title || ""}
                               onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "title", e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
                               placeholder="Section title..."
                             />
                           </div>
-                          <div>
-                            <label className="block text-sm font-bold text-slate-800 mb-1.5">Description</label>
+                          <div className="pt-1.5">
+                            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Description</label>
                             <textarea
                               rows={3}
                               value={activeField.uiConfig?.description || ""}
                               onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "description", e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
                               placeholder="Optional description..."
                             />
                           </div>
@@ -1410,27 +1470,27 @@ export default function BuilderPage() {
                       )}
 
                       {activeField.fieldType === "STAR_RATING" && (
-                        <div className="space-y-3 pt-5 border-t border-slate-100">
-                          <label className="block text-sm font-bold text-slate-800">Max Stars</label>
-                          <input type="number" min={1} max={10}
+                        <div className="space-y-2 pt-4 border-t border-slate-100">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Max Stars</label>
+                          <input type="number" onWheel={(e) => e.target.blur()} min={1} max={10}
                             value={activeField.uiConfig?.maxStars || 5}
                             onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxStars", Number(e.target.value))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
                           />
                         </div>
                       )}
 
                       {activeField.fieldType === "LINEAR_SCALE" && (
-                        <div className="space-y-4 pt-5 border-t border-slate-100">
-                          <label className="block text-sm font-bold text-slate-800">Scale Range</label>
-                          <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-3 pt-4 border-t border-slate-100">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Scale Range</label>
+                          <div className="grid grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Min</label>
-                              <input type="number" value={activeField.uiConfig?.scaleMin ?? 1} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMin", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" />
+                              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Min</label>
+                              <input type="number" onWheel={(e) => e.target.blur()} value={activeField.uiConfig?.scaleMin ?? 1} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMin", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" />
                             </div>
                             <div>
-                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Max</label>
-                              <input type="number" value={activeField.uiConfig?.scaleMax ?? 5} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMax", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" />
+                              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Max</label>
+                              <input type="number" onWheel={(e) => e.target.blur()} value={activeField.uiConfig?.scaleMax ?? 5} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMax", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" />
                             </div>
                           </div>
                           <div>
@@ -1508,6 +1568,7 @@ export default function BuilderPage() {
                               </label>
                               <input
                                 type="number"
+                                onWheel={(e) => e.target.blur()}
                                 min={1}
                                 value={activeField.uiConfig?.maxSelections || ""}
                                 onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxSelections", e.target.value ? Number(e.target.value) : null)}
@@ -1523,7 +1584,7 @@ export default function BuilderPage() {
                         <div className="space-y-4 pt-5 border-t border-slate-100">
                           <div>
                             <label className="block text-sm font-bold text-slate-800 mb-1.5">Max File Size (MB)</label>
-                            <input type="number" min={1} max={100}
+                            <input type="number" onWheel={(e) => e.target.blur()} min={1} max={100}
                               value={activeField.uiConfig?.maxFileSizeMb || 5}
                               onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxFileSizeMb", Number(e.target.value))}
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
@@ -1698,18 +1759,18 @@ export default function BuilderPage() {
                           </h3>
                           <div className="space-y-4">
                             {TEXT_BASED_TYPES.includes(activeField.fieldType) && (
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Min Length</label>
-                                  <input type="number" min="0" value={activeField.validation?.minLength || ""}
+                                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Min Length</label>
+                                  <input type="number" onWheel={(e) => e.target.blur()} min="0" value={activeField.validation?.minLength || ""}
                                     onChange={(e) => updateNestedObject(activeField.id, "validation", "minLength", e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 10" />
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 10" />
                                 </div>
                                 <div>
-                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Max Length</label>
-                                  <input type="number" min="0" value={activeField.validation?.maxLength || ""}
+                                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Max Length</label>
+                                  <input type="number" onWheel={(e) => e.target.blur()} min="0" value={activeField.validation?.maxLength || ""}
                                     onChange={(e) => updateNestedObject(activeField.id, "validation", "maxLength", e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 500" />
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 500" />
                                 </div>
                               </div>
                             )}
@@ -1748,25 +1809,27 @@ export default function BuilderPage() {
                                 </div>
 
                                 {/* Min / Max */}
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Min Value</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Min Value</label>
                                     <input
                                       type="number"
+                                      onWheel={(e) => e.target.blur()}
                                       step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
                                       value={activeField.validation?.min || ""}
                                       onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)}
-                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 0"
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 0"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Max Value</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Max Value</label>
                                     <input
                                       type="number"
+                                      onWheel={(e) => e.target.blur()}
                                       step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
                                       value={activeField.validation?.max || ""}
                                       onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)}
-                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 100"
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 100"
                                     />
                                   </div>
                                 </div>
@@ -2039,7 +2102,7 @@ export default function BuilderPage() {
                                                   <option key={f.id} value={f.fieldKey}>{f.fieldLabel}</option>
                                                 ))}
                                               </select>
-                                              <input type="number" min="1" value={act.value || ""} onChange={(e) => {
+                                              <input type="number" onWheel={(e) => e.target.blur()} min="1" value={act.value || ""} onChange={(e) => {
                                                 const newActions = [...cond.actions];
                                                 newActions[actIdx] = { ...act, value: e.target.value };
                                                 updateCond({ actions: newActions });
@@ -2379,7 +2442,8 @@ export default function BuilderPage() {
             </div>
           </div>
         )}
-      </aside>
+      </div>
+    </aside>
 
       <ConfirmationModal
         isOpen={showUnsavedModal}
