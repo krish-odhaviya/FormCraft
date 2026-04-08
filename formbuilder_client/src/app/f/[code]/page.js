@@ -315,12 +315,22 @@ function FormPageContent() {
         });
         setFormValues(initialValues);
       } catch (err) {
-        if (err.response?.status === 403)      setMessage("forbidden");
-        else if (err.response?.status === 401) setMessage("unauthorized");
-        else if (err.response?.status === 409) {
-          setErrorMessage(err.response.data?.message || "This form is unavailable due to a database sync issue.");
+        const errorData = err.response?.data;
+        // Check if the error response explicitly mentions archiving or status is ARCHIVED
+        if (errorData?.data?.status === "ARCHIVED" || 
+            errorData?.message?.toLowerCase().includes("archive") || 
+            err.response?.status === 410) {
+          setMessage("archived");
+        } else if (err.response?.status === 403) {
+          setMessage("forbidden");
+        } else if (err.response?.status === 401) {
+          setMessage("unauthorized");
+        } else if (err.response?.status === 409) {
+          setErrorMessage(errorData?.message || "This form is unavailable due to a database sync issue.");
           setMessage("error");
-        } else                                 setMessage("error");
+        } else {
+          setMessage("error");
+        }
       } finally {
         setLoading(false);
       }
@@ -614,62 +624,86 @@ function FormPageContent() {
 
   if (message === "forbidden") return (
     <div className="min-h-screen bg-slate-50/50 py-20 px-4 flex justify-center">
-      <div className="w-full max-w-xl">
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
-          <div className="bg-red-600 h-2 w-full" />
+      <div className="w-full max-w-xl animate-in fade-in zoom-in-95 duration-500">
+        <div className="bg-white rounded-[32px] shadow-xl border border-slate-200 overflow-hidden">
+          <div className="bg-red-600 h-1.5 w-full" />
           <div className="p-10 text-center">
-            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="w-20 h-20 bg-red-50 rounded-[28px] flex items-center justify-center mx-auto mb-6 border border-red-100 shadow-sm">
               <ShieldQuestion size={32} className="text-red-500" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-3">Access Restricted</h2>
-            <p className="text-slate-500 mb-10 leading-relaxed">
+            <h2 className="text-2xl font-black text-slate-900 mb-3 tracking-tight uppercase">Access Restricted</h2>
+            <p className="text-slate-500 mb-8 leading-relaxed font-medium">
               You do not have permission to access this form.
             </p>
             {!isAuthenticated ? (
               <div className="space-y-4">
-                <p className="text-sm text-slate-500 mb-6">
-                  This form requires authentication. Please log in to continue.
+                <p className="text-[13px] text-slate-500 mb-6 font-medium">
+                  This questionnaire requires authentication. Please log in to continue.
                 </p>
                 <button
                   onClick={() => router.push(`/login?redirect=/f/${code}`)}
-                  className="w-full bg-indigo-600 text-white px-8 py-4 rounded-2xl text-base font-bold hover:bg-indigo-700 shadow-lg transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-indigo-600 text-white px-8 py-4 rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95"
                 >
-                  <Lock size={20} />
+                  <Lock size={18} />
                   Log In to Access
                 </button>
               </div>
             ) : !accessRequested ? (
               <div className="space-y-4 text-left">
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Request access to this form</label>
+                <label className="block text-xs font-black text-slate-700 mb-1 uppercase tracking-wider">Request access to this form</label>
                 <textarea
                   placeholder="Briefly explain why you need access..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all min-h-[120px]"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all min-h-[100px] font-medium"
                   value={requestReason}
                   onChange={(e) => setRequestReason(e.target.value)}
                 />
                 <button
                   onClick={handleRequestAccess}
                   disabled={requestStatus === "pending" || !requestReason.trim()}
-                  className="w-full bg-indigo-600 text-white px-8 py-4 rounded-2xl text-base font-bold hover:bg-indigo-700 shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full bg-indigo-600 text-white px-8 py-4 rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95"
                 >
-                  {requestStatus === "pending" ? <Loader2 className="animate-spin" size={20} /> : <KeyRound size={20} />}
+                  {requestStatus === "pending" ? <Loader2 className="animate-spin" size={18} /> : <KeyRound size={18} />}
                   Submit Access Request
                 </button>
                 {requestStatus === "error" && (
-                  <p className="text-red-500 text-sm text-center font-medium">{errorMessage}</p>
+                  <p className="text-red-500 text-xs text-center font-bold mt-2 uppercase tracking-tight">{errorMessage}</p>
                 )}
               </div>
             ) : (
-              <div className="bg-green-50 border border-green-100 rounded-2xl p-6 text-center">
-                <CheckCircle2 size={32} className="text-green-500 mx-auto mb-3" />
-                <p className="text-green-800 font-bold mb-1">Request Submitted</p>
-                <p className="text-green-700 text-sm">You'll be notified once it's processed.</p>
-                <button onClick={() => router.push("/")} className="mt-6 text-sm font-bold text-indigo-600 hover:text-indigo-700 underline">
-                  Back to Home
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-8 text-center animate-in zoom-in-95 duration-300">
+                <CheckCircle2 size={40} className="text-emerald-500 mx-auto mb-4" />
+                <p className="text-emerald-900 font-black mb-2 uppercase tracking-tight">Request Submitted</p>
+                <p className="text-emerald-700 text-[13px] font-medium leading-relaxed">You'll be notified once your access has been processed by the administrator.</p>
+                <button onClick={() => router.push("/")} className="mt-8 text-xs font-black text-indigo-600 hover:text-indigo-700 underline uppercase tracking-widest">
+                  Back to Dashboard
                 </button>
               </div>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Form Archived Screen ──────────────────────────────────────────────────
+  if (message === "archived") return (
+    <div className="min-h-screen bg-slate-50/50 py-20 px-4 flex justify-center items-center backdrop-blur-[2px]">
+      <div className="w-full max-w-xl animate-in fade-in zoom-in-95 duration-500">
+        <div className="bg-white rounded-[40px] shadow-[0_40px_100px_-20px_rgba(15,23,42,0.1)] border border-slate-200 overflow-hidden text-center p-12 lg:p-16">
+          <div className="w-28 h-28 bg-red-50 rounded-[48px] flex items-center justify-center mx-auto mb-10 border-8 border-red-50/50 shadow-inner">
+            <Lock size={48} className="text-red-500 drop-shadow-sm" />
+          </div>
+          <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight leading-none uppercase">Form Archived</h2>
+          <div className="w-16 h-1 bg-red-100 rounded-full mx-auto mb-8"></div>
+          <p className="text-slate-500 mb-12 leading-relaxed font-medium text-lg lg:text-xl">
+            This direct access link has been <span className="text-red-600 font-bold">retired</span>. This questionnaire is no longer accepting new submissions.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="w-full bg-slate-900 text-white px-10 py-5 rounded-3xl text-sm font-black uppercase tracking-[0.2em] hover:bg-slate-800 shadow-2xl shadow-slate-200 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3"
+          >
+            Go to Explorer
+          </button>
         </div>
       </div>
     </div>
@@ -707,15 +741,15 @@ function FormPageContent() {
         )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 sm:p-10">
-          {message === "archived" && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mb-6">
-                <AlertCircle size={32} className="text-red-500" />
+          {message === "not_published" && (
+            <div className="flex flex-col items-center justify-center py-12 text-center animate-in fade-in duration-500">
+              <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center mb-6">
+                <LayoutTemplate size={32} className="text-amber-500" />
               </div>
-              <h1 className="text-2xl font-black text-slate-900 mb-3">Form Archived</h1>
-              <p className="text-slate-500 mb-8 max-w-xs">This form is no longer accepting submissions.</p>
-              <button onClick={() => router.push("/")} className="bg-slate-900 text-white px-8 py-3 rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all">
-                Return Home
+              <h1 className="text-2xl font-black text-slate-900 mb-3">Draft Status</h1>
+              <p className="text-slate-500 mb-8 max-w-xs font-medium">This form is currently in draft mode and is not yet available for public submissions.</p>
+              <button onClick={() => router.push("/")} className="bg-indigo-600 text-white px-8 py-3 rounded-2xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg active:scale-95">
+                Go Back
               </button>
             </div>
           )}
@@ -781,9 +815,9 @@ function FormPageContent() {
             </div>
           )}
 
-          {fields.length === 0 && message !== "success" ? (
-            <div className="text-center py-10"><p className="text-slate-500">This form is currently empty.</p></div>
-          ) : message !== "success" ? (
+          {(fields.length === 0 && message !== "success" && message !== "archived") ? (
+            <div className="text-center py-10"><p className="text-slate-500 font-medium">This form has no accessible fields.</p></div>
+          ) : (message !== "success" && message !== "archived") ? (
             <form onSubmit={handleSubmit} className="space-y-8">
               {formPages.length > 1 && (
                 <div className="mb-6 flex gap-2 overflow-x-auto pb-2">

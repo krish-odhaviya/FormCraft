@@ -150,6 +150,23 @@ public class GlobalExceptionHandler {
         );
     }
 
+    // ✅ 8. Optimistic Locking Error
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Object>> handleOptimisticLocking(
+            org.springframework.dao.OptimisticLockingFailureException ex,
+            HttpServletRequest request) {
+
+        List<ApiErrorDetail> errors =
+                List.of(new ApiErrorDetail("concurrency", "The record has been modified by another user or session."));
+
+        return ApiResponseUtil.error(
+                "Conflict detected: Please refresh and try again.",
+                errors,
+                HttpStatus.CONFLICT,
+                request
+        );
+    }
+
     // ✅ 7. Generic Exception (Fallback)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleGenericException(

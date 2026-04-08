@@ -1128,7 +1128,7 @@ export default function BuilderPage() {
       </aside>
 
       {/* ── MAIN CANVAS ── */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#F8FAFC]">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden relative bg-[#F8FAFC]">
         {isArchived && (
           <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
             <div className="bg-white border border-red-100 rounded-3xl p-10 max-w-md w-full text-center shadow-2xl shadow-red-100/40">
@@ -1229,11 +1229,11 @@ export default function BuilderPage() {
           onDragOver={handleDragOver}
           onDragEnter={handleCanvasDragEnter}
           onDragLeave={handleCanvasDragLeave}
-          className={`flex-1 overflow-y-auto p-6 lg:p-8 flex justify-center pb-40 custom-scrollbar transition-all duration-300 ${isDraggingOverCanvas && !dragOverFieldId ? "bg-indigo-50/40 shadow-[inset_0_0_40px_rgba(99,102,241,0.1)]" : ""
+          className={`flex-1 overflow-y-auto p-6 lg:p-8 pb-[600px] custom-scrollbar transition-all duration-300 ${isDraggingOverCanvas && !dragOverFieldId ? "bg-indigo-50/40 shadow-[inset_0_0_40px_rgba(99,102,241,0.1)]" : ""
             }`}
           onClick={() => setActiveFieldId(null)}
         >
-          <div className="w-full max-w-3xl space-y-5">
+          <div className="w-full max-w-3xl space-y-5 mx-auto">
 
             {localFields.length === 0 ? (
               <div className={`h-72 border-[3px] border-dashed rounded-3xl flex flex-col items-center justify-center transition-colors duration-300 ${isDraggingOverCanvas
@@ -1310,6 +1310,9 @@ export default function BuilderPage() {
                     </div>
                   );
                 })}
+
+                {/* Physical spacer to guarantee scroll depth */}
+                <div className="h-[400px] w-full pointer-events-none" />
 
                 {/* Dynamic Drop Area Indicator for existing lists */}
                 {isDraggingOverCanvas && !dragOverFieldId && localFields.length > 0 && (

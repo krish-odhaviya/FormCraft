@@ -136,7 +136,7 @@ function DashboardContent() {
     if (!confirmed) return;
 
     try {
-      await api.reactivateForm(formId);
+      await api.restoreForm(formId);
       setForms((prev) =>
         prev.map((f) => (f.id === formId ? { ...f, status: "DRAFT" } : f))
       );
@@ -409,6 +409,27 @@ function DashboardContent() {
                       >
                         <Code size={14} />
                       </button>
+                      {form.status === "ARCHIVED" ? (
+                        (canArchiveAny || form.canArchive) && (
+                          <button
+                            onClick={() => handleReactivate(form.id)}
+                            className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg hover:bg-emerald-50 hover:text-emerald-600 transition-all border border-slate-100 hover:border-emerald-200"
+                            title="Reactivate Form"
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                        )
+                      ) : (
+                        (canArchiveAny || form.canArchive) && form.status === "PUBLISHED" && (
+                          <button
+                            onClick={() => handleArchive(form.id)}
+                            className="w-8 h-8 flex items-center justify-center bg-slate-50 text-slate-400 rounded-lg hover:bg-red-50 hover:text-red-600 transition-all border border-slate-100 hover:border-red-200"
+                            title="Archive Form"
+                          >
+                            <Archive size={14} />
+                          </button>
+                        )
+                      )}
                     </div>
 
                     {/* Layer 2: Main Call to Action */}

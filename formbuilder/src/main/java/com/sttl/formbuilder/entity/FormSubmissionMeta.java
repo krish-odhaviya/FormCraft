@@ -75,6 +75,9 @@ public class FormSubmissionMeta {
 
     private java.time.LocalDateTime restoredAt;
 
+    @Version
+    private Long version;
+
     public enum SubmissionStatus {
         DRAFT, SUBMITTED
     }

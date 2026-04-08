@@ -210,7 +210,11 @@ public class FormController {
 
         try {
             Form form = formService.archiveForm(formId, currentUser.getUsername());
-            return ApiResponseUtil.success(form, "Form archived successfully", request);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("id", form.getId());
+            result.put("status", form.getStatus().name());
+            result.put("updatedAt", form.getUpdatedAt());
+            return ApiResponseUtil.success(result, "Form archived successfully", request);
         } catch (Exception e) {
             return ApiResponseUtil.error(e.getMessage(), null, HttpStatus.BAD_REQUEST, request);
         }
@@ -248,7 +252,11 @@ public class FormController {
 
         try {
             Form form = formService.reactivateForm(formId, currentUser.getUsername());
-            return ApiResponseUtil.success(form, "Form reactivated successfully", request);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("id", form.getId());
+            result.put("status", form.getStatus().name());
+            result.put("updatedAt", form.getUpdatedAt());
+            return ApiResponseUtil.success(result, "Form reactivated successfully", request);
         } catch (RuntimeException e) {
             return ApiResponseUtil.error(e.getMessage(), null,
                     HttpStatus.BAD_REQUEST, request);

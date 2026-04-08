@@ -24,6 +24,7 @@ import com.sttl.formbuilder.repository.FormFieldRepository;
 import com.sttl.formbuilder.repository.FieldValidationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -395,7 +396,11 @@ public class FormSubmissionService {
             meta.setStatus(SubmissionStatus.SUBMITTED);
             meta.setFormVersion(activeVersion);
             meta.setSubmittedAt(LocalDateTime.now());
-            submissionMetaRepository.save(meta);
+            try {
+                submissionMetaRepository.save(meta);
+            } catch (OptimisticLockingFailureException e) {
+                throw new BusinessException("Submission failed: This draft has already been submitted or modified by another session.", HttpStatus.CONFLICT);
+            }
         } else {
             // ── INSERT new submission ───────────────────────────────────────
             columnsList.add("is_draft");
@@ -606,7 +611,11 @@ public class FormSubmissionService {
 
             FormSubmissionMeta meta = existingMeta.get();
             meta.setFormVersion(version);
-            submissionMetaRepository.save(meta);
+            try {
+                submissionMetaRepository.save(meta);
+            } catch (OptimisticLockingFailureException e) {
+                throw new BusinessException("Draft save failed: This draft has been modified in another session. Please reload.", HttpStatus.CONFLICT);
+            }
         } else {
             columnsList.add("is_draft");
             placeholdersList.add("?");
