@@ -47,6 +47,13 @@ public class FormBuilderService {
     private final FieldValidationRepository validationRepository;
     private final ObjectMapper                objectMapper;
 
+    private static final Set<String> RESERVED_KEYWORDS = Set.of(
+            "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE", "JOIN", "INNER", "LEFT", "RIGHT", "FULL",
+            "GROUP", "ORDER", "BY", "HAVING", "LIMIT", "OFFSET", "UNION", "DISTINCT",
+            "TABLE", "COLUMN", "INDEX", "PRIMARY", "FOREIGN", "KEY", "CONSTRAINT", "REFERENCES",
+            "VIEW", "SEQUENCE", "TRIGGER", "USER", "ROLE", "GRANT", "REVOKE"
+    );
+
     public FormField addField(UUID formId, AddFieldRequest request, String currentUsername) {
 
         Form form = formRepository.findById(formId)
@@ -65,15 +72,15 @@ public class FormBuilderService {
         if (Boolean.TRUE.equals(draft.getIsActive())) {
              throw new BusinessException("Cannot edit an active version. Create a new version first.", HttpStatus.CONFLICT);
         }
-
         if (fieldRepository.existsByFormVersionIdAndFieldKeyAndIsDeletedFalse(
                 draft.getId(), request.getFieldKey())) {
-
             throw new BusinessException(
                     "Field already exists",
                     HttpStatus.BAD_REQUEST
             );
         }
+
+        validateFieldKey(request.getFieldKey());
 
         FormField field = new FormField();
         field.setFormVersion(draft);
@@ -157,8 +164,12 @@ public class FormBuilderService {
         // 2. Validate incoming field requests for duplicate keys in the same request
         Set<String> seenKeys = new HashSet<>();
         for (AddFieldRequest req : fieldRequests) {
-            if (req.getFieldKey() != null && !seenKeys.add(req.getFieldKey())) {
-                throw new BusinessException("Validation Error: Duplicate field key '" + req.getFieldKey() + "' found in request.", HttpStatus.BAD_REQUEST);
+            String key = req.getFieldKey();
+            if (key != null) {
+                if (!seenKeys.add(key)) {
+                    throw new BusinessException("Validation Error: Duplicate field key '" + key + "' found in request.", HttpStatus.BAD_REQUEST);
+                }
+                validateFieldKey(key);
             }
         }
 
@@ -273,6 +284,16 @@ public class FormBuilderService {
             if (req.getValidation().getColumns() != null) {
                 field.getGridColumns().addAll(req.getValidation().getColumns());
             }
+        }
+    }
+
+    private void validateFieldKey(String fieldKey) {
+        if (fieldKey == null || fieldKey.trim().isEmpty()) return;
+        if (RESERVED_KEYWORDS.contains(fieldKey.toUpperCase().trim())) {
+            throw new BusinessException(
+                "Invalid field key: '" + fieldKey + "' is a reserved SQL keyword.",
+                HttpStatus.BAD_REQUEST
+            );
         }
     }
 

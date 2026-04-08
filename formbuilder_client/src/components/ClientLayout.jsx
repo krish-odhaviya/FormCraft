@@ -4,7 +4,8 @@ import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import { AuthProvider } from "@/context/AuthContext";
 import { FormsProvider } from "@/context/FormsContext";
-import { Toaster } from "react-hot-toast";
+import { Toaster, ToastBar, toast } from "react-hot-toast";
+import { X } from "lucide-react";
 
 import { ConfirmationProvider } from "@/context/ConfirmationContext";
 
@@ -18,7 +19,26 @@ export default function ClientLayout({ children }) {
         <FormsProvider>
           <ConfirmationProvider>
             {children}
-            <Toaster position="top-right" />
+            <Toaster position="top-center">
+              {(t) => (
+                <ToastBar toast={t}>
+                  {({ icon, message }) => (
+                    <div className="flex items-center gap-2">
+                      {icon}
+                      <div className="text-sm font-medium">{message}</div>
+                      {t.type !== 'loading' && (
+                        <button 
+                          onClick={() => toast.dismiss(t.id)}
+                          className="ml-2 p-1 hover:bg-slate-100/10 rounded-full transition-colors opacity-60 hover:opacity-100"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </ToastBar>
+              )}
+            </Toaster>
           </ConfirmationProvider>
         </FormsProvider>
       </AuthProvider>
@@ -37,7 +57,26 @@ export default function ClientLayout({ children }) {
               </main>
             </div>
           </div>
-          <Toaster position="top-right" />
+          <Toaster position="top-center">
+            {(t) => (
+              <ToastBar toast={t}>
+                {({ icon, message }) => (
+                  <div className="flex items-center gap-2">
+                    {icon}
+                    <div className="text-sm font-medium">{message}</div>
+                    {t.type !== 'loading' && (
+                      <button 
+                        onClick={() => toast.dismiss(t.id)}
+                        className="ml-2 p-1 hover:bg-black/5 rounded-full transition-colors opacity-60 hover:opacity-100"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </ToastBar>
+            )}
+          </Toaster>
         </ConfirmationProvider>
       </FormsProvider>
     </AuthProvider>

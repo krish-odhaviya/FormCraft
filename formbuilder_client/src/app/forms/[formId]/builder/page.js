@@ -90,6 +90,13 @@ const CONDITION_ACTIONS = [
   { value: "noop", label: "Always Show (Evaluate Business Rules Only)" },
 ];
 
+const RESERVED_KEYWORDS = [
+  "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE", "JOIN", "INNER", "LEFT", "RIGHT", "FULL",
+  "GROUP", "ORDER", "BY", "HAVING", "LIMIT", "OFFSET", "UNION", "DISTINCT",
+  "TABLE", "COLUMN", "INDEX", "PRIMARY", "FOREIGN", "KEY", "CONSTRAINT", "REFERENCES",
+  "VIEW", "SEQUENCE", "TRIGGER", "USER", "ROLE", "GRANT", "REVOKE"
+];
+
 export default function BuilderPage() {
   const router = useRouter();
   const params = useParams();
@@ -490,7 +497,6 @@ export default function BuilderPage() {
       toast.error(`Validation Error: One or more fields (${fieldNames}) are missing a Field Name.`);
       return;
     }
-
     const invalidLookups = localFields.filter(f =>
       f.fieldType === "LOOKUP_DROPDOWN" &&
       (!f.uiConfig?.sourceTable || !f.uiConfig?.sourceDisplayColumn)
@@ -498,6 +504,18 @@ export default function BuilderPage() {
     if (invalidLookups.length > 0) {
       const names = invalidLookups.map(f => f.fieldLabel || f.fieldType).join(", ");
       toast.error(`Lookup Error: Field(s) [${names}] must have a Source Form and Display Column selected.`);
+      return;
+    }
+
+    const keywordViolations = localFields.filter(f => {
+       if (!f.fieldKey) return false;
+       // Get the part before the last underscore (the label-derived base)
+       const baseKey = f.fieldKey.includes('_') ? f.fieldKey.split('_').slice(0, -1).join('_') : f.fieldKey;
+       return RESERVED_KEYWORDS.includes(baseKey.toUpperCase().trim());
+    });
+    if (keywordViolations.length > 0) {
+      const baseName = keywordViolations[0].fieldKey.includes('_') ? keywordViolations[0].fieldKey.split('_').slice(0, -1).join('_') : keywordViolations[0].fieldKey;
+      toast.error(`Validation Error: The base name '${baseName}' derived from your label is a reserved SQL keyword. Please use a different name.`);
       return;
     }
 
@@ -564,7 +582,6 @@ export default function BuilderPage() {
       toast.error(`Cannot publish: One or more fields are missing a name.`);
       return;
     }
-
     const invalidLookups = localFields.filter(f =>
       f.fieldType === "LOOKUP_DROPDOWN" &&
       (!f.uiConfig?.sourceTable || !f.uiConfig?.sourceDisplayColumn)
@@ -572,6 +589,18 @@ export default function BuilderPage() {
     if (invalidLookups.length > 0) {
       const names = invalidLookups.map(f => f.fieldLabel || f.fieldType).join(", ");
       toast.error(`Publish Blocked: Lookup field(s) [${names}] are missing configuration (Source Form or Display Column).`);
+      return;
+    }
+
+    const keywordViolations = localFields.filter(f => {
+       if (!f.fieldKey) return false;
+       // Get the part before the last underscore (the label-derived base)
+       const baseKey = f.fieldKey.includes('_') ? f.fieldKey.split('_').slice(0, -1).join('_') : f.fieldKey;
+       return RESERVED_KEYWORDS.includes(baseKey.toUpperCase().trim());
+    });
+    if (keywordViolations.length > 0) {
+      const baseName = keywordViolations[0].fieldKey.includes('_') ? keywordViolations[0].fieldKey.split('_').slice(0, -1).join('_') : keywordViolations[0].fieldKey;
+      toast.error(`Publish Blocked: The base name '${baseName}' derived from a field label is a reserved SQL keyword.`);
       return;
     }
 
@@ -1415,10 +1444,15 @@ export default function BuilderPage() {
                           rows={2}
                           value={activeField.fieldLabel}
                           onChange={(e) => updateLocalField(activeField.id, "fieldLabel", e.target.value)}
-                          className={`w-full bg-slate-50 border rounded-lg px-3 py-2 text-xs text-slate-900 font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm ${!activeField.fieldLabel?.trim() ? 'border-red-300' : 'border-slate-200'}`}
+                          className={`w-full bg-slate-50 border rounded-lg px-3 py-2 text-xs text-slate-900 font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm ${(!activeField.fieldLabel?.trim() || RESERVED_KEYWORDS.includes((activeField.fieldLabel || "").toUpperCase().trim())) ? 'border-red-300' : 'border-slate-200'}`}
                           placeholder="Enter your question name..."
                         />
                         {!activeField.fieldLabel?.trim() && <p className="text-[9px] font-bold text-red-500">Name is required.</p>}
+                        {activeField.fieldLabel?.trim() && RESERVED_KEYWORDS.includes(activeField.fieldLabel.toUpperCase().trim()) && (
+                          <p className="text-[9px] font-bold text-red-500 flex items-center gap-1">
+                            <ShieldAlert size={10} /> '{activeField.fieldLabel}' is a reserved SQL keyword.
+                          </p>
+                        )}
                       </div>
 
                       {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL") && (
