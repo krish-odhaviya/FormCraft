@@ -145,6 +145,7 @@ public class FormVersionController {
         m.put("createdAt",     v.getCreatedAt());
         m.put("activatedAt",   v.getActivatedAt());
         m.put("definitionJson", v.getDefinitionJson());
+        m.put("rulesJson",      v.getRulesJson());
         return m;
     }
 

@@ -1,5 +1,7 @@
 package com.sttl.formbuilder.config;
 
+import com.sttl.formbuilder.constant.ApiEndpoints;
+
 import com.sttl.formbuilder.security.CustomUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -77,7 +79,11 @@ public class SecurityConfig {
                     csrf
                         .csrfTokenRepository(repository)
                         .csrfTokenRequestHandler(requestHandler)
-                        .ignoringRequestMatchers("/auth/**", "/forms/**", "/runtime/forms/**");
+                        .ignoringRequestMatchers(
+                                ApiEndpoints.AUTH_BASE + "/**", 
+                                ApiEndpoints.FORMS_BASE + "/**", 
+                                ApiEndpoints.RUNTIME_BASE + "/**"
+                        );
                 })
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -92,27 +98,30 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         // ── Auth endpoints ────────────────────────────────
-                        .requestMatchers("/auth/login", "/auth/logout", "/auth/register").permitAll()
+                        .requestMatchers(
+                                ApiEndpoints.AUTH_LOGIN, 
+                                ApiEndpoints.AUTH_LOGOUT, 
+                                ApiEndpoints.AUTH_REGISTER
+                        ).permitAll()
 
                         // ── Swagger ───────────────────────────────────────
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
                         // ── File APIs ─────────────────────────────────────
-                        .requestMatchers("/forms/upload", "/forms/files/**").authenticated()
+                        .requestMatchers(ApiEndpoints.FORMS_BASE + "/upload", ApiEndpoints.FORMS_BASE + "/files/**").authenticated()
 
                         // ── Public form APIs ──────────────────────────────
-                        .requestMatchers(HttpMethod.GET, "/forms/lookup").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/forms/published-list").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/forms/code/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/forms/*").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/forms/submit").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/forms/*/evaluate").permitAll()
+                        .requestMatchers(HttpMethod.GET,  ApiEndpoints.FORMS_LOOKUP_ABS).permitAll()
+                        .requestMatchers(HttpMethod.GET,  ApiEndpoints.FORMS_PUBLISHED).permitAll()
+                        .requestMatchers(HttpMethod.GET,  ApiEndpoints.FORMS_BASE + "/code/**").permitAll()
+                        .requestMatchers(HttpMethod.GET,  ApiEndpoints.FORMS_BASE + "/*").permitAll()
+                        .requestMatchers(HttpMethod.POST, ApiEndpoints.FORMS_BASE + ApiEndpoints.SUBMIT).permitAll()
+                        .requestMatchers(HttpMethod.POST, ApiEndpoints.FORMS_BASE + "/*/evaluate").permitAll()
 
                         // ── SRS §4.1 Runtime Form Endpoints ───────────────
                         // GET form definition by code — allow anonymous (visibility enforced in controller)
-                        .requestMatchers(HttpMethod.GET,  "/runtime/forms/**").permitAll()
-                        // POST submit — allow anonymous (PUBLIC forms; controller enforces permission)
-                        .requestMatchers(HttpMethod.POST, "/runtime/forms/*/submissions/submit").permitAll()
+                         .requestMatchers(HttpMethod.GET,  ApiEndpoints.RUNTIME_BASE + "/**").permitAll()
+                         .requestMatchers(HttpMethod.POST, ApiEndpoints.RUNTIME_BASE + ApiEndpoints.SUBMIT_PATH).permitAll()
 
                         // ── Admin APIs ────────────────────────────────────
                         .requestMatchers(HttpMethod.GET,    "/modules/**").hasAnyRole("ADMIN", "SYSTEM_ADMIN")

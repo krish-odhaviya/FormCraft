@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api/formService";
-import { ArrowLeft, Loader2, GitBranch, Calendar, User, ShieldAlert, BadgeInfo, CheckCircle2, History, Type, Hash, AlignLeft } from "lucide-react";
+import { 
+  ArrowLeft, Loader2, Calendar, User, 
+  ShieldAlert, CheckCircle2, History, 
+  Type, Hash, AlignLeft, AlertTriangle, 
+  Blocks, Workflow, FileText, Settings,
+} from "lucide-react";
 
 export default function VersionDetailPage() {
   const { formId, versionId } = useParams();
@@ -34,11 +39,32 @@ export default function VersionDetailPage() {
     }
   };
 
+  const fields = useMemo(() => {
+    try {
+      return version?.definitionJson ? JSON.parse(version.definitionJson) : [];
+    } catch { return []; }
+  }, [version]);
+
+  const rules = useMemo(() => {
+    try {
+      return version?.rulesJson ? JSON.parse(version.rulesJson) : [];
+    } catch { return []; }
+  }, [version]);
+
+  const formatDate = (dateInput) => {
+    if (!dateInput) return "N/A";
+    if (Array.isArray(dateInput)) {
+      const [y, m, d, h, min] = dateInput;
+      return new Date(y, m - 1, d, h || 0, min || 0).toLocaleString();
+    }
+    return new Date(dateInput).toLocaleString();
+  };
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-white">
         <Loader2 className="animate-spin text-indigo-600 mb-4" size={40} />
-        <p className="text-slate-500 font-medium tracking-wide">Loading snapshot...</p>
+        <p className="text-slate-500 font-medium">Loading version snapshot...</p>
       </div>
     );
   }
@@ -46,154 +72,148 @@ export default function VersionDetailPage() {
   if (error || !version) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 px-6 text-center">
-        <div className="w-20 h-20 bg-red-100 rounded-full flex justify-center items-center mb-6 border border-red-200">
-          <ShieldAlert size={36} className="text-red-500" />
-        </div>
-        <h2 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Unavailable</h2>
-        <p className="text-slate-500 mb-8 leading-relaxed max-w-sm">{error || "Version not found."}</p>
-        <Link href={`/forms/${formId}/versions`} className="px-6 py-3 bg-white text-slate-700 border border-slate-200 font-bold rounded-xl shadow-sm hover:bg-slate-50 transition-colors">
+        <ShieldAlert size={48} className="text-red-500 mb-4" />
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Unavailable</h2>
+        <p className="text-slate-500 mb-8 max-w-sm">{error || "Version not found."}</p>
+        <Link href={`/forms/${formId}/versions`} className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg shadow-sm hover:bg-indigo-700 transition-colors">
           Go Back
         </Link>
       </div>
     );
   }
 
-  // Parse JSON definitions (with safety fallback)
-  let fields = [];
-  try {
-    fields = version.definitionJson ? JSON.parse(version.definitionJson) : [];
-  } catch {
-    fields = [];
-  }
-
-  // Formatting date safely
-  let dateStr = "Unknown Date";
-  if (version.createdAt) {
-    if (Array.isArray(version.createdAt)) {
-      const [y, m, d, h, min] = version.createdAt;
-      dateStr = new Date(y, m - 1, d, h || 0, min || 0).toLocaleString();
-    } else {
-      dateStr = new Date(version.createdAt).toLocaleString();
-    }
-  }
-
   return (
-    <div className="min-h-screen bg-[#F8FAFC] font-sans p-6 lg:p-12">
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-0">
-          <Link href={`/forms/${formId}/versions`} className="inline-flex items-center text-sm font-semibold text-slate-500 hover:text-slate-900 mb-6 transition-colors">
-            <ArrowLeft size={16} className="mr-1.5" /> Back to Versions
-          </Link>
+    <div className="min-h-screen bg-slate-50 font-sans pb-20">
+      {/* Clean Header */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-4xl mx-auto px-6 py-8">
+           <Link href={`/forms/${formId}/versions`} className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-indigo-600 mb-6 transition-colors">
+             <ArrowLeft size={16} className="mr-2" /> Back to Versions
+           </Link>
+           
+           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div>
+                 <div className="flex items-center gap-3 mb-2">
+                   <h1 className="text-2xl font-bold text-slate-900">Version {version.versionNumber} Snapshot</h1>
+                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                     version.isActive ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'
+                   }`}>
+                     {version.isActive ? 'Active' : 'Inactive'}
+                   </span>
+                 </div>
+                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-500">
+                    <span className="flex items-center gap-1.5"><Calendar size={14} /> {formatDate(version.createdAt)}</span>
+                    <span className="flex items-center gap-1.5"><User size={14} /> By {version.createdBy || "System"}</span>
+                 </div>
+              </div>
+
+              <div className="flex gap-3">
+                 <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Fields</div>
+                    <div className="text-lg font-bold text-slate-700">{fields.length}</div>
+                 </div>
+                 <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-center">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rules</div>
+                    <div className="text-lg font-bold text-slate-700">{rules.length}</div>
+                 </div>
+              </div>
+           </div>
         </div>
+      </div>
 
-        {/* Warning Toast for Active Version directly inserted over the header */}
-        {version.isActive && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl mb-6 shadow-sm flex items-start gap-4 animate-in fade-in slide-in-from-top-4">
-             <div className="p-2 bg-amber-100/50 rounded-full text-amber-600"><AlertCircle size={20} /></div>
-             <div>
-               <h3 className="font-bold text-amber-900 tracking-tight mb-0.5">Active versions cannot be edited</h3>
-               <p className="text-sm font-medium text-amber-700/80">
-                 This is the active live snapshot. It is completely read-only to preserve 100% data integrity for submissions. To make changes, use the Form Builder draft and publish a new version.
-               </p>
-             </div>
-          </div>
-        )}
-
-        {/* Header Block */}
-        <div className="bg-white border text-center border-slate-200 rounded-[32px] p-8 sm:p-10 shadow-sm mb-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-50/50 rounded-bl-[100px] blur-3xl rounded-full z-0 -mt-10 -mr-10"></div>
-          
-          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-             <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`p-2 rounded-xl border ${version.isActive ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                    {version.isActive ? <CheckCircle2 size={24} /> : <History size={24} />}
-                  </div>
-                  <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                    Version Snapshot <span className="text-indigo-600">v{version.versionNumber}</span>
-                  </h1>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mt-4 text-sm font-semibold text-slate-500">
-                  <span className="flex items-center gap-2"><Calendar size={16} className="text-slate-400" /> {dateStr}</span>
-                  <span className="flex items-center gap-2"><User size={16} className="text-slate-400" /> Created by {version.createdBy || "System"}</span>
-                </div>
-             </div>
-             <div>
-               <div className={`px-5 py-2 rounded-xl text-sm font-black tracking-widest uppercase border inline-flex items-center gap-2 shadow-sm ${
-                 version.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'
-               }`}>
-                 {version.isActive ? "ACTIVE LIVE" : "INACTIVE"}
-               </div>
-             </div>
-          </div>
-        </div>
-
-        {/* Field List View */}
-        <div className="space-y-6">
-          <h2 className="text-xl font-bold flex items-center gap-2 tracking-tight text-slate-900 ml-2">
-             <BadgeInfo size={20} className="text-indigo-500" /> Form Defintion Preview
-          </h2>
-
-          {fields.length === 0 ? (
-             <div className="bg-white border text-center border-slate-200 rounded-3xl p-12 shadow-sm">
-               <p className="text-slate-500 font-medium">No fields were found in this version snapshot.</p>
-             </div>
-          ) : (
-             <div className="space-y-4">
-               {fields.map((field, idx) => {
-                 const isRequired = field.validation?.required;
-                 
-                 // Get friendly name
-                 let icon = <Type size={16} />;
-                 let typeName = field.fieldType;
-                 if (typeName === "INTEGER") { icon = <Hash size={16} />; typeName = "Number"; }
-                 if (typeName === "TEXTAREA") { icon = <AlignLeft size={16} />; typeName = "Long Text"; }
-                 
-                 return (
-                   <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative group overflow-hidden">
-                     {/* Disabled overlay simulation */}
-                     <div className="absolute inset-0 bg-slate-50/30 w-full h-full z-10 cursor-not-allowed"></div>
-                     
-                     <div className="relative z-0">
-                       <div className="flex items-center justify-between mb-2">
-                         <div className="flex items-center gap-3">
-                           <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-2 py-1 rounded border border-indigo-100 uppercase tracking-widest flex items-center gap-1.5">
-                              {icon} {typeName}
-                           </span>
-                           <span className="text-xs font-semibold text-slate-400 font-mono tracking-tight">#{field.fieldKey}</span>
-                         </div>
-                         {isRequired && (
-                           <span className="text-xs font-bold bg-red-50 text-red-600 px-2.5 py-1 rounded lowercase">required</span>
-                         )}
+      <div className="max-w-4xl mx-auto px-6 py-12 space-y-12">
+        
+        {/* Section 1: Fields */}
+        <section>
+           <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <FileText size={18} className="text-indigo-500" /> Form Structure
+           </h2>
+           
+           {fields.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400 italic">
+                 No fields in this version.
+              </div>
+           ) : (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 shadow-sm">
+                 {fields.map((field, idx) => (
+                    <div key={idx} className="p-6 hover:bg-slate-50 transition-colors">
+                       <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                             <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200 uppercase tracking-wider">
+                                {field.fieldType}
+                             </span>
+                             <span className="text-[10px] font-mono text-slate-400">#{field.fieldKey}</span>
+                          </div>
+                          {field.required && (
+                             <span className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-100 uppercase tracking-wider">Required</span>
+                          )}
                        </div>
-                       
-                       <h3 className="text-lg font-bold text-slate-900 mt-3">{field.fieldLabel}</h3>
+                       <h3 className="text-base font-bold text-slate-800">{field.fieldLabel}</h3>
                        {field.uiConfig?.description && (
-                         <p className="text-slate-500 text-sm mt-1">{field.uiConfig.description}</p>
+                          <p className="mt-1 text-sm text-slate-500 leading-relaxed">{field.uiConfig.description}</p>
                        )}
+                       
                        {field.options && field.options.length > 0 && (
                           <div className="mt-4 flex flex-wrap gap-2">
                              {field.options.map((opt, i) => (
-                               <span key={i} className="text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200">{opt}</span>
+                                <span key={i} className="text-[10px] font-medium bg-indigo-50/50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-100/50">{opt}</span>
                              ))}
                           </div>
                        )}
-                     </div>
-                   </div>
-                 );
-               })}
-             </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+                    </div>
+                 ))}
+              </div>
+           )}
+        </section>
 
-// Inline alert icon overlay missing component
-function AlertCircle(props) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={props.size||24} height={props.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={props.className}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        {/* Section 2: Logic Rules */}
+        <section>
+           <h2 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <Workflow size={18} className="text-indigo-500" /> Business Logic & Validation
+           </h2>
+
+           {rules.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400 italic">
+                 No custom logic defined in this version.
+              </div>
+           ) : (
+              <div className="space-y-4">
+                 {rules.map((rule, idx) => (
+                    <div key={idx} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                       <div className="flex items-center gap-3 mb-4">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                             rule.scope === 'FIELD' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                          }`}>
+                             {rule.scope} Rule
+                          </span>
+                          {rule.fieldKey && <span className="text-[10px] font-mono text-slate-400">Target: {rule.fieldKey}</span>}
+                       </div>
+                       
+                       <div className="bg-slate-50 rounded-lg p-4 mb-4 border border-slate-100">
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Expression</div>
+                          <code className="text-sm font-mono text-indigo-600 break-all">{rule.expression}</code>
+                       </div>
+                       
+                       <div className="flex items-start gap-3">
+                          <AlertTriangle size={16} className="text-rose-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Error Message</div>
+                             <p className="text-sm text-slate-700 font-medium italic">"{rule.errorMessage}"</p>
+                          </div>
+                       </div>
+                    </div>
+                 ))}
+              </div>
+           )}
+        </section>
+
+      </div>
+
+      <footer className="max-w-4xl mx-auto px-6 py-8 border-t border-slate-200 text-center">
+         <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest">
+            Snapshotted by FormCraft Integrity Engine
+         </p>
+      </footer>
+    </div>
   );
 }

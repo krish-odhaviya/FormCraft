@@ -34,6 +34,7 @@ import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sttl.formbuilder.dto.internal.FormRuleDTO;
+import com.sttl.formbuilder.constant.AppConstants;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
@@ -231,7 +232,7 @@ public class FormSubmissionService {
                                 : "'" + label + "' format is invalid.");
                 }
                 case "EMAIL" -> {
-                    if (!val.toString().trim().matches("^[\\w.+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$"))
+                    if (!val.toString().trim().matches(AppConstants.REGEX_EMAIL))
                         errors.put(key, "'" + label + "' must be a valid email address.");
                 }
                 case "INTEGER" -> {

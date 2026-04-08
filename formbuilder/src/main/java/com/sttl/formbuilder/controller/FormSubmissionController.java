@@ -1,5 +1,7 @@
 package com.sttl.formbuilder.controller;
 
+import com.sttl.formbuilder.constant.ApiEndpoints;
+
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.DraftRequest;
@@ -47,7 +49,7 @@ public class FormSubmissionController {
      * POST /api/v1/forms/submit
      * Submits a form response. Anonymous access allowed for PUBLIC forms.
      */
-    @PostMapping("/forms/submit")
+    @PostMapping(ApiEndpoints.FORMS_BASE + ApiEndpoints.SUBMIT)
     public ResponseEntity<?> submitForm(
             @Valid @RequestBody SubmitFormRequest submitRequest,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -70,7 +72,7 @@ public class FormSubmissionController {
      * POST /api/v1/submissions/draft
      * Saves or updates a draft for the current user.
      */
-    @PostMapping("/submissions/draft")
+    @PostMapping(ApiEndpoints.SUBMISSIONS_BASE + ApiEndpoints.DRAFT)
     public ResponseEntity<?> saveDraft(
             @Valid @RequestBody DraftRequest draftRequest,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -93,7 +95,7 @@ public class FormSubmissionController {
      * GET /api/v1/submissions/draft?formId=<uuid>
      * Retrieves the existing draft for the user and form.
      */
-    @GetMapping("/submissions/draft")
+    @GetMapping(ApiEndpoints.SUBMISSIONS_BASE + ApiEndpoints.DRAFT)
     public ResponseEntity<?> getDraft(
             @RequestParam UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -111,7 +113,7 @@ public class FormSubmissionController {
      * GET /api/v1/forms/{formId}/submissions
      * Returns paginated submissions for a specific form.
      */
-    @GetMapping("/forms/{formId}/submissions")
+    @GetMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.SUBMISSIONS)
     public ResponseEntity<?> getSubmissions(
             @PathVariable UUID formId,
             @RequestParam(required = false) String search,
@@ -138,7 +140,7 @@ public class FormSubmissionController {
      * GET /api/v1/forms/{formId}/submissions/export
      * Exports all submissions for a specific form as XLSX.
      */
-    @GetMapping("/forms/{formId}/submissions/export")
+    @GetMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.SUBMISSIONS + ApiEndpoints.EXPORT)
     public ResponseEntity<?> exportSubmissions(
             @PathVariable UUID formId,
             @RequestParam(required = false) String search,
@@ -163,7 +165,7 @@ public class FormSubmissionController {
      * DELETE /api/v1/forms/{formId}/submissions/{submissionId}
      * Soft-deletes a single submission.
      */
-    @DeleteMapping("/forms/{formId}/submissions/{submissionId}")
+    @DeleteMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.SUBMISSIONS + "/{submissionId}")
     public ResponseEntity<?> deleteSubmission(
             @PathVariable UUID formId,
             @PathVariable UUID submissionId,
@@ -187,7 +189,7 @@ public class FormSubmissionController {
      * POST /api/v1/forms/{formId}/submissions/bulk-delete
      * Soft-deletes multiple submissions.
      */
-    @PostMapping("/forms/{formId}/submissions/bulk-delete")
+    @PostMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.SUBMISSIONS + ApiEndpoints.BULK_DELETE)
     public ResponseEntity<?> bulkDeleteSubmissions(
             @PathVariable UUID formId,
             @RequestBody List<UUID> submissionIds,
@@ -211,7 +213,7 @@ public class FormSubmissionController {
      * POST /api/v1/forms/{formId}/submissions/{submissionId}/restore
      * Restores a single soft-deleted submission.
      */
-    @PostMapping("/forms/{formId}/submissions/{submissionId}/restore")
+    @PostMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.SUBMISSIONS + "/{submissionId}" + ApiEndpoints.RESTORE)
     public ResponseEntity<?> restoreSubmission(
             @PathVariable UUID formId,
             @PathVariable UUID submissionId,
@@ -236,7 +238,7 @@ public class FormSubmissionController {
      * POST /api/v1/forms/{formId}/submissions/bulk-restore
      * Restores multiple soft-deleted submissions.
      */
-    @PostMapping("/forms/{formId}/submissions/bulk-restore")
+    @PostMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.SUBMISSIONS + ApiEndpoints.BULK_RESTORE)
     public ResponseEntity<?> bulkRestoreSubmissions(
             @PathVariable UUID formId,
             @RequestBody List<UUID> submissionIds,
@@ -272,7 +274,7 @@ public class FormSubmissionController {
      * GET /api/v1/forms/{formId}/submissions/{submissionId}
      * Returns full submission detail for the read-only detail view.
      */
-    @GetMapping("/forms/{formId}/submissions/{submissionId}")
+    @GetMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.SUBMISSIONS + "/{submissionId}")
     public ResponseEntity<?> getSubmissionDetail(
             @PathVariable UUID formId,
             @PathVariable UUID submissionId,

@@ -1,6 +1,7 @@
 package com.sttl.formbuilder.controller;
 
 import com.sttl.formbuilder.common.ApiResponseUtil;
+import com.sttl.formbuilder.constant.ApiEndpoints;
 import com.sttl.formbuilder.dto.RegisterUserRequest;
 import com.sttl.formbuilder.dto.UserResponseDto;
 import com.sttl.formbuilder.service.AuthService;
@@ -24,17 +25,13 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping(ApiEndpoints.AUTH_BASE)
 @RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
 
-    /**
-     * POST /api/auth/login
-     * Body: { "username": "admin", "password": "admin123" }
-     */
-    @PostMapping("/login")
+    @PostMapping(ApiEndpoints.LOGIN)
     public ResponseEntity<?> login(
             @RequestBody Map<String, String> body,
             HttpServletRequest request,
@@ -55,7 +52,6 @@ public class AuthController {
         try {
             Authentication authentication = authService.login(username, password);
 
-            // Store auth in security context and bind to HTTP session
             SecurityContext context = SecurityContextHolder.createEmptyContext();
             context.setAuthentication(authentication);
             SecurityContextHolder.setContext(context);
@@ -89,10 +85,7 @@ public class AuthController {
         }
     }
 
-    /**
-     * POST /api/auth/logout
-     */
-    @PostMapping("/logout")
+    @PostMapping(ApiEndpoints.LOGOUT)
     public ResponseEntity<?> logout(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session != null) {
@@ -102,10 +95,7 @@ public class AuthController {
         return ApiResponseUtil.success(null, "Logged out successfully", request);
     }
 
-    /**
-     * GET /api/auth/me — returns currently logged-in user info (or 401)
-     */
-    @GetMapping("/me")
+    @GetMapping(ApiEndpoints.ME)
     public ResponseEntity<?> me(
             @AuthenticationPrincipal UserDetails userDetails,
             HttpServletRequest request) {
@@ -127,10 +117,7 @@ public class AuthController {
         );
     }
 
-    /**
-     * POST /api/auth/register (PUBLIC — no session required)
-     */
-    @PostMapping("/register")
+    @PostMapping(ApiEndpoints.REGISTER)
     public ResponseEntity<?> register(
             @Valid @RequestBody RegisterUserRequest body,
             HttpServletRequest request) {

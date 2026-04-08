@@ -1,5 +1,7 @@
 package com.sttl.formbuilder.controller;
 
+import com.sttl.formbuilder.constant.ApiEndpoints;
+
 import com.sttl.formbuilder.Enums.FormStatusEnum;
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
@@ -40,7 +42,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/forms")
+@RequestMapping(ApiEndpoints.FORMS_BASE)
 @RequiredArgsConstructor
 public class FormController {
 
@@ -152,7 +154,7 @@ public class FormController {
     }
 
 
-    @GetMapping("/published-list")
+    @GetMapping(ApiEndpoints.PUBLISHED_LIST)
     public ResponseEntity<?> getPublishedForms(
             @RequestParam(required = false) UUID excludeFormId,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -188,7 +190,7 @@ public class FormController {
         return ApiResponseUtil.success(result, "Published forms", request);
     }
 
-    @PostMapping("/{formId}/archive")
+    @PostMapping("/{formId}" + ApiEndpoints.ARCHIVE)
     public ResponseEntity<?> archiveForm(
             @PathVariable UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -225,7 +227,7 @@ public class FormController {
      * Reactivates an archived form — sets status back to DRAFT.
      * SRS §11.2: "Archived forms may be reactivated."
      */
-    @PostMapping("/{formId}/reactivate")
+    @PostMapping("/{formId}" + ApiEndpoints.REACTIVATE)
     public ResponseEntity<?> reactivateForm(
             @PathVariable java.util.UUID formId,
             @AuthenticationPrincipal org.springframework.security.core.userdetails.UserDetails currentUser,
@@ -264,7 +266,7 @@ public class FormController {
     }
 
     // ── POST /api/forms/{formId}/visibility ──────────────────────────────────
-    @PostMapping("/{formId}/visibility")
+    @PostMapping("/{formId}" + ApiEndpoints.VISIBILITY)
     public ResponseEntity<?> updateVisibility(
             @PathVariable UUID formId,
             @RequestParam VisibilityType visibility,
@@ -291,7 +293,7 @@ public class FormController {
 
 
     // ── GET /api/forms/{formId}/permissions ──────────────────────────────────
-    @GetMapping("/{formId}/permissions")
+    @GetMapping("/{formId}" + ApiEndpoints.PERMISSIONS)
     public ResponseEntity<?> getPermissions(
             @PathVariable UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -321,7 +323,7 @@ public class FormController {
     }
 
     // ── POST /api/forms/{formId}/permissions ─────────────────────────────────
-    @PostMapping("/{formId}/permissions")
+    @PostMapping("/{formId}" + ApiEndpoints.PERMISSIONS)
     public ResponseEntity<?> addPermission(
             @PathVariable UUID formId,
             @RequestParam String username,
@@ -347,7 +349,7 @@ public class FormController {
     }
 
     // ── DELETE /api/forms/{formId}/permissions/{permissionId} ────────────────
-    @DeleteMapping("/{formId}/permissions/{permissionId}")
+    @DeleteMapping("/{formId}" + ApiEndpoints.PERMISSIONS + "/{permissionId}")
     public ResponseEntity<?> removePermission(
             @PathVariable UUID formId,
             @PathVariable UUID permissionId,

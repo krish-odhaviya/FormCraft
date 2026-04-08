@@ -1,5 +1,7 @@
 package com.sttl.formbuilder.controller;
 
+import com.sttl.formbuilder.constant.ApiEndpoints;
+
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.DraftRequest;
@@ -44,7 +46,7 @@ import java.util.UUID;
  */
 @Slf4j
 @RestController
-@RequestMapping("/runtime/forms")
+@RequestMapping(ApiEndpoints.RUNTIME_BASE)
 @RequiredArgsConstructor
 public class RuntimeController {
 
@@ -110,7 +112,7 @@ public class RuntimeController {
      * Persists a partial form submission as a DRAFT. Minimal validation applied.
      * Requires authentication — anonymous users cannot save drafts.
      */
-    @PostMapping("/{formCode}/submissions/draft")
+    @PostMapping("/{formCode}" + ApiEndpoints.SUBMISSIONS + ApiEndpoints.DRAFT)
     public ResponseEntity<?> saveDraft(
             @PathVariable String formCode,
             @RequestBody DraftRequest draftRequest,
@@ -184,7 +186,7 @@ public class RuntimeController {
      * Authoritatively validates the submission, then persists it as SUBMITTED.
      * Blocks submission if validation errors exist (consolidated error feedback).
      */
-    @PostMapping("/{formCode}/submissions/submit")
+    @PostMapping("/{formCode}" + ApiEndpoints.SUBMISSIONS + ApiEndpoints.SUBMIT)
     public ResponseEntity<?> submitForm(
             @PathVariable String formCode,
             @RequestBody SubmitFormRequest submitRequest,

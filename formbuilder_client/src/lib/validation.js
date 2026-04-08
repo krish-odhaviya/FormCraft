@@ -1,3 +1,5 @@
+import { REGEX } from "./constants";
+
 /**
  * validation.js — shared validation helpers.
  *
@@ -15,7 +17,7 @@ export function validateFormName(name) {
   if (!trimmed) return "Form name is required.";
   if (trimmed.length < 3) return "Form name must be at least 3 characters.";
   if (trimmed.length > 150) return "Form name cannot exceed 150 characters.";
-  if (!/^[\w\s\-()\.,!?&]+$/.test(trimmed))
+  if (!REGEX.FORM_NAME.test(trimmed))
     return "Form name contains invalid characters.";
   return null;
 }
@@ -69,7 +71,7 @@ export function validateRoleName(name) {
   if (!trimmed) return "Role name is required.";
   if (trimmed.length < 2) return "Role name must be at least 2 characters.";
   if (trimmed.length > 80) return "Role name cannot exceed 80 characters.";
-  if (!/^[A-Z0-9_]+$/.test(trimmed))
+  if (!REGEX.ROLE_NAME.test(trimmed))
     return "Role name must be uppercase letters, numbers, and underscores only (e.g. PROJECT_MANAGER).";
   return null;
 }
@@ -87,7 +89,7 @@ export function validateUsername(username) {
   if (!trimmed) return "Username is required.";
   if (trimmed.length < 3) return "Username must be at least 3 characters.";
   if (trimmed.length > 50) return "Username cannot exceed 50 characters.";
-  if (!/^[a-zA-Z0-9_]+$/.test(trimmed))
+  if (!REGEX.USERNAME.test(trimmed))
     return "Username can only contain letters, numbers, and underscores.";
   return null;
 }
@@ -95,7 +97,7 @@ export function validateUsername(username) {
 export function validatePassword(password) {
   if (!password) return "Password is required.";
   if (password.length < 6) return "Password must be at least 6 characters.";
-  if (!/(?=.*[A-Za-z])(?=.*\d)/.test(password))
+  if (!REGEX.PASSWORD.test(password))
     return "Password must contain at least one letter and one number.";
   return null;
 }

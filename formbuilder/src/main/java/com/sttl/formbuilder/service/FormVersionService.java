@@ -109,6 +109,11 @@ public class FormVersionService {
             throw new BusinessException("Cannot publish a version with no fields.", HttpStatus.BAD_REQUEST);
         }
         version.setDefinitionJson(generateDefinitionJson(fields));
+        
+        // Snapshot rules too
+        List<FieldValidation> rules = validationRepository.findByFormVersionOrderByExecutionOrderAsc(version);
+        version.setRulesJson(generateRulesJson(rules));
+        
         versionRepository.save(version);
     }
 
@@ -162,6 +167,26 @@ public class FormVersionService {
                     .toList());
         } catch (Exception e) {
             throw new BusinessException("Failed to serialize fields: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public String generateRulesJson(List<FieldValidation> rules) {
+        if (rules == null || rules.isEmpty()) return "[]";
+        try {
+            return objectMapper.writeValueAsString(rules.stream()
+                    .map(r -> {
+                        var node = objectMapper.createObjectNode();
+                        node.put("id", r.getId() != null ? r.getId().toString() : null);
+                        node.put("scope", r.getScope());
+                        node.put("fieldKey", r.getFieldKey());
+                        node.put("expression", r.getExpression());
+                        node.put("errorMessage", r.getErrorMessage());
+                        node.put("executionOrder", r.getExecutionOrder());
+                        return node;
+                    })
+                    .toList());
+        } catch (Exception e) {
+            return "[]";
         }
     }
 

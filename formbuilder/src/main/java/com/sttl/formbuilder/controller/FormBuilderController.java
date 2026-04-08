@@ -1,5 +1,7 @@
 package com.sttl.formbuilder.controller;
 
+import com.sttl.formbuilder.constant.ApiEndpoints;
+
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
 import com.sttl.formbuilder.dto.*;
@@ -48,7 +50,7 @@ public class FormBuilderController {
      * POST /api/forms/{formId}/fields
      * Adds a new field to a form draft.
      */
-    @PostMapping("/forms/{formId}/fields")
+    @PostMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.FIELDS)
     public ResponseEntity<ApiResponse<FormField>> addField(
             @PathVariable UUID formId,
             @Valid @RequestBody AddFieldRequest requestBody,
@@ -64,7 +66,7 @@ public class FormBuilderController {
      * GET /api/forms/{formId}/fields
      * Returns all active (non-deleted) fields for a form.
      */
-    @GetMapping("/api/forms/{formId}/fields")
+    @GetMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.FIELDS)
     public ResponseEntity<ApiResponse<List<FormField>>> getFormFields(
             @PathVariable UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -84,7 +86,7 @@ public class FormBuilderController {
      * POST /api/forms/{formId}/draft
      * Saves the full list of fields as a draft (replaces existing draft fields).
      */
-    @PostMapping("/forms/{formId}/draft")
+    @PostMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.DRAFT)
     public ResponseEntity<ApiResponse<List<FieldDto>>> saveDraft(
             @PathVariable UUID formId,
             @RequestBody @Valid List<AddFieldRequest> fields,
@@ -101,7 +103,7 @@ public class FormBuilderController {
      * Publishes the form, making it available for submissions.
      * Caller must have configure access.
      */
-    @PostMapping("/forms/{formId}/publish")
+    @PostMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.PUBLISH)
     public ResponseEntity<ApiResponse<String>> publishForm(
             @PathVariable UUID formId,
             @RequestBody(required = false) PublishFormRequest publishRequest,
@@ -135,7 +137,7 @@ public class FormBuilderController {
      * POST /api/forms/{formId}/fields/reorder
      * Reorders fields within a form.
      */
-    @PostMapping("/forms/{formId}/fields/reorder")
+    @PostMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.FIELDS + ApiEndpoints.REORDER)
     public ResponseEntity<ApiResponse<String>> reorderFields(
             @PathVariable UUID formId,
             @Valid @RequestBody ReorderFieldsRequest requestBody,
@@ -147,7 +149,7 @@ public class FormBuilderController {
         return ApiResponseUtil.success("Reordered successfully", "Fields reordered successfully", request);
     }
 
-    @GetMapping("/forms/{formId}/validations")
+    @GetMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.VALIDATIONS)
     public ResponseEntity<ApiResponse<List<ValidationRuleDTO>>> getValidations(
             @PathVariable UUID formId,
             @AuthenticationPrincipal UserDetails currentUser,
@@ -158,7 +160,7 @@ public class FormBuilderController {
         return ApiResponseUtil.success(validations, "Validations fetched successfully", request);
     }
 
-    @PostMapping("/forms/{formId}/validations")
+    @PostMapping(ApiEndpoints.FORMS_BASE + "/{formId}" + ApiEndpoints.VALIDATIONS)
     public ResponseEntity<ApiResponse<String>> saveValidations(
             @PathVariable UUID formId,
             @RequestBody List<ValidationRuleDTO> validations,

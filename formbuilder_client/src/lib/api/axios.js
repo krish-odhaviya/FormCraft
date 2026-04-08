@@ -1,11 +1,8 @@
 import axios from "axios";
-
-// ─── Single source of truth for the API base URL ────────────────────────────
-// Change this one line for staging/production — never hardcode in page files.
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9090/api/v1";
+import { API_ROOT } from "../constants";
 
 export const API = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_ROOT,
   withCredentials: true,
 });
 
@@ -58,5 +55,5 @@ API.interceptors.response.use(
   }
 );
 
-// Export BASE_URL so api/formService.js (or fetch() fallbacks) can reuse it
-export { BASE_URL };
+// Export API_ROOT as BASE_URL for backward compatibility
+export { API_ROOT as BASE_URL };

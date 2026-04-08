@@ -48,6 +48,13 @@ public class FormVersion {
     private String definitionJson;
 
     /**
+     * Optional JSON snapshot of custom validation rules (logic engine rules)
+     * at publish time.
+     */
+    @Column(columnDefinition = "TEXT")
+    private String rulesJson;
+
+    /**
      * Only one version per form may be ACTIVE at any time.
      * Enforced transactionally in FormVersionService.
      */

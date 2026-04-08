@@ -9,18 +9,19 @@
  *    Access the payload with .data on the result.
  */
 import { API, BASE_URL } from "./axios";
+import { ENDPOINTS } from "../constants";
 
 export const api = {
   // ── Auth ──────────────────────────────────────────────────────────────────
   login: (username, password) =>
-    API.post("/auth/login", { username, password }),
+    API.post(ENDPOINTS.AUTH_LOGIN, { username, password }),
 
-  logout: () => API.post("/auth/logout"),
+  logout: () => API.post(ENDPOINTS.AUTH_LOGOUT),
 
-  getMe: () => API.get("/auth/me"),
+  getMe: () => API.get(ENDPOINTS.AUTH_ME),
 
   register: (username, password) =>
-    API.post("/auth/register", { username, password }),
+    API.post(ENDPOINTS.AUTH_REGISTER, { username, password }),
 
   // ── User Management (admin only) ──────────────────────────────────────────
   getAdminUsers: () => API.get("/admin/users"),
@@ -46,11 +47,11 @@ export const api = {
     ),
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
-  getDashboardStats: () => API.get("/dashboard/stats"),
+  getDashboardStats: () => API.get(ENDPOINTS.DASHBOARD_STATS),
 
   // ── Forms ─────────────────────────────────────────────────────────────────
   getAllForms: ({ page = 1, size = 10, sortBy = "createdAt", sortDir = "desc" } = {}) =>
-    API.get("/forms", {
+    API.get(ENDPOINTS.FORMS, {
       params: {
         page: page > 0 ? page - 1 : 0,
         size,
@@ -61,86 +62,63 @@ export const api = {
 
   getAllPublishedForms: (excludeFormId) =>
     API.get(
-      `/forms/published-list${excludeFormId ? `?excludeFormId=${excludeFormId}` : ""}`
+      `${ENDPOINTS.PUBLISHED_LIST}${excludeFormId ? `?excludeFormId=${excludeFormId}` : ""}`
     ),
 
   getForm: (formId, params = {}) =>
-    API.get(`/forms/${formId}`, { params }),
+    API.get(ENDPOINTS.formDetail(formId), { params }),
 
   getFormByCode: (code, params = {}) =>
-    API.get(`/forms/code/${code}`, { params }),
+    API.get(`${ENDPOINTS.FORMS}/code/${code}`, { params }),
 
   /**
    * SRS §3.2 — Create a new form.
-   * @param {string} name       - Human-readable display name
-   * @param {string} code       - Stable, URL-safe code (slug). Immutable after creation.
-   * @param {string} description - Optional description
    */
-  createForm: (name, code, description) => API.post("/forms", { name, code, description }),
+  createForm: (name, code, description) => API.post(ENDPOINTS.FORMS, { name, code, description }),
 
   submitForm: (formId, values, formVersionId) =>
-    API.post("/forms/submit", { formId, values, formVersionId }),
+    API.post(ENDPOINTS.FORMS_SUBMIT, { formId, values, formVersionId }),
 
-  getFormVersions: (formId) => API.get(`/forms/${formId}/versions`),
+  getFormVersions: (formId) => API.get(ENDPOINTS.formVersions(formId)),
 
-  getFormVersion: (formId, versionId) => API.get(`/forms/${formId}/versions/${versionId}`),
+  getFormVersion: (formId, versionId) => API.get(ENDPOINTS.formVersion(formId, versionId)),
 
-  createFormVersion: (formId) => API.post(`/forms/${formId}/versions`),
+  createFormVersion: (formId) => API.post(ENDPOINTS.formVersions(formId)),
 
-  activateFormVersion: (formId, versionId) => API.post(`/forms/${formId}/versions/${versionId}/activate`),
+  activateFormVersion: (formId, versionId) => API.post(ENDPOINTS.activateVersion(formId, versionId)),
 
-  saveDraft: (formId, fields) => API.post(`/forms/${formId}/draft`, fields),
+  saveDraft: (formId, fields) => API.post(ENDPOINTS.formDraft(formId), fields),
 
   // ── Runtime Form APIs (SRS §4.1) ─────────────────────────────────────────
-  /**
-   * GET /runtime/forms/{formCode}
-   * Resolves the active form definition for runtime rendering.
-   * Only works for PUBLISHED forms with an active version.
-   */
-  getRuntimeForm: (formCode) => API.get(`/runtime/forms/${formCode}`),
+  getRuntimeForm: (formCode) => API.get(ENDPOINTS.runtimeForm(formCode)),
 
-  /**
-   * POST /runtime/forms/{formCode}/submissions/draft
-   * Saves a partial draft submission. Requires authentication.
-   */
   saveDraftByCode: (formCode, formVersionId, data) =>
-    API.post(`/runtime/forms/${formCode}/submissions/draft`, { formVersionId, data }),
+    API.post(ENDPOINTS.runtimeDraft(formCode), { formVersionId, data }),
 
-  /**
-   * GET the existing draft for the current user on this form (by code).
-   */
   getDraftByCode: (formCode) =>
-    API.get(`/runtime/forms/${formCode}/submissions/draft`),
+    API.get(ENDPOINTS.runtimeDraft(formCode)),
 
-  /**
-   * POST /runtime/forms/{formCode}/submissions/submit
-   * Final authoritative submission — validated server-side.
-   */
   submitByCode: (formCode, values, formVersionId) =>
-    API.post(`/runtime/forms/${formCode}/submissions/submit`, { values, formVersionId }),
+    API.post(ENDPOINTS.runtimeSubmit(formCode), { values, formVersionId }),
 
   // ── Public Draft Save & Resume (legacy, keyed by formId) ─────────────────
   saveDraftSubmission: (formId, formVersionId, data) =>
-    API.post("/submissions/draft", { formId, formVersionId, data }),
+    API.post(ENDPOINTS.SUBMISSIONS_DRAFT, { formId, formVersionId, data }),
 
   getDraftSubmission: (formId) =>
-    API.get(`/submissions/draft?formId=${formId}`),
+    API.get(ENDPOINTS.SUBMISSIONS_DRAFT, { params: { formId } }),
 
   publishForm: (formId, fields = null) =>
-    API.post(`/forms/${formId}/publish`, fields ? { fields } : null),
+    API.post(ENDPOINTS.formPublish(formId), fields ? { fields } : null),
 
-  archiveForm: (formId) => API.post(`/forms/${formId}/archive`),
-  restoreForm: (formId) => API.post(`/forms/${formId}/reactivate`),
-  restoreSubmission: (formId, submissionId) => API.post(`/forms/${formId}/submissions/${submissionId}/restore`),
-  restoreSubmissionsBulk: (formId, submissionIds) => API.post(`/forms/${formId}/submissions/bulk-restore`, submissionIds),
+  archiveForm: (formId) => API.post(ENDPOINTS.formArchive(formId)),
+  restoreForm: (formId) => API.post(ENDPOINTS.formReactivate(formId)),
+  restoreSubmission: (formId, submissionId) => API.post(ENDPOINTS.restoreResponse(formId, submissionId)),
+  restoreSubmissionsBulk: (formId, submissionIds) => API.post(ENDPOINTS.bulkRestoreResponses(formId), submissionIds),
 
   // ── Submissions ───────────────────────────────────────────────────────────
-  /**
-   * Paginated submissions — replaces the raw fetch() in submissions/page.jsx.
-   * Spring expects 0-based page index; this method converts from 1-based.
-   */
   getSubmissionsPaged: (formId, { page = 1, size = 10, search = "", sortBy = "id", sortDir = "desc", versionId = null, showDeleted = false } = {}) =>
-    API.get(`/forms/${formId}/submissions`, {
+    API.get(ENDPOINTS.formSubmissions(formId), {
       params: {
         page: page > 0 ? page - 1 : 0,
         size,
@@ -152,64 +130,49 @@ export const api = {
     }),
 
   getSubmissionDetail: (formId, submissionId) =>
-    API.get(`/forms/${formId}/submissions/${submissionId}`),
+    API.get(`${ENDPOINTS.formSubmissions(formId)}/${submissionId}`),
 
   deleteSubmission: (formId, submissionId) =>
-    API.delete(`/forms/${formId}/submissions/${submissionId}`),
+    API.delete(`${ENDPOINTS.formSubmissions(formId)}/${submissionId}`),
 
   deleteSubmissionsBulk: (formId, submissionIds) =>
-    API.post(`/forms/${formId}/submissions/bulk-delete`, submissionIds),
+    API.post(`${ENDPOINTS.formSubmissions(formId)}/bulk-delete`, submissionIds),
 
-  /**
-   * Export submissions as a file (csv | pdf | word).
-   * Returns a raw Response so the caller can blob() it.
-   * Uses native fetch with credentials because we need access to the
-   * raw binary stream — axios converts everything to JSON by default.
-   */
   exportSubmissions: (formId, { search = "", format = "csv", versionId = null } = {}) => {
-    return API.get(`/forms/${formId}/submissions/export`, {
+    return API.get(ENDPOINTS.formSubmissionsExport(formId), {
       params: { search, format, versionId: versionId || undefined },
-      responseType: 'blob', // Access raw binary stream
+      responseType: 'blob',
     });
   },
 
-  /**
-   * Lookup data for LOOKUP_DROPDOWN fields.
-   * Replaces the raw fetch() in view/page.js.
-   */
   getLookupData: (table, valueColumn, labelColumn) =>
-    API.get("/forms/lookup", {
+    API.get(ENDPOINTS.LOOKUP, {
       params: { table, valueColumn, labelColumn },
     }),
 
   // ── Form Visibility & Permissions ─────────────────────────────────────────
   updateVisibility: (formId, visibility) =>
-    API.post(`/forms/${formId}/visibility?visibility=${visibility}`),
+    API.post(`${ENDPOINTS.formDetail(formId)}/visibility?visibility=${visibility}`),
 
-  getPermissions: (formId) => API.get(`/forms/${formId}/permissions`),
+  getPermissions: (formId) => API.get(ENDPOINTS.formPermissions(formId)),
 
   addPermission: (formId, username, role) =>
-    API.post(`/forms/${formId}/permissions?username=${username}&role=${role}`),
+    API.post(`${ENDPOINTS.formPermissions(formId)}?username=${username}&role=${role}`),
 
   removePermission: (formId, permissionId) =>
-    API.delete(`/forms/${formId}/permissions/${permissionId}`),
+    API.delete(`${ENDPOINTS.formPermissions(formId)}/${permissionId}`),
 
   reorderFields: (formId, fieldIds) =>
-    API.post(`/forms/${formId}/fields/reorder`, { fieldIds }),
+    API.post(`${ENDPOINTS.formFields(formId)}/reorder`, { fieldIds }),
 
-  getValidations: (formId) => API.get(`/forms/${formId}/validations`),
-  saveValidations: (formId, validations) => API.post(`/forms/${formId}/validations`, validations),
+  getValidations: (formId) => API.get(ENDPOINTS.formValidations(formId)),
+  saveValidations: (formId, validations) => API.post(ENDPOINTS.formValidations(formId), validations),
 
   // ── File Upload ───────────────────────────────────────────────────────────
-  /**
-   * Upload a file. Returns { status, url, filename }.
-   * Uses native fetch (multipart/form-data) — axios can do this too but
-   * native fetch is simpler for FormData.
-   */
   uploadFile: (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    return API.post("/forms/upload", fd, {
+    return API.post(ENDPOINTS.UPLOAD, fd, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
@@ -218,17 +181,17 @@ export const api = {
   getUserMenu: () => API.get("/menu"),
 
   // ── Module Management (admin) ─────────────────────────────────────────────
-  getModules: () => API.get("/modules"),
-  createModule: (data) => API.post("/modules", data),
-  updateModule: (id, data) => API.put(`/modules/${id}`, data),
-  deleteModule: (id) => API.delete(`/modules/${id}`),
+  getModules: () => API.get(ENDPOINTS.MODULES),
+  createModule: (data) => API.post(ENDPOINTS.MODULES, data),
+  updateModule: (id, data) => API.put(`${ENDPOINTS.MODULES}/${id}`, data),
+  deleteModule: (id) => API.delete(`${ENDPOINTS.MODULES}/${id}`),
 
   // ── Role Management (admin) ───────────────────────────────────────────────
-  getRoles: () => API.get("/roles"),
-  createRole: (data) => API.post("/roles", data),
-  updateRole: (id, data) => API.put(`/roles/${id}`, data),
-  deleteRole: (id) => API.delete(`/roles/${id}`),
-  getRoleModules: (roleId) => API.get(`/roles/${roleId}/modules`),
+  getRoles: () => API.get(ENDPOINTS.ROLES),
+  createRole: (data) => API.post(ENDPOINTS.ROLES, data),
+  updateRole: (id, data) => API.put(`${ENDPOINTS.ROLES}/${id}`, data),
+  deleteRole: (id) => API.delete(`${ENDPOINTS.ROLES}/${id}`),
+  getRoleModules: (roleId) => API.get(`${ENDPOINTS.ROLES}/${roleId}/modules`),
   assignModulesToRole: (roleId, moduleIds) =>
-    API.post(`/roles/${roleId}/modules`, { moduleIds }),
+    API.post(`${ENDPOINTS.ROLES}/${roleId}/modules`, { moduleIds }),
 };
