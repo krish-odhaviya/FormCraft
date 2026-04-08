@@ -277,9 +277,7 @@ export default function SubmissionsPage() {
     setExporting(format);
     setShowExportMenu(false);
     try {
-      const res = await api.exportSubmissions(formId, { search, format, versionId: selectedVersionId || undefined });
-      if (!res.ok) throw new Error("Export failed");
-      const blob = await res.blob();
+      const blob = await api.exportSubmissions(formId, { search, format, versionId: selectedVersionId || undefined });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

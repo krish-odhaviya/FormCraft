@@ -442,13 +442,52 @@ public class FormSubmissionService {
             return;
         }
 
-        switch (expectedType.toUpperCase()) {
+        String type = (expectedType != null) ? expectedType.toUpperCase() : "UNKNOWN";
+
+        // JSONB Handling block
+        if (isJsonType(type)) {
+            try {
+                // If it's a LOOKUP_DROPDOWN, we might need to normalize the structure first
+                if ("LOOKUP_DROPDOWN".equals(type)) {
+                    FormField f = fieldMap.get(key);
+                    boolean isMultiple = f != null && "multiple".equalsIgnoreCase(f.getSelectionMode());
+                    
+                    if (isMultiple && val instanceof List<?> list) {
+                        val = list.stream()
+                                .map(item -> {
+                                    if (item instanceof Map<?, ?> map) {
+                                        return Map.of("value", map.get("value"), "label", map.get("label"));
+                                    }
+                                    return Map.of("value", item, "label", item);
+                                })
+                                .collect(Collectors.toList());
+                    } else if (!isMultiple && val instanceof Map<?, ?> map) {
+                        val = map.get("value");
+                    }
+                }
+
+                // Always stringify values for JSON types. 
+                // Objects/Lists become JSON structures, and raw Strings become 
+                // valid JSON strings (e.g., "Option" becomes "\"Option\"").
+                val = objectMapper.writeValueAsString(val);
+                
+                argumentsList.add(val);
+                placeholdersList.add("?::jsonb");
+            } catch (JsonProcessingException e) {
+                log.error("Failed to serialize {} field {}: {}", type, key, e.getMessage());
+                throw new RuntimeException("Failed to serialize " + type + ": " + key);
+            }
+            return;
+        }
+
+        // Standard Type Handling
+        switch (type) {
             case "DATE" -> {
-                if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalDate.parse(s.trim());
+                if (val instanceof String s) val = LocalDate.parse(s.trim());
                 placeholdersList.add("?");
             }
             case "TIME" -> {
-                if (val instanceof String s) val = s.trim().isEmpty() ? null : LocalTime.parse(s.trim());
+                if (val instanceof String s) val = LocalTime.parse(s.trim());
                 placeholdersList.add("?");
             }
             case "INTEGER" -> {
@@ -457,8 +496,7 @@ public class FormSubmissionService {
                         ? numField.getNumberFormat().toUpperCase()
                         : "INTEGER";
                 if (val instanceof String s) {
-                    if (s.trim().isEmpty()) val = null;
-                    else if ("INTEGER".equals(fmt)) val = (long) Double.parseDouble(s.trim());
+                    if ("INTEGER".equals(fmt)) val = (long) Double.parseDouble(s.trim());
                     else val = Double.parseDouble(s.trim());
                 } else if (val instanceof Number n) {
                     val = "INTEGER".equals(fmt) ? n.longValue() : n.doubleValue();
@@ -466,7 +504,7 @@ public class FormSubmissionService {
                 placeholdersList.add("?");
             }
             case "STAR_RATING", "LINEAR_SCALE" -> {
-                if (val instanceof String s) val = s.trim().isEmpty() ? null : Integer.parseInt(s.trim());
+                if (val instanceof String s) val = Integer.parseInt(s.trim());
                 else if (val instanceof Number n) val = n.intValue();
                 placeholdersList.add("?");
             }
@@ -474,65 +512,13 @@ public class FormSubmissionService {
                 if (val instanceof String s) val = Boolean.parseBoolean(s.trim());
                 placeholdersList.add("?");
             }
-            case "CHECKBOX_GROUP" -> {
-                if (val instanceof List) {
-                    try { val = objectMapper.writeValueAsString(val); }
-                    catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize checkbox: " + key); }
-                }
-                placeholdersList.add("?::jsonb");
-            }
-            case "MC_GRID", "TICK_BOX_GRID" -> {
-                if (val instanceof Map) {
-                    try { val = objectMapper.writeValueAsString(val); }
-                    catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize grid: " + key); }
-                }
-                placeholdersList.add("?::jsonb");
-            }
-            case "LOOKUP_DROPDOWN" -> {
-                FormField f = fieldMap.get(key);
-                boolean isMultiple = f != null && "multiple".equalsIgnoreCase(f.getSelectionMode());
-                if (isMultiple) {
-                    if (val instanceof List<?> list) {
-                        try {
-                            List<Map<String, Object>> valuesToStore = list.stream()
-                                    .map(item -> {
-                                        if (item instanceof Map<?, ?> map) {
-                                            return Map.of("value", map.get("value"), "label", map.get("label"));
-                                        }
-                                        return Map.of("value", item, "label", item);
-                                    })
-                                    .filter(Objects::nonNull)
-                                    .collect(Collectors.toList());
-                            val = objectMapper.writeValueAsString(valuesToStore);
-                        } catch (JsonProcessingException e) {
-                            throw new RuntimeException("Failed to serialize lookup: " + key);
-                        }
-                    }
-                } else {
-                    if (val instanceof Map<?, ?> map) val = map.get("value");
-                    if (val instanceof String s && !s.trim().isEmpty()) {
-                        try { val = UUID.fromString(s.trim()); } catch(Exception e) { /* keep as string if not uuid */ }
-                    }
-                    // Since LOOKUP_DROPDOWN is a JSONB column (SqlTypeMapper), we must provide valid JSON.
-                    // A single value like UUID or String should be wrapped in quotes.
-                    try { val = objectMapper.writeValueAsString(val); }
-                    catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize lookup value: " + key); }
-                }
-                placeholdersList.add("?::jsonb");
-            }
-            case "DROPDOWN" -> {
-                FormField f = fieldMap.get(key);
-                try { val = objectMapper.writeValueAsString(val); }
-                catch (JsonProcessingException e) { throw new RuntimeException("Failed to serialize dropdown: " + key); }
-                placeholdersList.add("?::jsonb");
-            }
             default -> {
-                if (val instanceof String s && s.trim().isEmpty()) val = null;
                 placeholdersList.add("?");
             }
         }
         argumentsList.add(val);
     }
+
 
     // ─────────────────────────────────────────────────────────────────────────
     // DRAFT SAVE / GET
@@ -675,6 +661,22 @@ public class FormSubmissionService {
         data.remove("form_version_id");
         data.remove("is_delete");
 
+        // Post-process the raw Map from JDBC
+        for (FormField f : fields) {
+            String key = f.getFieldKey();
+            if (isJsonType(f.getFieldType())) {
+                Object val = data.get(key);
+                if (val instanceof String s && !s.trim().isEmpty()) {
+                    try {
+                        data.put(key, objectMapper.readValue(s, Object.class));
+                    } catch (Exception e) {
+                        log.warn("Failed to parse JSON draft value for {}: {}. Keeping raw value.", key, e.getMessage());
+                        // Keep the raw value instead of crashing
+                    }
+                }
+            }
+        }
+
         DraftResponse res = new DraftResponse();
         res.setSubmissionId(meta.getDataRowId());
         res.setFormVersionId(version.getId());
@@ -682,6 +684,7 @@ public class FormSubmissionService {
         res.setStatus("DRAFT");
         return res;
     }
+
 
     // ─────────────────────────────────────────────────────────────────────────
     // SHARED HELPERS
@@ -784,8 +787,13 @@ public class FormSubmissionService {
     }
 
     private boolean isJsonType(String type) {
-        return Set.of("MC_GRID", "TICK_BOX_GRID", "DROPDOWN", "CHECKBOX_GROUP").contains(type.toUpperCase());
+        if (type == null) return false;
+        return Set.of(
+            "MC_GRID", "TICK_BOX_GRID", "GRID", "CHECKBOX_GRID", "MC_GRID_BOX",
+            "DROPDOWN", "LOOKUP_DROPDOWN", "CHECKBOX_GROUP", "CHECKBOX", "CHECKBOXES"
+        ).contains(type.toUpperCase());
     }
+
 
     /**
      * Build JOIN-only SQL (used for COUNT query)

@@ -12,7 +12,7 @@ public class SqlTypeMapper {
             case "TEXTAREA" -> "TEXT";
             
             // Multiple selection or complex objects stored as JSONB
-            case "CHECKBOX_GROUP", "MC_GRID", "TICK_BOX_GRID", "DROPDOWN", "LOOKUP_DROPDOWN" -> "JSONB";
+            case "CHECKBOX_GROUP", "CHECKBOX", "CHECKBOXES", "MC_GRID", "TICK_BOX_GRID", "GRID", "CHECKBOX_GRID", "DROPDOWN", "LOOKUP_DROPDOWN" -> "JSONB";
 
             // Numbers
             // NUMERIC(20,10) handles INTEGER (truncated at save), DECIMAL, and PERCENTAGE

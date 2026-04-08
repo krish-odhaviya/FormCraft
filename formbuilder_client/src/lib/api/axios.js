@@ -6,7 +6,25 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:9090/api/v
 
 export const API = axios.create({
   baseURL: BASE_URL,
-  withCredentials: true, // Send session cookie on every request
+  withCredentials: true,
+});
+
+// Helper to get cookie by name
+function getCookie(name) {
+  if (typeof document === "undefined") return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(";").shift();
+  return null;
+}
+
+// CSRF Injection Interceptor
+API.interceptors.request.use((config) => {
+  const token = getCookie("XSRF-TOKEN");
+  if (token) {
+    config.headers["X-XSRF-TOKEN"] = token;
+  }
+  return config;
 });
 
 // ── Interceptor 1: unwrap response envelope ──────────────────────────────────

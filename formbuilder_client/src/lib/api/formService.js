@@ -167,9 +167,10 @@ export const api = {
    * raw binary stream — axios converts everything to JSON by default.
    */
   exportSubmissions: (formId, { search = "", format = "csv", versionId = null } = {}) => {
-    let url = `${BASE_URL}/forms/${formId}/submissions/export?search=${encodeURIComponent(search)}&format=${format}`;
-    if (versionId) url += `&versionId=${versionId}`;
-    return fetch(url, { credentials: "include" });
+    return API.get(`/forms/${formId}/submissions/export`, {
+      params: { search, format, versionId: versionId || undefined },
+      responseType: 'blob', // Access raw binary stream
+    });
   },
 
   /**
@@ -208,13 +209,8 @@ export const api = {
   uploadFile: (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    return fetch(`${BASE_URL}/forms/upload`, {
-      method: "POST",
-      credentials: "include",
-      body: fd,
-    }).then((res) => {
-      if (!res.ok) throw new Error("Upload failed");
-      return res.json();
+    return API.post("/forms/upload", fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
 
