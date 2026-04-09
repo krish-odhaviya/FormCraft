@@ -232,8 +232,17 @@ public class FormSubmissionService {
                                 : "'" + label + "' format is invalid.");
                 }
                 case "EMAIL" -> {
-                    if (!val.toString().trim().matches(AppConstants.REGEX_EMAIL))
+                    String email = val.toString().trim();
+                    if (!email.matches(AppConstants.REGEX_EMAIL)) {
                         errors.put(key, "'" + label + "' must be a valid email address.");
+                    } else if (field.getAllowedDomains() != null && !field.getAllowedDomains().isEmpty()) {
+                        String domain = email.substring(email.lastIndexOf("@") + 1).toLowerCase();
+                        boolean isAllowed = field.getAllowedDomains().stream()
+                                .anyMatch(d -> d.equalsIgnoreCase(domain));
+                        if (!isAllowed) {
+                            errors.put(key, "This email is not accepted. Please use a permitted domain (e.g. " + field.getAllowedDomains().get(0) + ").");
+                        }
+                    }
                 }
                 case "INTEGER" -> {
                     String fmt = field.getNumberFormat() != null

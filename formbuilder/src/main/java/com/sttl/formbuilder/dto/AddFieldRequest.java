@@ -81,6 +81,7 @@ public class AddFieldRequest {
         private String numberFormat;
         private List<String> rows;
         private List<String> columns;
+        private List<String> allowedDomains;
     }
 
     @Getter

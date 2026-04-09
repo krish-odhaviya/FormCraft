@@ -282,6 +282,11 @@ public class FormBuilderService {
             if (req.getValidation().getColumns() != null) {
                 field.getGridColumns().addAll(req.getValidation().getColumns());
             }
+
+            field.getAllowedDomains().clear();
+            if (req.getValidation().getAllowedDomains() != null) {
+                field.getAllowedDomains().addAll(req.getValidation().getAllowedDomains());
+            }
         }
     }
 

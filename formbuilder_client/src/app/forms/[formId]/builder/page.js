@@ -1875,6 +1875,51 @@ export default function BuilderPage() {
                             <ShieldCheck size={18} className="text-emerald-500" /> Validation Rules
                           </h3>
                           <div className="space-y-4">
+                            {activeField.fieldType === "EMAIL" && (
+                              <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center justify-between">
+                                  <span>Allowed Domains</span>
+                                  <span className="text-[9px] bg-indigo-50 px-1.5 py-0.5 rounded text-indigo-500 font-bold">Restrict Submission</span>
+                                </label>
+                                <div className="space-y-2">
+                                  {(activeField.validation?.allowedDomains || []).map((domain, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                      <input
+                                        type="text"
+                                        value={domain}
+                                        onChange={(e) => {
+                                          const updated = [...(activeField.validation?.allowedDomains || [])];
+                                          updated[idx] = e.target.value.toLowerCase().trim();
+                                          updateNestedObject(activeField.id, "validation", "allowedDomains", updated);
+                                        }}
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-600 hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                        placeholder="e.g. gmail.com"
+                                      />
+                                      <button
+                                        onClick={() => {
+                                          const updated = (activeField.validation?.allowedDomains || []).filter((_, i) => i !== idx);
+                                          updateNestedObject(activeField.id, "validation", "allowedDomains", updated);
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+                                      >
+                                        <X size={14} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button
+                                    onClick={() => {
+                                      const current = activeField.validation?.allowedDomains || [];
+                                      updateNestedObject(activeField.id, "validation", "allowedDomains", [...current, ""]);
+                                    }}
+                                    className="flex items-center gap-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 mt-2 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors border border-dashed border-indigo-200"
+                                  >
+                                    <Plus size={12} strokeWidth={3} /> Add Domain
+                                  </button>
+                                </div>
+                                <p className="text-[10px] font-medium text-slate-400 mt-2 italic px-1">If set, only emails from these domains will be accepted.</p>
+                              </div>
+                            )}
+
                             {TEXT_BASED_TYPES.includes(activeField.fieldType) && activeField.fieldType !== "PHONE" && (
                               <div className="grid grid-cols-2 gap-3">
                                 <div>

@@ -59,6 +59,8 @@ public class FieldDto {
             validationMap.put("rows", f.getGridRows());
         if (f.getGridColumns() != null && !f.getGridColumns().isEmpty())
             validationMap.put("columns", f.getGridColumns());
+        if (f.getAllowedDomains() != null && !f.getAllowedDomains().isEmpty())
+            validationMap.put("allowedDomains", f.getAllowedDomains());
         fd.setValidation(validationMap);
 
         // --- Map UI Config ---

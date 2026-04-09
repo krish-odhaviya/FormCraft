@@ -109,6 +109,11 @@ public class FormField {
     private String pattern;
     private String validationMessage;
     private Boolean isUnique = false;
+    
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "form_field_allowed_email_domains", joinColumns = @JoinColumn(name = "field_id"))
+    @Column(name = "domain_name")
+    private List<String> allowedDomains = new ArrayList<>();
 
     /**
      * Sub-type for INTEGER fields.

@@ -418,6 +418,14 @@ function FormPageContent() {
             customErrors[field.fieldKey] = `'${field.fieldLabel}' must be a whole number.`;
           }
         }
+      } else if (field.fieldType === "EMAIL") {
+        if (field.validation?.allowedDomains?.length > 0) {
+          const email = String(val).trim().toLowerCase();
+          const domain = email.split("@")[1];
+          if (domain && !field.validation.allowedDomains.includes(domain)) {
+            customErrors[field.fieldKey] = `This email is not accepted. Only emails from ${field.validation.allowedDomains.join(", ")} are allowed.`;
+          }
+        }
       } else if (field.fieldType === "PHONE") {
         const phoneRegex = /^\+\d{1,4}\d{10}$/;
         if (!phoneRegex.test(String(val).trim())) {
