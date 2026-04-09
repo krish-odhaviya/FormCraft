@@ -122,7 +122,8 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 
                         // ── File APIs ─────────────────────────────────────
-                        .requestMatchers(ApiEndpoints.FORMS_BASE + "/upload", ApiEndpoints.FORMS_BASE + "/files/**").authenticated()
+                        .requestMatchers(ApiEndpoints.FORMS_BASE + "/upload").authenticated()
+                        .requestMatchers(ApiEndpoints.FORMS_BASE + "/files/**").permitAll()
 
                         // ── Public form APIs ──────────────────────────────
                         .requestMatchers(HttpMethod.GET,  ApiEndpoints.FORMS_LOOKUP_ABS).permitAll()

@@ -11,7 +11,8 @@ out/
 
 # Production build
 build/
-
+uploads/
+target/
 # Logs
 npm-debug.log*
 yarn-debug.log*

@@ -49,9 +49,10 @@ public class FileController {
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
             // Build full URL to store in DB
+            String contextPath = request.getContextPath();
             String baseUrl = request.getScheme() + "://" + request.getServerName()
                     + ":" + request.getServerPort();
-            String fileUrl = baseUrl + "/api/forms/files/" + uniqueFilename;
+            String fileUrl = baseUrl + contextPath + "/forms/files/" + uniqueFilename;
 
             return ResponseEntity.ok(Map.of(
                     "status", "success",
