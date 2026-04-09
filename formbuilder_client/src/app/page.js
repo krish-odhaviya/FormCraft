@@ -220,8 +220,17 @@ function DashboardContent() {
             </div>
             {canCreate && (
               <Link
+                href="/api-reference"
+                className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-6 py-3 rounded-[18px] text-xs font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap"
+              >
+                <Code size={16} strokeWidth={3} />
+                <span>Developer API</span>
+              </Link>
+            )}
+            {canCreate && (
+              <Link
                 href="/forms/new"
-                className="group relative flex items-center justify-center gap-2 bg-[#0F172A] text-white hover:bg-indigo-600 px-6 py-3 rounded-[18px] text-xs font-bold transition-all shadow-xl shadow-indigo-100 hover:shadow-indigo-300 active:scale-95 whitespace-nowrap overflow-hidden"
+                className="group relative flex items-center justify-center gap-2  text-white bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-[18px] text-xs font-bold transition-all shadow-xl shadow-indigo-100 hover:shadow-indigo-300 active:scale-95 whitespace-nowrap overflow-hidden"
               >
                 <Plus size={16} strokeWidth={3} />
                 <span>New Form</span>

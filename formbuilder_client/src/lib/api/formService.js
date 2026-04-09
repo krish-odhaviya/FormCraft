@@ -76,6 +76,7 @@ export const api = {
    */
   createForm: (name, code, description) => API.post(ENDPOINTS.FORMS, { name, code, description }),
 
+  // TODO: Superseded by submitByCode. Referenced by legacy src/app/forms/[formId]/view/page.js
   submitForm: (formId, values, formVersionId) =>
     API.post(ENDPOINTS.FORMS_SUBMIT, { formId, values, formVersionId }),
 
@@ -102,9 +103,11 @@ export const api = {
     API.post(ENDPOINTS.runtimeSubmit(formCode), { values, formVersionId }),
 
   // ── Public Draft Save & Resume (legacy, keyed by formId) ─────────────────
+  // TODO: Superseded by saveDraftByCode. Referenced by legacy src/app/forms/[formId]/view/page.js
   saveDraftSubmission: (formId, formVersionId, data) =>
     API.post(ENDPOINTS.SUBMISSIONS_DRAFT, { formId, formVersionId, data }),
 
+  // TODO: Superseded by getDraftByCode. Referenced by legacy src/app/forms/[formId]/view/page.js
   getDraftSubmission: (formId) =>
     API.get(ENDPOINTS.SUBMISSIONS_DRAFT, { params: { formId } }),
 

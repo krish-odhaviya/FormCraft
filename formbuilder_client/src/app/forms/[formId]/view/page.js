@@ -335,7 +335,11 @@ function FormPageContent() {
         else if (err.response?.status === 409) {
           setErrorMessage(err.response.data?.message || "This form is unavailable due to a database sync issue.");
           setMessage("error");
-        } else                                 setMessage("error");
+        } else if (err.response?.status === 404) {
+          setMessage("not_published");
+        } else {
+          setMessage("error");
+        }
       } finally {
         setLoading(false);
       }
@@ -729,6 +733,19 @@ function FormPageContent() {
         )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 sm:p-10">
+          {message === "not_published" && (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mb-6">
+                <LayoutTemplate size={32} className="text-indigo-600" />
+              </div>
+              <h1 className="text-2xl font-black text-slate-900 mb-3">Form Not Published</h1>
+              <p className="text-slate-500 mb-8 max-w-xs">The owner is still working on this form. Please check back later when it's live.</p>
+              <button onClick={() => router.push("/")} className="bg-slate-900 text-white px-8 py-3 rounded-2xl text-sm font-bold hover:bg-slate-800 transition-all">
+                Return Home
+              </button>
+            </div>
+          )}
+
           {message === "archived" && (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mb-6">

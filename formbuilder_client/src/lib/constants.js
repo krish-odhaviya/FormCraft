@@ -17,7 +17,7 @@ export const ENDPOINTS = {
 
     // --- Forms (General) ---
     FORMS: `${API_ROOT}/forms`,
-    FORMS_SUBMIT: `${API_ROOT}/forms/submit`,
+    FORMS_SUBMIT: `${API_ROOT}/forms/submit`, // TODO: Legacy. Referenced by submitForm in formService.js
     PUBLISHED_LIST: `${API_ROOT}/forms/published-list`,
     LOOKUP: `${API_ROOT}/forms/lookup`,
     UPLOAD: `${API_ROOT}/forms/upload`,
@@ -33,7 +33,7 @@ export const ENDPOINTS = {
     formPermissions: (id) => `${API_ROOT}/forms/${id}/permissions`,
     formSubmissions: (id) => `${API_ROOT}/forms/${id}/submissions`,
     formSubmissionsExport: (id) => `${API_ROOT}/forms/${id}/submissions/export`,
-    formSubmissionDetail: (formId, subId) => `${API_ROOT}/forms/${id}/submissions/${subId}`,
+    formSubmissionDetail: (formId, subId) => `${API_ROOT}/forms/${formId}/submissions/${subId}`,
     
     // Versioning
     formVersions: (formId) => `${API_ROOT}/forms/${formId}/versions`,
@@ -41,7 +41,7 @@ export const ENDPOINTS = {
     activateVersion: (formId, versionId) => `${API_ROOT}/forms/${formId}/versions/${versionId}/activate`,
 
     // --- Submissions (Direct) ---
-    SUBMISSIONS_DRAFT: `${API_ROOT}/submissions/draft`,
+    SUBMISSIONS_DRAFT: `${API_ROOT}/submissions/draft`, // TODO: Legacy. Referenced by draft methods in formService.js
     restoreResponse: (formId, responseId) => `${API_ROOT}/forms/${formId}/submissions/${responseId}/restore`,
     bulkRestoreResponses: (formId) => `${API_ROOT}/forms/${formId}/submissions/bulk-restore`,
 

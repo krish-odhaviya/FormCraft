@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import Sidebar from "./Sidebar";
+import Sidebar from "@/components/layout/Sidebar";
 import { AuthProvider } from "@/context/AuthContext";
 import { FormsProvider } from "@/context/FormsContext";
 import { Toaster, ToastBar, toast } from "react-hot-toast";
@@ -11,7 +11,7 @@ import { ConfirmationProvider } from "@/context/ConfirmationContext";
 
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
-  const isPublicPage = pathname === "/login" || pathname === "/register" || pathname.includes("/builder") || pathname.endsWith("/view");
+  const isPublicPage = pathname === "/login" || pathname === "/register" || pathname === "/api-reference" || pathname.includes("/builder") || pathname.endsWith("/view");
 
   if (isPublicPage) {
     return (

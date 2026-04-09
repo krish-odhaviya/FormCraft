@@ -47,12 +47,7 @@ public class FormBuilderService {
     private final FieldValidationRepository validationRepository;
     private final ObjectMapper                objectMapper;
 
-    private static final Set<String> RESERVED_KEYWORDS = Set.of(
-            "SELECT", "INSERT", "UPDATE", "DELETE", "FROM", "WHERE", "JOIN", "INNER", "LEFT", "RIGHT", "FULL",
-            "GROUP", "ORDER", "BY", "HAVING", "LIMIT", "OFFSET", "UNION", "DISTINCT",
-            "TABLE", "COLUMN", "INDEX", "PRIMARY", "FOREIGN", "KEY", "CONSTRAINT", "REFERENCES",
-            "VIEW", "SEQUENCE", "TRIGGER", "USER", "ROLE", "GRANT", "REVOKE"
-    );
+    private static final Set<String> RESERVED_KEYWORDS = SchemaService.RESERVED_COLUMNS;
 
     public FormField addField(UUID formId, AddFieldRequest request, String currentUsername) {
 
@@ -81,10 +76,11 @@ public class FormBuilderService {
         }
 
         validateFieldKey(request.getFieldKey());
+        String safeKey = sanitizeFieldKey(request.getFieldKey());
 
         FormField field = new FormField();
         field.setFormVersion(draft);
-        field.setFieldKey(request.getFieldKey());
+        field.setFieldKey(safeKey);
         field.setParentId(request.getParentId());
         field.setFieldLabel(request.getFieldLabel());
         field.setFieldType(request.getFieldType());
@@ -148,9 +144,9 @@ public class FormBuilderService {
 
         if (totalValidationCount > 100) {
             throw new BusinessException(
-                "Form exceeds the maximum of 5 validation rules. " +
+                "Form exceeds the maximum of 100 validation rules. " +
                 "Current count: " + totalValidationCount + ". " +
-                "Please remove " + (totalValidationCount - 5) + " validation rule(s) before saving.",
+                "Please remove " + (totalValidationCount - 100) + " validation rule(s) before saving.",
                 HttpStatus.BAD_REQUEST
             );
         }
@@ -166,10 +162,12 @@ public class FormBuilderService {
         for (AddFieldRequest req : fieldRequests) {
             String key = req.getFieldKey();
             if (key != null) {
-                if (!seenKeys.add(key)) {
-                    throw new BusinessException("Validation Error: Duplicate field key '" + key + "' found in request.", HttpStatus.BAD_REQUEST);
-                }
                 validateFieldKey(key);
+                String safeKey = sanitizeFieldKey(key);
+                if (!seenKeys.add(safeKey)) {
+                    throw new BusinessException("Validation Error: Duplicate field key '" + key + "' (sanitized: " + safeKey + ") found in request.", HttpStatus.BAD_REQUEST);
+                }
+                req.setFieldKey(safeKey); // Update request with safe key for downstream processing
             }
         }
 
@@ -288,13 +286,34 @@ public class FormBuilderService {
     }
 
     private void validateFieldKey(String fieldKey) {
-        if (fieldKey == null || fieldKey.trim().isEmpty()) return;
-        if (RESERVED_KEYWORDS.contains(fieldKey.toUpperCase().trim())) {
+        if (fieldKey == null || fieldKey.trim().isEmpty()) {
+            throw new BusinessException("Field key is mandatory.", HttpStatus.BAD_REQUEST);
+        }
+        if (fieldKey.length() > 100) {
+            throw new BusinessException("Field key exceeds maximum length of 100 characters.", HttpStatus.BAD_REQUEST);
+        }
+        
+        String sanitized = sanitizeFieldKey(fieldKey);
+        if (RESERVED_KEYWORDS.contains(sanitized.toLowerCase())) {
             throw new BusinessException(
-                "Invalid field key: '" + fieldKey + "' is a reserved SQL keyword.",
+                "Invalid field key: '" + fieldKey + "' is a reserved keyword.",
                 HttpStatus.BAD_REQUEST
             );
         }
+    }
+
+    private String sanitizeFieldKey(String fieldKey) {
+        if (fieldKey == null) return "";
+        // reuse SchemaService logic for consistency
+        String sanitized = fieldKey.toLowerCase().trim()
+                .replaceAll("[- ]", "_")
+                .replaceAll("[^a-z0-9_]", "")
+                .replaceAll("__+", "_");
+
+        if (!sanitized.isEmpty() && Character.isDigit(sanitized.charAt(0))) {
+            sanitized = "col_" + sanitized;
+        }
+        return sanitized;
     }
 
     private UUID tryParseUuid(String id) {

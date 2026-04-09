@@ -328,6 +328,8 @@ function FormPageContent() {
         } else if (err.response?.status === 409) {
           setErrorMessage(errorData?.message || "This form is unavailable due to a database sync issue.");
           setMessage("error");
+        } else if (err.response?.status === 404) {
+          setMessage("not_published");
         } else {
           setMessage("error");
         }

@@ -872,7 +872,10 @@ public class FormSubmissionService {
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
-            throw new BusinessException("Form is not in a state that allows viewing submissions", HttpStatus.BAD_REQUEST);
+            // SRS Relaxation: Allow viewing submissions for DRAFT forms if they have been published before (table exists)
+            if (form.getTableName() == null || form.getTableName().isEmpty()) {
+                throw new BusinessException("This form is in DRAFT state and has never been published. There are no submissions to view.", HttpStatus.BAD_REQUEST);
+            }
         }
 
         String tableName = form.getTableName();
@@ -974,7 +977,9 @@ public class FormSubmissionService {
                 .orElseThrow(() -> new BusinessException("Form not found", HttpStatus.NOT_FOUND));
 
         if (form.getStatus() != FormStatusEnum.PUBLISHED && form.getStatus() != FormStatusEnum.ARCHIVED) {
-            throw new BusinessException("Form is not in a state that allows exporting submissions", HttpStatus.BAD_REQUEST);
+            if (form.getTableName() == null || form.getTableName().isEmpty()) {
+                throw new BusinessException("This form is in DRAFT state and has never been published. There are no submissions to export.", HttpStatus.BAD_REQUEST);
+            }
         }
 
         String tableName = form.getTableName();

@@ -1,6 +1,6 @@
 "use client";
 
-import { Sidebar } from "@/components/layout/Sidebar";
+import Sidebar from "@/components/layout/Sidebar";
 import { ToastContainer } from "@/components/ui/Toast";
 
 export function AppShell({ children }) {

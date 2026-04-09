@@ -96,8 +96,11 @@ export default function SubmissionsPage() {
       setCanDelete(formRes.data?.canDeleteSubmissions || false);
 
       if (status !== "PUBLISHED" && status !== "ARCHIVED") {
-        setError("This form is not in a state that allows viewing submissions.");
-        return;
+        // If it's a DRAFT, it must have been published at least once (tableName exists) to show submissions
+        if (!formRes.data?.tableName) {
+          setError("This form is in DRAFT state and has never been published. There are no submissions to show yet.");
+          return;
+        }
       }
 
       // All fetch logic now goes through the centralized api

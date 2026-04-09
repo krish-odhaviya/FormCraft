@@ -33,11 +33,11 @@ public class SchemaService {
     private final FormVersionService formVersionService;
 
     /** Reserved system column names that must not be used as field keys. */
-    private static final Set<String> RESERVED_COLUMNS = Set.of(
-            "id", "created_at", "updated_at", "is_delete", "is_draft", "form_version_id",
-            // Common SQL reserved words
+    public static final Set<String> RESERVED_COLUMNS = Set.of(
+            "id", "created_at", "updated_at", "is_delete", "is_draft", "form_version_id", "is_deleted",
             "select", "insert", "update", "delete", "drop", "table", "from", "where",
-            "order", "group", "by", "having", "join", "left", "right", "inner", "outer"
+            "order", "group", "by", "having", "join", "left", "right", "inner", "outer",
+            "limit", "offset", "union", "distinct", "primary", "foreign", "key", "constraint", "references"
     );
 
     /** Layout-only field types — they produce no data column. */
@@ -59,13 +59,13 @@ public class SchemaService {
             }
 
             // ── Change Detection — Block publishing if nothing changed from active version ──
-            formVersionService.getActiveVersion(formId).ifPresent(active -> {
-                String activeJson = active.getDefinitionJson();
-                String draftJson = formVersionService.generateDefinitionJson(fields);
-                if (activeJson != null && activeJson.equals(draftJson)) {
-                    throw new BusinessException("You have to change something to create new version this form", HttpStatus.BAD_REQUEST);
-                }
-            });
+//            formVersionService.getActiveVersion(formId).ifPresent(active -> {
+//                String activeJson = active.getDefinitionJson();
+//                String draftJson = formVersionService.generateDefinitionJson(fields);
+//                if (activeJson != null && activeJson.equals(draftJson)) {
+//                    throw new BusinessException("You have to change something to create new version this form", HttpStatus.BAD_REQUEST);
+//                }
+//            });
 
             // 3. Validate field keys and configuration
             for (FormField f : fields) {
@@ -76,18 +76,23 @@ public class SchemaService {
                         f.getSourceColumn() == null || f.getSourceColumn().isBlank() ||
                         f.getSourceDisplayColumn() == null || f.getSourceDisplayColumn().isBlank()) {
                         throw new BusinessException(
-                            "Field '" + f.getFieldLabel() + "' is configured as a Lookup but is missing mandatory table/column settings. " +
-                            "Please specify the Source Table, Value Column, and Display Column in the builder.",
+                            "Field '" + f.getFieldLabel() + "' is configured as a Lookup but is missing mandatory table/column settings.",
                             HttpStatus.BAD_REQUEST);
                     }
                 }
 
-                String key = f.getFieldKey().toLowerCase();
-                if (RESERVED_COLUMNS.contains(key) || key.trim().isEmpty()) {
+                String rawKey = f.getFieldKey();
+                if (rawKey == null || rawKey.length() > 100) {
+                   throw new BusinessException("Field key must be between 1 and 100 characters.", HttpStatus.BAD_REQUEST);
+                }
+
+                String safeKey = buildSafeColumnName(rawKey);
+                if (RESERVED_COLUMNS.contains(safeKey) || safeKey.isEmpty()) {
                     throw new BusinessException(
-                            "Field key '" + f.getFieldKey() + "' is invalid or reserved and cannot be used.",
+                            "Field key '" + rawKey + "' (sanitized: " + safeKey + ") is invalid or reserved.",
                             HttpStatus.BAD_REQUEST);
                 }
+                f.setFieldKey(safeKey); // Ensure saved key is sanitized
             }
 
             // 4. Generate/alter the physical table
@@ -165,7 +170,10 @@ public class SchemaService {
         }
 
         // Fetch actual columns from PostgreSQL (lowercase, case-insensitive comparison)
-        String columnQuery = "SELECT column_name FROM information_schema.columns WHERE table_name = ?";
+        // Fetch actual columns from PostgreSQL
+        // Using explicit schema 'public' to avoid cross-schema collisions
+        String columnQuery = "SELECT column_name FROM information_schema.columns " +
+                             "WHERE table_name = ? AND table_schema = 'public'";
         Set<String> existingColumns;
         try {
             existingColumns = jdbcTemplate
@@ -174,15 +182,15 @@ public class SchemaService {
                     .map(String::toLowerCase)
                     .collect(Collectors.toSet());
         } catch (Exception e) {
-            // Table itself does not exist — everything is missing
+            // Table itself does not exist — fatal drift
             return fields.stream()
                     .filter(f -> !LAYOUT_TYPES.contains(f.getFieldType()))
                     .filter(f -> !Boolean.TRUE.equals(f.getIsDeleted()))
-                    .map(f -> f.getFieldKey().toLowerCase())
+                    .map(FormField::getFieldKey)
                     .collect(Collectors.toList());
         }
 
-        // Find field keys that are in the form definition but absent from the table
+        // 1. Check Field Key Columns
         List<String> missingColumns = new ArrayList<>();
         for (FormField field : fields) {
             if (LAYOUT_TYPES.contains(field.getFieldType())) continue;
@@ -191,6 +199,13 @@ public class SchemaService {
             String expectedColumn = field.getFieldKey().toLowerCase();
             if (!existingColumns.contains(expectedColumn)) {
                 missingColumns.add(expectedColumn);
+            }
+        }
+
+        // 2. Check Mandatory System Columns
+        for (String sysCol : isSystemColumnList()) {
+            if (!existingColumns.contains(sysCol)) {
+                missingColumns.add("system:" + sysCol);
             }
         }
 
@@ -258,10 +273,11 @@ public class SchemaService {
                 .queryForList(columnQuery, String.class, tableName)
                 .stream().map(String::toLowerCase).collect(Collectors.toSet());
 
-        // Add new system columns if they don't exist yet (for tables created before this upgrade)
+        // Add new system columns if they don't exist yet
         addColumnIfMissing(tableName, existingColumns, "updated_at",      "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
         addColumnIfMissing(tableName, existingColumns, "is_draft",         "BOOLEAN NOT NULL DEFAULT false");
         addColumnIfMissing(tableName, existingColumns, "form_version_id",  "UUID");
+        addColumnIfMissing(tableName, existingColumns, "is_delete",       "BOOLEAN DEFAULT false");
 
         // Add missing field columns, never drop existing ones
         for (FormField field : fields) {
@@ -324,7 +340,28 @@ public class SchemaService {
     }
 
     private boolean isSystemColumn(String col) {
-        return Set.of("id", "created_at", "updated_at", "is_delete", "is_draft", "form_version_id")
-                .contains(col);
+        return isSystemColumnList().contains(col.toLowerCase());
+    }
+
+    private List<String> isSystemColumnList() {
+        return List.of("id", "created_at", "updated_at", "is_delete", "is_draft", "form_version_id");
+    }
+
+    /**
+     * Sanitizes a field label into a safe SQL column name.
+     * Logic: lowercase, alphanumeric and underscores only, no leading digits.
+     */
+    public String buildSafeColumnName(String fieldKey) {
+        if (fieldKey == null || fieldKey.isBlank()) return "";
+        
+        String sanitized = fieldKey.toLowerCase().trim()
+                .replaceAll("[- ]", "_")
+                .replaceAll("[^a-z0-9_]", "")
+                .replaceAll("__+", "_");
+
+        if (!sanitized.isEmpty() && Character.isDigit(sanitized.charAt(0))) {
+            sanitized = "col_" + sanitized;
+        }
+        return sanitized;
     }
 }

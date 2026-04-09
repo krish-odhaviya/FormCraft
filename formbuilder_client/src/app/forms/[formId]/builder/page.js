@@ -134,6 +134,7 @@ export default function BuilderPage() {
   const [dragOverFieldId, setDragOverFieldId] = useState(null);
   const [lastSavedFields, setLastSavedFields] = useState([]);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [showLogicModal, setShowLogicModal] = useState(false);
   const [nextUrl, setNextUrl] = useState(null);
 
   const isDirty = JSON.stringify(localFields) !== JSON.stringify(lastSavedFields);
@@ -550,6 +551,20 @@ export default function BuilderPage() {
       return
     }
 
+    // SRS §10 — Max 10 lookup fields
+    const lookupCount = localFields.filter(f => f.fieldType === "LOOKUP_DROPDOWN").length;
+    if (lookupCount > 10) {
+      toast.error(`Too many many lookup fields: ${lookupCount}/10. Remove some lookups before saving.`);
+      return;
+    }
+
+    // SRS §10 — Max 100 options per select field
+    const overflowField = localFields.find(f => (f.options || []).length > 100);
+    if (overflowField) {
+      toast.error(`Field '${overflowField.fieldLabel}' has too many options (${overflowField.options.length}/100).`);
+      return;
+    }
+
     setSaving(true);
     const payload = getFieldsPayload();
 
@@ -635,6 +650,20 @@ export default function BuilderPage() {
       return
     }
 
+    // SRS §10 — Max 10 lookup fields
+    const lookupCount = localFields.filter(f => f.fieldType === "LOOKUP_DROPDOWN").length;
+    if (lookupCount > 10) {
+      toast.error(`Too many many lookup fields: ${lookupCount}/10. Remove some lookups before publishing.`);
+      return;
+    }
+
+    // SRS §10 — Max 100 options per select field
+    const overflowField = localFields.find(f => (f.options || []).length > 100);
+    if (overflowField) {
+      toast.error(`Field '${overflowField.fieldLabel}' has too many options (${overflowField.options.length}/100).`);
+      return;
+    }
+
     setPublishing(true);
     try {
       const payload = getFieldsPayload();
@@ -650,8 +679,12 @@ export default function BuilderPage() {
       toast.success("Form published!");
       router.push("/");
     } catch (e) {
-      // console.error(e);
-      toast.error("Publish failed. " + (e.response?.data?.message || ""));
+      const status = e.response?.status;
+      if (status === 409) {
+        toast.error(e.response.data?.message || "Structure Lock: This form has live submissions and cannot be modified.");
+      } else {
+        toast.error("Publish failed. " + (e.response?.data?.message || ""));
+      }
       setPublishing(false);
     }
   };
@@ -1222,6 +1255,12 @@ export default function BuilderPage() {
             <Link href={`/forms/${formId}/versions`} className="hidden md:flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-2 rounded-xl transition-all border border-transparent hover:border-indigo-100">
               <GitBranch size={16} /> <span className="hidden lg:inline">Versions</span>
             </Link>
+            <button 
+              onClick={() => setShowLogicModal(true)}
+              className="hidden md:flex items-center gap-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-2 rounded-xl transition-all border border-indigo-100 hover:border-indigo-200"
+            >
+              <ShieldCheck size={16} /> <span className="hidden lg:inline">Logic Engine</span>
+            </button>
             <Link href={`/forms/${formId}/view?preview=true`} className="hidden md:flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-2 rounded-xl transition-all border border-transparent hover:border-slate-200">
               <ClipboardList size={16} /> <span className="hidden lg:inline">Preview</span>
             </Link>
@@ -1230,7 +1269,7 @@ export default function BuilderPage() {
               <Save size={14} className={saving ? "animate-pulse" : ""} /> <span className="hidden sm:inline">{saving ? "Saving..." : "Save"}</span>
             </button>
             <button onClick={handlePublish} disabled={publishing} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-3 lg:px-5 py-2 rounded-xl text-xs font-bold shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all active:scale-95">
-              <Rocket size={14} /> <span className="hidden sm:inline">{publishing ? "Publishing..." : "Publish"}</span>
+              <Rocket size={14} /> <span className="hidden sm:inline">{publishing ? "Publishing..." : "Go live"}</span>
             </button>
             <button
               onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
@@ -1381,19 +1420,11 @@ export default function BuilderPage() {
             >
               <Lock size={14} /> Access
             </button>
-            <button
-              onClick={() => setSidebarTab('validations')}
-              className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded flex items-center justify-center gap-2 transition-all duration-200 ${sidebarTab === 'validations' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}
-            >
-              <ShieldCheck size={14} /> Logic
-            </button>
           </div>
         </div>
 
         <div className="flex-1 min-h-0 flex flex-col">
-          {sidebarTab === 'validations' ? (
-            <CustomValidationsPanel formId={formId} fields={localFields} />
-          ) : sidebarTab === 'fields' ? (
+          {sidebarTab === 'fields' ? (
             <>
               <div className="border-b border-slate-100 bg-white">
                 {activeField ? (
@@ -2481,6 +2512,13 @@ export default function BuilderPage() {
         )}
       </div>
     </aside>
+
+      <CustomValidationsPanel 
+        formId={formId} 
+        fields={localFields} 
+        isOpen={showLogicModal} 
+        onClose={() => setShowLogicModal(false)} 
+      />
 
       <ConfirmationModal
         isOpen={showUnsavedModal}
