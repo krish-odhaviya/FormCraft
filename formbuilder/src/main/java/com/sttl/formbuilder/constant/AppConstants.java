@@ -10,6 +10,7 @@ public class AppConstants {
     public static final String REGEX_ROLE_NAME = "^[A-Z0-9_]{2,80}$";
     public static final String REGEX_SLUG = "^[a-z0-9]+(?:-[a-z0-9]+)*$";
     public static final String REGEX_NUMERIC = "^\\d+$";
+    public static final String REGEX_PHONE = "^\\+\\d{1,4}\\d{10}$";
 
     // --- Date Formats ---
     public static final String DATE_FORMAT = "yyyy-MM-dd";

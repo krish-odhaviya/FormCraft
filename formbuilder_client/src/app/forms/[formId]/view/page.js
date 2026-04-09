@@ -12,7 +12,7 @@ import { evaluateFormula } from "@/lib/formulaEvaluator";
 import {
   Loader2, Send, CheckCircle2, AlertCircle,
   ChevronDown, Star, Upload, LayoutTemplate, Lock,
-  KeyRound, ShieldQuestion, X
+  KeyRound, ShieldQuestion, X, ShieldAlert
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useForms } from "@/context/FormsContext";
@@ -222,7 +222,13 @@ function FormPageContent() {
       if (field.fieldType === "SECTION" || field.fieldType === "LABEL") {
         ownState = { visible: true, disabled: false };
       } else if (cond?.action === "calculate" && cond.formula) {
-        ownState = { visible: true, disabled: true, calculatedValue: evaluateFormula(cond.formula, formValues) };
+        const result = evaluateFormula(cond.formula, formValues, `field: ${field.fieldKey}`);
+        ownState = { 
+          visible: true, 
+          disabled: true, 
+          calculatedValue: result.value, 
+          calculationError: result.error 
+        };
       } else {
         ownState = evaluateConditions(field, formValues);
       }
@@ -273,6 +279,9 @@ function FormPageContent() {
     const updates = {};
     fields.forEach((field) => {
       const state = fieldStates[field.fieldKey];
+      if (state?.calculationError) {
+        console.warn(`[FormulaEvaluator] Error in field ${field.fieldKey}:`, state.calculationError);
+      }
       if (state?.calculatedValue !== undefined && state.calculatedValue !== formValues[field.fieldKey]) {
         updates[field.fieldKey] = state.calculatedValue;
       }
@@ -404,15 +413,27 @@ function FormPageContent() {
     let customErrors = {};
     const fieldsToValidate = formPages[currentPage] || [];
 
-    // Integer format check
+    // Format checks
     fieldsToValidate.forEach((field) => {
-      if (field.fieldType !== "INTEGER") return;
-      if ((field.validation?.numberFormat || "INTEGER") !== "INTEGER") return;
       const val = visibleValues[field.fieldKey];
       if (val == null || String(val).trim() === "") return;
-      const num = Number(val);
-      if (!isNaN(num) && num !== Math.floor(num)) {
-        customErrors[field.fieldKey] = `'${field.fieldLabel}' must be a whole number.`;
+
+      if (field.fieldType === "INTEGER") {
+        if ((field.validation?.numberFormat || "INTEGER") === "INTEGER") {
+          const num = Number(val);
+          if (!isNaN(num) && num !== Math.floor(num)) {
+            customErrors[field.fieldKey] = `'${field.fieldLabel}' must be a whole number.`;
+          }
+        }
+      } else if (field.fieldType === "PHONE") {
+        const phoneRegex = /^\+\d{1,4}\d{10}$/;
+        if (!phoneRegex.test(String(val).trim())) {
+          customErrors[field.fieldKey] = `'${field.fieldLabel}' must have a 10-digit number and country code (e.g., +919876543210).`;
+        }
+      } else if (field.fieldType === "DATETIME") {
+        if (isNaN(Date.parse(val))) {
+          customErrors[field.fieldKey] = `'${field.fieldLabel}' must be a valid date and time.`;
+        }
       }
     });
 
@@ -839,7 +860,7 @@ function FormPageContent() {
                   if (field.uiConfig?.hidden) return null;
                   return (
                     <div key={field.fieldKey} id={`field_${field.fieldKey}`} className="transition-all duration-300">
-                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled, conditionallyRequiredFields.has(field.fieldKey), field.uiConfig?.readOnly === true, fields, fieldStates, conditionallyRequiredFields, fieldErrors)}
+                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled, conditionallyRequiredFields.has(field.fieldKey), field.uiConfig?.readOnly === true, fields, fieldStates, conditionallyRequiredFields, fieldErrors, state.calculationError)}
                     </div>
                   );
                 })}
@@ -900,7 +921,7 @@ function FormPageContent() {
 }
 
 // ── renderInput — file upload now uses api.uploadFile() (no raw fetch) ────────
-function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false, isReadOnly = false, allFields = [], fieldStates = {}, conditionallyRequiredFields = new Set(), fieldErrors = {}) {
+function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false, isReadOnly = false, allFields = [], fieldStates = {}, conditionallyRequiredFields = new Set(), fieldErrors = {}, calculationError = null) {
   const type = field.fieldType?.toUpperCase();
   const value = values[field.fieldKey];
   const uiConfig = field.uiConfig || {};
@@ -930,7 +951,12 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           <span className="ml-1.5 text-xs font-normal text-amber-600 italic">(conditionally required)</span>
         )}
         {isReadOnly && <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">read-only</span>}
-        {isDisabled && <span className="ml-2 text-xs font-normal text-slate-400 italic">(auto-calculated)</span>}
+        {isDisabled && !calculationError && <span className="ml-2 text-xs font-normal text-slate-400 italic">(auto-calculated)</span>}
+        {calculationError && (
+          <span className="ml-2 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1 w-fit mt-1">
+            <ShieldAlert size={10} /> Could not calculate value: {calculationError.reason}
+          </span>
+        )}
       </label>
       {helpText && <p className="text-xs text-slate-500 mt-1 leading-relaxed">{helpText}</p>}
     </div>
@@ -979,7 +1005,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
               if (child.uiConfig?.hidden) return null;
               return (
                 <div key={child.fieldKey} id={`field_${child.fieldKey}`}>
-                  {renderInput(child, values, handleChange, fieldErrors[child.fieldKey], lookupData, childState.disabled || isDisabled, conditionallyRequiredFields.has(child.fieldKey), child.uiConfig?.readOnly === true, allFields, fieldStates, conditionallyRequiredFields, fieldErrors)}
+                  {renderInput(child, values, handleChange, fieldErrors[child.fieldKey], lookupData, childState.disabled || isDisabled, conditionallyRequiredFields.has(child.fieldKey), child.uiConfig?.readOnly === true, allFields, fieldStates, conditionallyRequiredFields, fieldErrors, childState.calculationError)}
                 </div>
               );
             })}
@@ -1028,11 +1054,23 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
 
     case "DATE":
     case "TIME":
+    case "DATETIME":
       return (
         <div>
           <FieldLabel />
-          <input type={type.toLowerCase()} className={`${inputClass} ${isReadOnly ? "" : "cursor-pointer"}`}
+          <input type={type === "DATETIME" ? "datetime-local" : type.toLowerCase()} className={`${inputClass} ${isReadOnly ? "" : "cursor-pointer"}`}
             value={value || ""} disabled={isDisabled} readOnly={isReadOnly}
+            onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
+          <FieldError />
+        </div>
+      );
+
+    case "PHONE":
+      return (
+        <div>
+          <FieldLabel />
+          <input type="tel" className={inputClass}
+            placeholder={placeholder} value={value || ""} disabled={isDisabled} readOnly={isReadOnly}
             onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
           <FieldError />
         </div>

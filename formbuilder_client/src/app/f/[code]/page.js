@@ -10,7 +10,7 @@ import { evaluateFormula } from "@/lib/formulaEvaluator";
 import {
   Loader2, Send, CheckCircle2, AlertCircle,
   ChevronDown, Star, Upload, LayoutTemplate, Lock,
-  KeyRound, ShieldQuestion, X
+  KeyRound, ShieldQuestion, X, ShieldAlert, Phone, CalendarClock
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "react-hot-toast";
@@ -216,7 +216,13 @@ function FormPageContent() {
       if (field.fieldType === "SECTION" || field.fieldType === "LABEL") {
         ownState = { visible: true, disabled: false };
       } else if (cond?.action === "calculate" && cond.formula) {
-        ownState = { visible: true, disabled: true, calculatedValue: evaluateFormula(cond.formula, formValues) };
+        const result = evaluateFormula(cond.formula, formValues, `field: ${field.fieldKey}`);
+        ownState = { 
+          visible: true, 
+          disabled: true, 
+          calculatedValue: result.value, 
+          calculationError: result.error 
+        };
       } else {
         ownState = evaluateConditions(field, formValues);
       }
@@ -267,6 +273,9 @@ function FormPageContent() {
     const updates = {};
     fields.forEach((field) => {
       const state = fieldStates[field.fieldKey];
+      if (state?.calculationError) {
+        console.warn(`[FormulaEvaluator] Error in field ${field.fieldKey}:`, state.calculationError);
+      }
       if (state?.calculatedValue !== undefined && state.calculatedValue !== formValues[field.fieldKey]) {
         updates[field.fieldKey] = state.calculatedValue;
       }
@@ -311,6 +320,8 @@ function FormPageContent() {
           } else if (field.fieldType === "TICK_BOX_GRID") {
             const init = {}; (field.validation?.rows || []).forEach((r) => (init[r] = [])); initialValues[field.fieldKey] = init;
           } else if (field.fieldType === "STAR_RATING") initialValues[field.fieldKey] = def ? parseInt(def) : 0;
+          else if (field.fieldType === "DATETIME") initialValues[field.fieldKey] = def || "";
+          else if (field.fieldType === "PHONE") initialValues[field.fieldKey] = def || "";
           else initialValues[field.fieldKey] = def || "";
         });
         setFormValues(initialValues);
@@ -395,15 +406,27 @@ function FormPageContent() {
     let customErrors = {};
     const fieldsToValidate = formPages[currentPage] || [];
 
-    // Integer format check
+    // Format checks
     fieldsToValidate.forEach((field) => {
-      if (field.fieldType !== "INTEGER") return;
-      if ((field.validation?.numberFormat || "INTEGER") !== "INTEGER") return;
       const val = visibleValues[field.fieldKey];
       if (val == null || String(val).trim() === "") return;
-      const num = Number(val);
-      if (!isNaN(num) && num !== Math.floor(num)) {
-        customErrors[field.fieldKey] = `'${field.fieldLabel}' must be a whole number.`;
+
+      if (field.fieldType === "INTEGER") {
+        if ((field.validation?.numberFormat || "INTEGER") === "INTEGER") {
+          const num = Number(val);
+          if (!isNaN(num) && num !== Math.floor(num)) {
+            customErrors[field.fieldKey] = `'${field.fieldLabel}' must be a whole number.`;
+          }
+        }
+      } else if (field.fieldType === "PHONE") {
+        const phoneRegex = /^\+\d{1,4}\d{10}$/;
+        if (!phoneRegex.test(String(val).trim())) {
+          customErrors[field.fieldKey] = `'${field.fieldLabel}' must have a 10-digit number and country code (e.g., +919876543210).`;
+        }
+      } else if (field.fieldType === "DATETIME") {
+        if (isNaN(Date.parse(val))) {
+          customErrors[field.fieldKey] = `'${field.fieldLabel}' must be a valid date and time.`;
+        }
       }
     });
 
@@ -836,7 +859,7 @@ function FormPageContent() {
                   if (field.uiConfig?.hidden) return null;
                   return (
                     <div key={field.fieldKey} id={`field_${field.fieldKey}`} className="transition-all duration-300">
-                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled, conditionallyRequiredFields.has(field.fieldKey), field.uiConfig?.readOnly === true, fields, fieldStates, conditionallyRequiredFields, fieldErrors)}
+                      {renderInput(field, formValues, handleChange, fieldErrors[field.fieldKey], lookupData, state.disabled, conditionallyRequiredFields.has(field.fieldKey), field.uiConfig?.readOnly === true, fields, fieldStates, conditionallyRequiredFields, fieldErrors, state.calculationError)}
                     </div>
                   );
                 })}
@@ -884,7 +907,7 @@ function FormPageContent() {
 }
 
 // ── renderInput — file upload now uses api.uploadFile() (no raw fetch) ────────
-function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false, isReadOnly = false, allFields = [], fieldStates = {}, conditionallyRequiredFields = new Set(), fieldErrors = {}) {
+function renderInput(field, values, handleChange, error = null, lookupData = {}, isDisabled = false, isConditionallyRequired = false, isReadOnly = false, allFields = [], fieldStates = {}, conditionallyRequiredFields = new Set(), fieldErrors = {}, calculationError = null) {
   const type = field.fieldType?.toUpperCase();
   const value = values[field.fieldKey];
   const uiConfig = field.uiConfig || {};
@@ -914,7 +937,12 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           <span className="ml-1.5 text-xs font-normal text-amber-600 italic">(conditionally required)</span>
         )}
         {isReadOnly && <span className="ml-2 text-xs font-normal text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">read-only</span>}
-        {isDisabled && <span className="ml-2 text-xs font-normal text-slate-400 italic">(auto-calculated)</span>}
+        {isDisabled && !calculationError && <span className="ml-2 text-xs font-normal text-slate-400 italic">(auto-calculated)</span>}
+        {calculationError && (
+          <span className="ml-2 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded flex items-center gap-1 w-fit mt-1">
+            <ShieldAlert size={10} /> Could not calculate value: {calculationError.reason}
+          </span>
+        )}
       </label>
       {helpText && <p className="text-xs text-slate-500 mt-1 leading-relaxed">{helpText}</p>}
     </div>
@@ -963,7 +991,7 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
               if (child.uiConfig?.hidden) return null;
               return (
                 <div key={child.fieldKey} id={`field_${child.fieldKey}`}>
-                  {renderInput(child, values, handleChange, fieldErrors[child.fieldKey], lookupData, childState.disabled || isDisabled, conditionallyRequiredFields.has(child.fieldKey), child.uiConfig?.readOnly === true, allFields, fieldStates, conditionallyRequiredFields, fieldErrors)}
+                  {renderInput(child, values, handleChange, fieldErrors[child.fieldKey], lookupData, childState.disabled || isDisabled, conditionallyRequiredFields.has(child.fieldKey), child.uiConfig?.readOnly === true, allFields, fieldStates, conditionallyRequiredFields, fieldErrors, childState.calculationError)}
                 </div>
               );
             })}
@@ -1018,6 +1046,34 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           <input type={type.toLowerCase()} className={`${inputClass} ${isReadOnly ? "" : "cursor-pointer"}`}
             value={value || ""} disabled={isDisabled} readOnly={isReadOnly}
             onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
+          <FieldError />
+        </div>
+      );
+
+    case "DATETIME":
+      return (
+        <div>
+          <FieldLabel />
+          <div className="relative group">
+            <input type="datetime-local" className={`${inputClass} ${isReadOnly ? "" : "cursor-pointer"} pr-10`}
+              value={value || ""} disabled={isDisabled} readOnly={isReadOnly}
+              onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
+            <CalendarClock size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
+          </div>
+          <FieldError />
+        </div>
+      );
+
+    case "PHONE":
+      return (
+        <div>
+          <FieldLabel />
+          <div className="relative group">
+            <input type="tel" className={`${inputClass} pr-10`}
+              placeholder={placeholder || "+1 234-567-8900"} value={value || ""} disabled={isDisabled} readOnly={isReadOnly}
+              onChange={(e) => !isReadOnly && handleChange(field.fieldKey, e.target.value)} />
+            <Phone size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-indigo-500 transition-colors pointer-events-none" />
+          </div>
           <FieldError />
         </div>
       );

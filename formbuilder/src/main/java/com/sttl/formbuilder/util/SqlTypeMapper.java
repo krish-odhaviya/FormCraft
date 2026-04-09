@@ -25,6 +25,9 @@ public class SqlTypeMapper {
             // True/False
             case "BOOLEAN" -> "BOOLEAN";
 
+            case "PHONE" -> "VARCHAR(255)";
+            case "DATETIME" -> "TIMESTAMP";
+
             // ── NEW TYPES ──────────────────────────────────────────────
 
             // Star rating stores a numeric value e.g. 3 out of 5

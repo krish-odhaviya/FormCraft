@@ -3,13 +3,17 @@
  *
  * Supports: +, -, *, /, (, ) and numeric literals.
  * Does NOT use eval or Function() — immune to injection.
+ * 
+ * SRS §2.3 Compliant: Returns structured errors instead of silent failure.
  *
  * @param {string} formula  - e.g. "{price} * {qty} + 10"
  * @param {Object} formValues - current form field values keyed by fieldKey
- * @returns {string} result or "" on error
+ * @param {string} context - context description for error reporting
+ * @returns {Object} { value: string, error: { reason, expression, context } | null }
  */
-export function evaluateFormula(formula, formValues) {
-  if (!formula) return "";
+export function evaluateFormula(formula, formValues = {}, context = "field-level") {
+  if (!formula || !formula.trim()) return { value: "", error: null };
+  
   try {
     // Replace {fieldKey} placeholders with numeric values
     const expression = formula.replace(/\{([^}]+)\}/g, (_, key) => {
@@ -24,26 +28,47 @@ export function evaluateFormula(formula, formValues) {
 
     // Validate: only allow digits, whitespace and arithmetic operators/parens
     if (!/^[\d\s+\-*/().]+$/.test(expression)) {
-      return "";
+      return { 
+        value: "", 
+        error: { 
+          reason: "Formula contains invalid characters or unclosed curly braces.", 
+          expression: formula,
+          context
+        } 
+      };
     }
 
     const result = safeEval(expression);
-    if (result === null || isNaN(result) || !isFinite(result)) return "";
-    return String(Math.round(result * 100) / 100);
-  } catch {
-    return "";
+    if (result === null || isNaN(result) || !isFinite(result)) {
+      return {
+        value: "",
+        error: {
+          reason: "Formula produced a non-numeric or infinite result",
+          expression: formula,
+          context
+        }
+      };
+    }
+    
+    // Round to 2 decimal places per standard behavior
+    return { value: String(Math.round(result * 100) / 100), error: null };
+  } catch (e) {
+    return {
+      value: "",
+      error: {
+        reason: e.message || "Parse or evaluation failure",
+        expression: formula,
+        context
+      }
+    };
   }
 }
 
 // ── Safe recursive descent parser ─────────────────────────────────────────────
-// Grammar:
-//   expr   = term (('+' | '-') term)*
-//   term   = factor (('*' | '/') factor)*
-//   factor = '(' expr ')' | number
-
 function safeEval(expr) {
   const tokens = tokenize(expr);
   let pos = 0;
+  let depth = 0; // Guard against stack overflow / SRS §2.3
 
   function peek() { return tokens[pos]; }
   function consume() { return tokens[pos++]; }
@@ -70,19 +95,26 @@ function safeEval(expr) {
   }
 
   function parseFactor() {
+    if (depth > 50) throw new Error("Expression too deeply nested (max depth 50)");
+    depth++;
+    
     const tok = peek();
+    let result;
+
     if (tok === "(") {
       consume(); // (
-      const val = parseExpr();
-      consume(); // )
-      return val;
-    }
-    if (tok === "-") {
+      result = parseExpr();
+      if (peek() === ")") consume(); // )
+    } else if (tok === "-") {
       consume();
-      return -parseFactor();
+      result = -parseFactor();
+    } else {
+      const atom = consume();
+      result = parseFloat(atom);
     }
-    consume();
-    return parseFloat(tok);
+
+    depth--;
+    return result;
   }
 
   return parseExpr();

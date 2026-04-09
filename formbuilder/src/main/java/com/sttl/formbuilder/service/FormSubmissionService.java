@@ -286,6 +286,19 @@ public class FormSubmissionService {
                         errors.put(key, "'" + label + "' must be a valid date (YYYY-MM-DD).");
                     }
                 }
+                case "DATETIME" -> {
+                    try {
+                        LocalDateTime.parse(val.toString().trim());
+                    } catch (Exception e) {
+                        errors.put(key, "'" + label + "' must be a valid date and time (YYYY-MM-DDTHH:MM).");
+                    }
+                }
+                case "PHONE" -> {
+                    String strVal = val.toString().trim();
+                    if (!strVal.matches(AppConstants.REGEX_PHONE)) {
+                        errors.put(key, "'" + label + "' must be in international format (e.g., +1234567890).");
+                    }
+                }
                 case "TIME" -> {
                     try {
                         LocalTime.parse(val.toString().trim());
@@ -485,6 +498,10 @@ public class FormSubmissionService {
         switch (type) {
             case "DATE" -> {
                 if (val instanceof String s) val = LocalDate.parse(s.trim());
+                placeholdersList.add("?");
+            }
+            case "DATETIME" -> {
+                if (val instanceof String s) val = LocalDateTime.parse(s.trim());
                 placeholdersList.add("?");
             }
             case "TIME" -> {

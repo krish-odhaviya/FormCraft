@@ -12,7 +12,7 @@ import {
   Link2, Heading1, AlignLeft as AlignLeftIcon, GitBranch,
   History, CheckCircle2, Archive, FilePen, ChevronDown as ChevronDownIcon,
   Loader2, ExternalLink, BookOpen, Eye, Users, ShieldAlert, UserPlus, Shield,
-  AlertCircle, RotateCcw, Search, PanelLeft, PanelRight
+  AlertCircle, RotateCcw, Search, PanelLeft, PanelRight, Phone, CalendarClock
 } from "lucide-react";
 
 import { api } from "@/lib/api/formService";
@@ -22,6 +22,7 @@ import { useConfirm } from "@/context/ConfirmationContext";
 import { toast } from "react-hot-toast";
 import CustomValidationsPanel from "@/components/builder/CustomValidationsPanel";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
+import { evaluateFormula } from "@/lib/formulaEvaluator";
 
 const FIELD_CATEGORIES = [
   {
@@ -33,6 +34,8 @@ const FIELD_CATEGORIES = [
       { value: "INTEGER", label: "Number", icon: <Hash size={18} /> },
       { value: "DATE", label: "Date", icon: <Calendar size={18} /> },
       { value: "TIME", label: "Time", icon: <Clock size={18} /> },
+      { value: "DATETIME", label: "Date & Time", icon: <CalendarClock size={18} /> },
+      { value: "PHONE", label: "Phone", icon: <Phone size={18} /> },
       { value: "BOOLEAN", label: "Yes/No (Toggle)", icon: <ToggleRight size={18} /> },
     ]
   },
@@ -67,7 +70,7 @@ const FIELD_CATEGORIES = [
 ];
 
 const OPTIONS_BASED_TYPES = ["RADIO", "CHECKBOX_GROUP", "DROPDOWN"];
-const TEXT_BASED_TYPES = ["TEXT", "TEXTAREA", "EMAIL"];
+const TEXT_BASED_TYPES = ["TEXT", "TEXTAREA", "EMAIL", "PHONE"];
 const NUMBER_BASED_TYPES = ["INTEGER"];
 const GRID_TYPES = ["MC_GRID", "TICK_BOX_GRID"];
 
@@ -261,7 +264,8 @@ export default function BuilderPage() {
                 : type === "SECTION" ? { title: "New Section", description: "" }
                   : type === "GROUP" ? { title: "New Group", description: "" }
                     : type === "LABEL" ? { title: "Label Title", description: "" }
-                      : {},
+                      : type === "PHONE" ? { placeholder: "+1 234-567-8900", helpText: "Include country code (+)" }
+                        : {},
       conditions: null,
       parentId: null,
     };
@@ -506,6 +510,20 @@ export default function BuilderPage() {
       const names = invalidLookups.map(f => f.fieldLabel || f.fieldType).join(", ");
       toast.error(`Lookup Error: Field(s) [${names}] must have a Source Form and Display Column selected.`);
       return;
+    }
+    
+    // SRS §2.3 Formula Validation
+    for (const field of localFields) {
+      const cond = parseConditions(field);
+      if (cond?.action === "calculate" && cond.formula) {
+        const result = evaluateFormula(cond.formula, {}, `field: ${field.fieldLabel}`);
+        if (result.error) {
+          toast.error(`Formula Error in '${field.fieldLabel}': ${result.error.reason}`);
+          // Expand the field to show where the error is
+          setActiveFieldId(field.id);
+          return;
+        }
+      }
     }
 
     const keywordViolations = localFields.filter(f => {
@@ -984,6 +1002,37 @@ export default function BuilderPage() {
             </div>
           );
         }
+
+        case "PHONE":
+          return (
+            <div className="relative">
+              <input type="text" readOnly className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 shadow-inner italic flex items-center pr-10" placeholder={placeholder} />
+              <Phone size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300" />
+            </div>
+          );
+
+        case "DATETIME":
+          return (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 shadow-inner flex justify-between items-center">
+                <span>YYYY-MM-DD</span>
+                <Calendar size={16} className="text-slate-300" />
+              </div>
+              <div className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 shadow-inner flex justify-between items-center">
+                <span>HH:MM</span>
+                <Clock size={16} className="text-slate-300" />
+              </div>
+            </div>
+          );
+
+        case "DATE":
+        case "TIME":
+          return (
+            <div className="w-full bg-slate-50/80 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-400 shadow-inner flex justify-between items-center font-medium">
+              <span>{field.fieldType === "DATE" ? "YYYY-MM-DD" : "HH:MM"}</span>
+              {field.fieldType === "DATE" ? <Calendar size={18} className="text-slate-300" /> : <Clock size={18} className="text-slate-300" />}
+            </div>
+          );
 
         case "GROUP": {
           const children = localFields.filter(f => f.parentId === field.fieldKey);
@@ -1783,7 +1832,7 @@ export default function BuilderPage() {
                                 <div>
                                   <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Default Value</label>
                                   <input
-                                    type={activeField.fieldType === "INTEGER" ? "number" : activeField.fieldType === "DATE" ? "date" : activeField.fieldType === "TIME" ? "time" : "text"}
+                                    type={activeField.fieldType === "INTEGER" ? "number" : activeField.fieldType === "DATE" ? "date" : activeField.fieldType === "TIME" ? "time" : activeField.fieldType === "DATETIME" ? "datetime-local" : activeField.fieldType === "PHONE" ? "tel" : "text"}
                                     value={activeField.uiConfig?.defaultValue || ""}
                                     onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "defaultValue", e.target.value)}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
@@ -1826,7 +1875,7 @@ export default function BuilderPage() {
                             <ShieldCheck size={18} className="text-emerald-500" /> Validation Rules
                           </h3>
                           <div className="space-y-4">
-                            {TEXT_BASED_TYPES.includes(activeField.fieldType) && (
+                            {TEXT_BASED_TYPES.includes(activeField.fieldType) && activeField.fieldType !== "PHONE" && (
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
                                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Min Length</label>
@@ -1843,61 +1892,58 @@ export default function BuilderPage() {
                               </div>
                             )}
                             {NUMBER_BASED_TYPES.includes(activeField.fieldType) && (
-                              <div className="space-y-4">
-                                {/* Number Format Selector */}
+                              <div className="space-y-6">
+                                {/* Number Format Selector - Sleek Segmented UI */}
                                 <div>
-                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-2">Number Format</label>
-                                  <div className="grid grid-cols-2 gap-2">
+                                  <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mb-2.5 pl-1">Number Precision</label>
+                                  <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200/60">
                                     {[
-                                      { value: "INTEGER", label: "Integer", desc: "1, 2, 42" },
-                                      { value: "DECIMAL", label: "Decimal", desc: "1.5, 3.14" },
-                                    ].map((opt) => (
-                                      <label
-                                        key={opt.value}
-                                        className={`flex flex-col items-center p-3 rounded-xl border-2 cursor-pointer transition-all ${(activeField.validation?.numberFormat || "INTEGER") === opt.value
-                                            ? "border-indigo-600 bg-indigo-50/60 shadow-sm"
-                                            : "border-slate-200 bg-white hover:border-indigo-300"
+                                      { value: "INTEGER", label: "Integer" },
+                                      { value: "DECIMAL", label: "Decimal" },
+                                    ].map((opt) => {
+                                      const isSelected = (activeField.validation?.numberFormat || "INTEGER") === opt.value;
+                                      return (
+                                        <button
+                                          key={opt.value}
+                                          type="button"
+                                          onClick={() => updateNestedObject(activeField.id, "validation", "numberFormat", opt.value)}
+                                          className={`flex-1 py-1.5 px-3 rounded-lg text-[11px] font-black transition-all duration-200 ${
+                                            isSelected 
+                                              ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/50" 
+                                              : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
                                           }`}
-                                      >
-                                        <input
-                                          type="radio"
-                                          name={`numberFormat_${activeField.id}`}
-                                          value={opt.value}
-                                          checked={(activeField.validation?.numberFormat || "INTEGER") === opt.value}
-                                          onChange={() => updateNestedObject(activeField.id, "validation", "numberFormat", opt.value)}
-                                          className="sr-only"
-                                        />
-                                        <span className={`text-xs font-black ${(activeField.validation?.numberFormat || "INTEGER") === opt.value ? "text-indigo-700" : "text-slate-700"}`}>
+                                        >
                                           {opt.label}
-                                        </span>
-                                        <span className="text-[10px] text-slate-400 mt-0.5 font-medium">{opt.desc}</span>
-                                      </label>
-                                    ))}
+                                        </button>
+                                      );
+                                    })}
                                   </div>
                                 </div>
 
-                                {/* Min / Max */}
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Min Value</label>
+                                {/* Min / Max Grid */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1">Min Value</label>
                                     <input
                                       type="number"
                                       onWheel={(e) => e.target.blur()}
                                       step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
                                       value={activeField.validation?.min || ""}
                                       onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)}
-                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 0"
+                                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm" 
+                                      placeholder="No min"
                                     />
                                   </div>
-                                  <div>
-                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Max Value</label>
+                                  <div className="space-y-1.5">
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1">Max Value</label>
                                     <input
                                       type="number"
                                       onWheel={(e) => e.target.blur()}
                                       step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
                                       value={activeField.validation?.max || ""}
                                       onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)}
-                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 100"
+                                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm" 
+                                      placeholder="No max"
                                     />
                                   </div>
                                 </div>

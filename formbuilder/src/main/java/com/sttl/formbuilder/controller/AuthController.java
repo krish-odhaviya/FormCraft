@@ -20,6 +20,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -30,6 +31,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final SessionRegistry sessionRegistry;
 
     @PostMapping(ApiEndpoints.LOGIN)
     public ResponseEntity<?> login(
@@ -61,6 +63,13 @@ public class AuthController {
                     HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
                     context
             );
+
+            // Invalidate existing sessions for this user (last login wins)
+            sessionRegistry.getAllSessions(authentication.getPrincipal(), false)
+                    .forEach(org.springframework.security.core.session.SessionInformation::expireNow);
+
+            // Register session in SessionRegistry for concurrent session control
+            sessionRegistry.registerNewSession(session.getId(), authentication.getPrincipal());
 
             return ApiResponseUtil.success(
                     authService.buildUserData(authentication),
