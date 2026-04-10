@@ -26,18 +26,42 @@ function evaluateConditions(field, formValues) {
   const results = cond.rules.map((rule) => {
     if (!rule.fieldKey) return false;
     let rv = formValues[rule.fieldKey];
-    // Rule values should compare against the underlying ID if it's a lookup object
-    if (rv && typeof rv === "object" && "value" in rv) rv = rv.value;
-    const fieldValue = rv != null ? String(rv) : "";
+    
+    // Normalize value to an array of strings for consistent comparison
+    let values = [];
+    if (Array.isArray(rv)) {
+      rv.forEach(v => {
+        if (v && typeof v === "object") {
+          if (v.value !== undefined) values.push(String(v.value));
+          if (v.id !== undefined) values.push(String(v.id));
+          if (v.label !== undefined) values.push(String(v.label));
+        } else if (v != null) {
+          values.push(String(v));
+        }
+      });
+    } else if (rv != null && rv !== "") {
+      if (typeof rv === "object") {
+        if (rv.value !== undefined) values.push(String(rv.value));
+        if (rv.id !== undefined) values.push(String(rv.id));
+        if (rv.label !== undefined) values.push(String(rv.label));
+      } else {
+        values.push(String(rv));
+      }
+    }
+    // Remove duplicates
+    values = [...new Set(values)];
+
+    const firstValue = values.length > 0 ? values[0] : "";
+    const ruleValue = String(rule.value || "");
     
     switch (rule.operator) {
-      case "equals":      return fieldValue === String(rule.value);
-      case "notEquals":   return fieldValue !== String(rule.value);
-      case "contains":    return fieldValue.toLowerCase().includes(String(rule.value).toLowerCase());
-      case "greaterThan": return Number(fieldValue) > Number(rule.value);
-      case "lessThan":    return Number(fieldValue) < Number(rule.value);
-      case "isEmpty":     return fieldValue.trim() === "";
-      case "isNotEmpty":  return fieldValue.trim() !== "";
+      case "equals":      return values.includes(ruleValue);
+      case "notEquals":   return !values.includes(ruleValue);
+      case "contains":    return values.some(v => v.toLowerCase().includes(ruleValue.toLowerCase()));
+      case "greaterThan": return Number(firstValue) > Number(ruleValue);
+      case "lessThan":    return Number(firstValue) < Number(ruleValue);
+      case "isEmpty":     return values.length === 0 || (values.length === 1 && values[0].trim() === "");
+      case "isNotEmpty":  return values.length > 0 && values[0].trim() !== "";
       default: return false;
     }
   });
@@ -231,18 +255,41 @@ function FormPageContent() {
       if (cond?.actions?.length > 0 && cond?.rules?.length > 0) {
         const ruleResults = (cond.rules || []).map((rule) => {
           if (!rule.fieldKey) return false;
-          let val = formValues[rule.fieldKey];
-          if (val && typeof val === "object" && "value" in val) val = val.value;
-          const fv = val != null ? String(val) : "";
+          let rv = formValues[rule.fieldKey];
+
+          let values = [];
+          if (Array.isArray(rv)) {
+            rv.forEach(v => {
+              if (v && typeof v === "object") {
+                if (v.value !== undefined) values.push(String(v.value));
+                if (v.id !== undefined) values.push(String(v.id));
+                if (v.label !== undefined) values.push(String(v.label));
+              } else if (v != null) {
+                values.push(String(v));
+              }
+            });
+          } else if (rv != null && rv !== "") {
+            if (typeof rv === "object") {
+              if (rv.value !== undefined) values.push(String(rv.value));
+              if (rv.id !== undefined) values.push(String(rv.id));
+              if (rv.label !== undefined) values.push(String(rv.label));
+            } else {
+              values.push(String(rv));
+            }
+          }
+          values = [...new Set(values)];
+
+          const firstValue = values.length > 0 ? values[0] : "";
+          const ruleValue = String(rule.value || "");
           
           switch (rule.operator) {
-            case "equals":      return fv === String(rule.value);
-            case "notEquals":   return fv !== String(rule.value);
-            case "contains":    return fv.toLowerCase().includes(String(rule.value).toLowerCase());
-            case "greaterThan": return Number(fv) > Number(rule.value);
-            case "lessThan":    return Number(fv) < Number(rule.value);
-            case "isEmpty":     return fv.trim() === "";
-            case "isNotEmpty":  return fv.trim() !== "";
+            case "equals":      return values.includes(ruleValue);
+            case "notEquals":   return !values.includes(ruleValue);
+            case "contains":    return values.some(v => v.toLowerCase().includes(ruleValue.toLowerCase()));
+            case "greaterThan": return Number(firstValue) > Number(ruleValue);
+            case "lessThan":    return Number(firstValue) < Number(ruleValue);
+            case "isEmpty":     return values.length === 0 || (values.length === 1 && values[0].trim() === "");
+            case "isNotEmpty":  return values.length > 0 && values[0].trim() !== "";
             default: return false;
           }
         });
@@ -472,18 +519,36 @@ function FormPageContent() {
       if (!cond.rules || cond.rules.length === 0) return;
       const results = cond.rules.map((rule) => {
         if (!rule.fieldKey) return false;
-        let val = visibleValues[rule.fieldKey];
-        if (val && typeof val === "object" && "value" in val) val = val.value;
-        const fv = val != null ? String(val) : "";
+        let rv = visibleValues[rule.fieldKey];
+
+        let values = [];
+        if (Array.isArray(rv)) {
+          values = rv.map(v => {
+            if (v && typeof v === "object") {
+              return String(v.value !== undefined ? v.value : (v.id !== undefined ? v.id : (v.label !== undefined ? v.label : v)));
+            }
+            return String(v);
+          });
+        } else if (rv != null && rv !== "") {
+          if (typeof rv === "object") {
+            const extracted = rv.value !== undefined ? rv.value : (rv.id !== undefined ? rv.id : (rv.label !== undefined ? rv.label : rv));
+            values = [String(extracted)];
+          } else {
+            values = [String(rv)];
+          }
+        }
+
+        const firstValue = values.length > 0 ? values[0] : "";
+        const ruleValue = String(rule.value || "");
 
         switch (rule.operator) {
-          case "equals":      return fv === String(rule.value);
-          case "notEquals":   return fv !== String(rule.value);
-          case "contains":    return fv.toLowerCase().includes(String(rule.value).toLowerCase());
-          case "greaterThan": return Number(fv) > Number(rule.value);
-          case "lessThan":    return Number(fv) < Number(rule.value);
-          case "isEmpty":     return fv.trim() === "";
-          case "isNotEmpty":  return fv.trim() !== "";
+          case "equals":      return values.includes(ruleValue);
+          case "notEquals":   return !values.includes(ruleValue);
+          case "contains":    return values.some(v => v.toLowerCase().includes(ruleValue.toLowerCase()));
+          case "greaterThan": return Number(firstValue) > Number(ruleValue);
+          case "lessThan":    return Number(firstValue) < Number(ruleValue);
+          case "isEmpty":     return values.length === 0 || (values.length === 1 && values[0].trim() === "");
+          case "isNotEmpty":  return values.length > 0 && values[0].trim() !== "";
           default: return false;
         }
       });

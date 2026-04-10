@@ -18,10 +18,17 @@ export function evaluateFormula(formula, formValues = {}, context = "field-level
     // Replace {fieldKey} placeholders with numeric values
     const expression = formula.replace(/\{([^}]+)\}/g, (_, key) => {
       let rawVal = formValues[key];
-      // If it's a lookup object {value, label}, extract the value
-      if (rawVal && typeof rawVal === 'object' && 'value' in rawVal) {
-        rawVal = rawVal.value;
+      
+      // Normalize to a single value
+      if (Array.isArray(rawVal) && rawVal.length > 0) {
+        rawVal = rawVal[0];
       }
+      
+      // If it's a lookup/dropdown object, extract the numeric value
+      if (rawVal && typeof rawVal === 'object') {
+        rawVal = rawVal.value !== undefined ? rawVal.value : (rawVal.id !== undefined ? rawVal.id : 0);
+      }
+      
       const val = Number(rawVal);
       return isNaN(val) ? "0" : String(val);
     });

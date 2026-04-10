@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import com.sttl.formbuilder.exception.ValidationException;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,30 +74,55 @@ public class RuleEngineService {
         }
 
         Object rawVal = formValues.get(rule.getFieldKey());
-        String fieldValue = (rawVal != null) ? String.valueOf(rawVal).trim() : "";
+        List<String> fieldValues = new ArrayList<>();
+        
+        if (rawVal instanceof Map) {
+            Map<?, ?> map = (Map<?, ?>) rawVal;
+            if (map.get("value") != null) fieldValues.add(String.valueOf(map.get("value")).trim());
+            if (map.get("id") != null) fieldValues.add(String.valueOf(map.get("id")).trim());
+            if (map.get("label") != null) fieldValues.add(String.valueOf(map.get("label")).trim());
+        } else if (rawVal instanceof List) {
+            List<?> list = (List<?>) rawVal;
+            for (Object item : list) {
+                if (item instanceof Map) {
+                    Map<?, ?> map = (Map<?, ?>) item;
+                    if (map.get("value") != null) fieldValues.add(String.valueOf(map.get("value")).trim());
+                    if (map.get("id") != null) fieldValues.add(String.valueOf(map.get("id")).trim());
+                    if (map.get("label") != null) fieldValues.add(String.valueOf(map.get("label")).trim());
+                } else if (item != null) {
+                    fieldValues.add(String.valueOf(item).trim());
+                }
+            }
+        } else if (rawVal != null) {
+            fieldValues.add(String.valueOf(rawVal).trim());
+        }
+
         String ruleValueStr = (rule.getValue() != null) ? String.valueOf(rule.getValue()).trim() : "";
+        String firstValue = fieldValues.isEmpty() ? "" : fieldValues.get(0);
 
         try {
             switch (rule.getOperator()) {
                 case "equals":
-                    return fieldValue.equals(ruleValueStr);
+                    return fieldValues.contains(ruleValueStr);
                 case "notEquals":
-                    return !fieldValue.equals(ruleValueStr);
+                    return !fieldValues.contains(ruleValueStr);
                 case "contains":
-                    return fieldValue.toLowerCase().contains(ruleValueStr.toLowerCase());
+                    for (String fv : fieldValues) {
+                        if (fv.toLowerCase().contains(ruleValueStr.toLowerCase())) return true;
+                    }
+                    return false;
                 case "greaterThan":
-                    return Double.parseDouble(fieldValue) > Double.parseDouble(ruleValueStr);
+                    return Double.parseDouble(firstValue) > Double.parseDouble(ruleValueStr);
                 case "lessThan":
-                    return Double.parseDouble(fieldValue) < Double.parseDouble(ruleValueStr);
+                    return Double.parseDouble(firstValue) < Double.parseDouble(ruleValueStr);
                 case "isEmpty":
-                    return fieldValue.isEmpty();
+                    return fieldValues.isEmpty();
                 case "isNotEmpty":
-                    return !fieldValue.isEmpty();
+                    return !fieldValues.isEmpty();
                 default:
                     return false;
             }
         } catch (NumberFormatException e) {
-            // Safe fallback for parsing errors in numeric comparisons
             return false;
         }
     }

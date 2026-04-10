@@ -208,7 +208,25 @@ public class ExpressionEvaluatorService {
             } else if (t.type == TokenType.STRING) {
                 return t.value.substring(1, t.value.length() - 1);
             } else if (t.type == TokenType.IDENTIFIER) {
-                return data != null ? data.get(t.value) : null;
+                Object val = data != null ? data.get(t.value) : null;
+                if (val instanceof Map) {
+                    Map<?, ?> map = (Map<?, ?>) val;
+                    val = map.get("value") != null ? map.get("value") : map.get("id");
+                } else if (val instanceof List) {
+                    List<?> list = (List<?>) val;
+                    if (!list.isEmpty()) {
+                        Object first = list.get(0);
+                        if (first instanceof Map) {
+                            Map<?, ?> map = (Map<?, ?>) first;
+                            val = map.get("value") != null ? map.get("value") : map.get("id");
+                        } else {
+                            val = first;
+                        }
+                    } else {
+                        val = null;
+                    }
+                }
+                return val;
             } else {
                 throw new RuntimeException("Unexpected token style: " + t.value);
             }
