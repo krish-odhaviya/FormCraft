@@ -11,7 +11,7 @@ import { ConfirmationProvider } from "@/context/ConfirmationContext";
 
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
-  const isPublicPage = pathname === "/login" || pathname === "/register" || pathname === "/api-reference" || pathname === "/architecture" || pathname.includes("/builder") || pathname.endsWith("/view");
+  const isPublicPage = pathname === "/login" || pathname === "/register" || pathname.includes("/builder") || pathname.endsWith("/view");
 
   if (isPublicPage) {
     return (
