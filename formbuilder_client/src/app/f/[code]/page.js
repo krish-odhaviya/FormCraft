@@ -1032,8 +1032,8 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
       return (
         <div className="pt-2 pb-1">
           <div className="border-t-2 border-indigo-500 pt-5">
-            <h3 className="text-lg font-bold text-slate-900">{uiConfig.title || field.fieldLabel}</h3>
-            {uiConfig.description && <p className="text-sm text-slate-500 mt-1 leading-relaxed">{uiConfig.description}</p>}
+            <h3 className="text-lg font-bold text-slate-900">{field.fieldLabel}</h3>
+            {uiConfig.helpText && <p className="text-sm text-slate-500 mt-1 leading-relaxed">{uiConfig.helpText}</p>}
           </div>
         </div>
       );
@@ -1041,8 +1041,8 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
     case "LABEL":
       return (
         <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-5 py-4">
-          <h4 className="text-sm font-bold text-indigo-900">{uiConfig.title || field.fieldLabel}</h4>
-          {uiConfig.description && <p className="text-sm text-indigo-700 mt-1 leading-relaxed">{uiConfig.description}</p>}
+          <h4 className="text-sm font-bold text-indigo-900">{field.fieldLabel}</h4>
+          {uiConfig.helpText && <p className="text-sm text-indigo-700 mt-1 leading-relaxed">{uiConfig.helpText}</p>}
         </div>
       );
 
@@ -1053,9 +1053,9 @@ function renderInput(field, values, handleChange, error = null, lookupData = {},
           <div className="mb-6 pb-4 border-b border-slate-100">
             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <LayoutTemplate size={20} className="text-indigo-600" />
-              {uiConfig.title || field.fieldLabel}
+              {field.fieldLabel}
             </h3>
-            {uiConfig.description && <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">{uiConfig.description}</p>}
+            {uiConfig.helpText && <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">{uiConfig.helpText}</p>}
           </div>
           <div className="space-y-8">
             {children.map((child) => {

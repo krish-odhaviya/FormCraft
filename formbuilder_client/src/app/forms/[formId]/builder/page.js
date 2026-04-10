@@ -261,11 +261,9 @@ export default function BuilderPage() {
           : type === "LINEAR_SCALE" ? { scaleMin: 1, scaleMax: 5, lowLabel: "Not likely", highLabel: "Very likely" }
             : type === "FILE_UPLOAD" ? { acceptedFileTypes: [".pdf", ".png", ".jpg"], maxFileSizeMb: 5 }
               : type === "LOOKUP_DROPDOWN" ? { sourceTable: "", sourceColumn: "id", sourceDisplayColumn: "" }
-                : type === "SECTION" ? { title: "New Section", description: "" }
-                  : type === "GROUP" ? { title: "New Group", description: "" }
-                    : type === "LABEL" ? { title: "Label Title", description: "" }
-                      : type === "PHONE" ? { placeholder: "+1 234-567-8900", helpText: "Include country code (+)" }
-                        : {},
+                : type === "PHONE" ? { placeholder: "+1 234-567-8900", helpText: "Include country code (+)" }
+                  : {},
+      fieldLabel: type === "SECTION" ? "New Section" : type === "GROUP" ? "New Group" : type === "LABEL" ? "Label Heading" : `New ${type.toLowerCase().replace(/_/g, " ")}`,
       conditions: null,
       parentId: null,
     };
@@ -905,16 +903,16 @@ export default function BuilderPage() {
         case "SECTION":
           return (
             <div className="border-t-[3px] border-indigo-500 pt-5 mt-2">
-              <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">{field.uiConfig?.title || "New Section"}</h3>
-              {field.uiConfig?.description && <p className="text-sm text-slate-500 mt-2 leading-relaxed">{field.uiConfig.description}</p>}
+              <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">{field.fieldLabel || "New Section"}</h3>
+              {field.uiConfig?.helpText && <p className="text-sm text-slate-500 mt-2 leading-relaxed">{field.uiConfig.helpText}</p>}
             </div>
           );
 
         case "LABEL":
           return (
             <div className="bg-indigo-50/80 border border-indigo-100 rounded-xl px-5 py-4 shadow-sm">
-              <h4 className="text-sm font-bold text-indigo-900">{field.uiConfig?.title || "Label Title"}</h4>
-              {field.uiConfig?.description && <p className="text-sm text-indigo-700/80 mt-1.5 leading-relaxed">{field.uiConfig.description}</p>}
+              <h4 className="text-sm font-bold text-indigo-900">{field.fieldLabel || "Label Title"}</h4>
+              {field.uiConfig?.helpText && <p className="text-sm text-indigo-700/80 mt-1.5 leading-relaxed">{field.uiConfig.helpText}</p>}
             </div>
           );
 
@@ -1076,8 +1074,9 @@ export default function BuilderPage() {
                 <div className="p-1 bg-white border border-slate-200 rounded-lg shadow-sm">
                   <LayoutTemplate size={14} className="text-indigo-600" />
                 </div>
-                <span className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">{field.uiConfig?.title || "Group Collection"}</span>
+                <span className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">{field.fieldLabel || "Group Collection"}</span>
               </div>
+              {field.uiConfig?.helpText && <p className="text-[9px] text-slate-500 mb-4 pl-1">{field.uiConfig.helpText}</p>}
 
               {children.length === 0 ? (
                 <div className={`flex flex-col items-center justify-center py-6 rounded-xl border-2 border-dashed transition-all duration-200 ${isDragOver
@@ -1518,7 +1517,10 @@ export default function BuilderPage() {
 
                       <div className="space-y-1.5">
                         <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
-                          Question / Label <span className="text-red-500 font-black">*</span>
+                          {activeField.fieldType === "SECTION" ? "Section Title" : 
+                           activeField.fieldType === "LABEL" ? "Heading / Text" : 
+                           activeField.fieldType === "GROUP" ? "Group Title" : 
+                           activeField.fieldType === "PAGE_BREAK" ? "Page Name" : "Question / Label"} <span className="text-red-500 font-black">*</span>
                         </label>
                         <textarea
                           rows={2}
@@ -1534,31 +1536,24 @@ export default function BuilderPage() {
                           </p>
                         )}
                       </div>
-
-                      {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL") && (
-                        <div className="space-y-3 pt-4 border-t border-slate-100">
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Title</label>
-                            <input
-                              type="text"
-                              value={activeField.uiConfig?.title || ""}
-                              onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "title", e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                              placeholder="Section title..."
-                            />
-                          </div>
-                          <div className="pt-1.5">
-                            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Description</label>
-                            <textarea
-                              rows={3}
-                              value={activeField.uiConfig?.description || ""}
-                              onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "description", e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
-                              placeholder="Optional description..."
-                            />
-                          </div>
+                      
+                      {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL" || activeField.fieldType === "GROUP") && (
+                        <div className="pt-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                           <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 flex items-center justify-between">
+                            <span>Description</span>
+                            <span className="text-[9px] font-bold text-slate-400 normal-case bg-slate-100 px-1.5 py-0.5 rounded">Optional</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={activeField.uiConfig?.helpText || ""}
+                            onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
+                            placeholder="Add a detailed description or sub-text..."
+                          />
                         </div>
                       )}
+
+
 
                       {OPTIONS_BASED_TYPES.includes(activeField.fieldType) && (
                         <div className="space-y-4 pt-5 border-t border-slate-100">
@@ -1777,7 +1772,7 @@ export default function BuilderPage() {
                         </div>
                       )}
 
-                      {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
+                      {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && activeField.fieldType !== "GROUP" && activeField.fieldType !== "PAGE_BREAK" && (
                         <div className="pt-5 border-t border-slate-100">
                           <label className="flex items-center justify-between p-4 border-2 border-slate-100 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-200 transition-colors">
                             <div className="flex flex-col">
@@ -1792,7 +1787,7 @@ export default function BuilderPage() {
                         </div>
                       )}
 
-                      {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
+                      {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && activeField.fieldType !== "GROUP" && activeField.fieldType !== "PAGE_BREAK" && (
                         <div className="pt-5 border-t border-slate-100">
                           <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2.5 mb-5 uppercase tracking-wider">
                             <MonitorPlay size={18} className="text-indigo-500" /> Display Settings
@@ -1814,14 +1809,18 @@ export default function BuilderPage() {
                                   />
                                 </div>
                               )}
-                            <div>
-                              <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Help / Subtext</label>
-                              <textarea rows={2} value={activeField.uiConfig?.helpText || ""}
-                                onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
-                                placeholder="Add hints or instructions for users..."
-                              />
-                            </div>
+                            {activeField.fieldType !== "SECTION" && 
+                             activeField.fieldType !== "LABEL" && 
+                             activeField.fieldType !== "GROUP" && (
+                              <div>
+                                <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Help / Subtext</label>
+                                <textarea rows={2} value={activeField.uiConfig?.helpText || ""}
+                                  onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
+                                  placeholder="Add hints or instructions for users..."
+                                />
+                              </div>
+                            )}
 
                             {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
                               !GRID_TYPES.includes(activeField.fieldType) &&
