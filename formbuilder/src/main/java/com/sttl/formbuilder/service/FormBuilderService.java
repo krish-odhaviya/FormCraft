@@ -198,6 +198,27 @@ public class FormBuilderService {
 
             // Populate/Update all attributes
             populateFieldFromRequest(field, req, i + 1);
+
+            // Logic conflict validation: Read-Only and Hidden are mutually exclusive
+            if (Boolean.TRUE.equals(field.getReadOnly()) && Boolean.TRUE.equals(field.getIsHidden())) {
+                throw new BusinessException(
+                    "Validation Error: Field '" + field.getFieldLabel() + "' cannot be both Read-Only and Hidden. Please choose only one.",
+                    HttpStatus.BAD_REQUEST
+                );
+            }
+
+            // Logic conflict validation: Read-Only or Hidden MUST have a default value
+            if (Boolean.TRUE.equals(field.getReadOnly()) || Boolean.TRUE.equals(field.getIsHidden())) {
+                if (field.getDefaultValue() == null || field.getDefaultValue().trim().isEmpty()) {
+                    throw new BusinessException(
+                        "Validation Error: Field '" + field.getFieldLabel() + "' is set to Read-Only or Hidden and must have a Default Value.",
+                        HttpStatus.BAD_REQUEST
+                    );
+                }
+                // Also ensure Required is off for Read-Only/Hidden fields to avoid submission blocks
+                field.setRequired(false);
+            }
+
             fieldsToSave.add(field);
             activeResult.add(field);
         }

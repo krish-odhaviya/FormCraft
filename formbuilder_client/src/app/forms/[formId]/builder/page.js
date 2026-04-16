@@ -509,6 +509,17 @@ export default function BuilderPage() {
       toast.error(`Lookup Error: Field(s) [${names}] must have a Source Form and Display Column selected.`);
       return;
     }
+
+    const invalidReadOnlyHidden = localFields.filter(f => 
+      (f.uiConfig?.readOnly || f.uiConfig?.hidden) && 
+      (!f.uiConfig?.defaultValue || String(f.uiConfig.defaultValue).trim() === "")
+    );
+    if (invalidReadOnlyHidden.length > 0) {
+      const names = invalidReadOnlyHidden.map(f => f.fieldLabel || f.fieldType).join(", ");
+      toast.error(`Validation Error: Field(s) [${names}] are set to Read-Only or Hidden and MUST have a Default Value.`);
+      setActiveFieldId(invalidReadOnlyHidden[0].id);
+      return;
+    }
     
     // SRS §2.3 Formula Validation
     for (const field of localFields) {
@@ -1774,14 +1785,24 @@ export default function BuilderPage() {
 
                       {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && activeField.fieldType !== "GROUP" && activeField.fieldType !== "PAGE_BREAK" && (
                         <div className="pt-5 border-t border-slate-100">
-                          <label className="flex items-center justify-between p-4 border-2 border-slate-100 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-200 transition-colors">
+                          <label className={`flex items-center justify-between p-4 border-2 rounded-xl transition-colors ${
+                              (activeField.uiConfig?.readOnly || activeField.uiConfig?.hidden) 
+                              ? 'bg-slate-50 border-slate-100 cursor-not-allowed opacity-60' 
+                              : 'cursor-pointer hover:bg-slate-50 hover:border-slate-200 border-slate-100'
+                            }`}>
                             <div className="flex flex-col">
                               <span className="text-sm font-extrabold text-slate-800 tracking-tight">Required Field</span>
-                              <span className="text-xs font-medium text-slate-500 mt-0.5">Force users to answer this</span>
+                              <span className="text-xs font-medium text-slate-500 mt-0.5">
+                                {(activeField.uiConfig?.readOnly || activeField.uiConfig?.hidden) 
+                                  ? 'Not available for Read-Only or Hidden fields' 
+                                  : 'Force users to answer this'}
+                              </span>
                             </div>
-                            <input type="checkbox" checked={activeField.required}
+                            <input type="checkbox" 
+                              checked={activeField.required && !activeField.uiConfig?.readOnly && !activeField.uiConfig?.hidden}
+                              disabled={activeField.uiConfig?.readOnly || activeField.uiConfig?.hidden}
                               onChange={(e) => updateLocalField(activeField.id, "required", e.target.checked)}
-                              className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
+                              className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all disabled:cursor-not-allowed"
                             />
                           </label>
                         </div>
@@ -1841,29 +1862,43 @@ export default function BuilderPage() {
                                 </div>
                               )}
 
-                            <label className="flex items-center justify-between p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm bg-white">
-                              <div className="flex flex-col">
-                                <span className="text-xs font-extrabold text-slate-800">Read-Only</span>
-                                <span className="text-[11px] font-medium text-slate-500 mt-0.5">User can see but not edit this field</span>
-                              </div>
-                              <input type="checkbox"
-                                checked={activeField.uiConfig?.readOnly || false}
-                                onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "readOnly", e.target.checked)}
-                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
-                              />
-                            </label>
-
-                            <label className="flex items-center justify-between p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm bg-white">
-                              <div className="flex flex-col pr-2">
-                                <span className="text-xs font-extrabold text-slate-800">Hidden Field</span>
-                                <span className="text-[11px] font-medium text-slate-500 mt-0.5 leading-tight">Field is hidden from the user but its default value is saved</span>
-                              </div>
-                              <input type="checkbox"
-                                checked={activeField.uiConfig?.hidden || false}
-                                onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "hidden", e.target.checked)}
-                                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
-                              />
-                            </label>
+                             <label className="flex items-center justify-between p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm bg-white">
+                               <div className="flex flex-col">
+                                 <span className="text-xs font-extrabold text-slate-800">Read-Only</span>
+                                 <span className="text-[11px] font-medium text-slate-500 mt-0.5">User can see but not edit this field</span>
+                               </div>
+                               <input type="checkbox"
+                                 checked={activeField.uiConfig?.readOnly || false}
+                                 onChange={(e) => {
+                                   const val = e.target.checked;
+                                   updateNestedObject(activeField.id, "uiConfig", "readOnly", val);
+                                   if (val) {
+                                     updateLocalField(activeField.id, "required", false);
+                                     updateNestedObject(activeField.id, "uiConfig", "hidden", false);
+                                   }
+                                 }}
+                                 className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
+                               />
+                             </label>
+ 
+                             <label className="flex items-center justify-between p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm bg-white">
+                               <div className="flex flex-col pr-2">
+                                 <span className="text-xs font-extrabold text-slate-800">Hidden Field</span>
+                                 <span className="text-[11px] font-medium text-slate-500 mt-0.5 leading-tight">Field is hidden from the user but its default value is saved</span>
+                               </div>
+                               <input type="checkbox"
+                                 checked={activeField.uiConfig?.hidden || false}
+                                 onChange={(e) => {
+                                   const val = e.target.checked;
+                                   updateNestedObject(activeField.id, "uiConfig", "hidden", val);
+                                   if (val) {
+                                     updateLocalField(activeField.id, "required", false);
+                                     updateNestedObject(activeField.id, "uiConfig", "readOnly", false);
+                                   }
+                                 }}
+                                 className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
+                               />
+                             </label>
                           </div>
                         </div>
                       )}
