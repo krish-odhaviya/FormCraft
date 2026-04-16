@@ -134,7 +134,9 @@ export default function BuilderPage() {
   const [isAddingPermission, setIsAddingPermission] = useState(false);
   const [dragOverGroupKey, setDragOverGroupKey] = useState(null);
   const [isDraggingOverCanvas, setIsDraggingOverCanvas] = useState(false);
+  const [isOverBottomArea, setIsOverBottomArea] = useState(false);
   const [dragOverFieldId, setDragOverFieldId] = useState(null);
+  const [dragTarget, setDragTarget] = useState({ id: null, position: null }); // { id, position: 'top' | 'bottom' | 'inside' }
   const [lastSavedFields, setLastSavedFields] = useState([]);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [showLogicModal, setShowLogicModal] = useState(false);
@@ -269,30 +271,34 @@ export default function BuilderPage() {
     };
   };
 
-  const handleSidebarDragStart = (e, type) => e.dataTransfer.setData("newFieldType", type);
-  const handleFieldDragStart = (e, index) => e.dataTransfer.setData("existingFieldIndex", index);
-  const handleDragOver = (e) => e.preventDefault();
+  const handleSidebarDragStart = (e, type) => {
+    e.dataTransfer.setData("newFieldType", type);
+    e.dataTransfer.effectAllowed = "copy";
+  };
 
-  const handleDropOnCanvas = (e) => {
+  const handleFieldDragStart = (e, id) => {
+    e.dataTransfer.setData("existingFieldId", id);
+    e.dataTransfer.effectAllowed = "move";
+    
+    // Create a custom ghost-like state without hiding the original immediately
+    // This makes the transition feel more solid
+    const el = e.currentTarget;
+    el.style.opacity = '0.4';
+    el.style.transform = 'scale(0.95)';
+    
+    setTimeout(() => {
+      // Revert styles on the source element so the user doesn't see a broken UI
+      if (el) {
+        el.style.opacity = '1';
+        el.style.transform = '';
+      }
+      setActiveFieldId(id);
+    }, 0);
+  };
+
+  const handleDragOver = (e) => {
     e.preventDefault();
-    setIsDraggingOverCanvas(false);
-    setDragOverFieldId(null);
-
-    const newFieldType = e.dataTransfer.getData("newFieldType");
-    const existingIdx = e.dataTransfer.getData("existingFieldIndex");
-
-    if (newFieldType) {
-      const newField = createNewField(newFieldType, localFields.length + 1);
-      setLocalFields((prev) => [...prev, newField]);
-      setActiveFieldId(newField.id);
-    } else if (existingIdx !== "") {
-      const fromIdx = Number(existingIdx);
-      setLocalFields((prev) => {
-        const list = [...prev];
-        list[fromIdx] = { ...list[fromIdx], parentId: null };
-        return list;
-      });
-    }
+    e.dataTransfer.dropEffect = "move";
   };
 
   const handleCanvasDragEnter = (e) => {
@@ -307,63 +313,107 @@ export default function BuilderPage() {
     }
   };
 
-  const handleDropOnField = (e, targetIndex) => {
+  const handleDropOnCanvas = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOverCanvas(false);
-    setDragOverFieldId(null);
+    setIsOverBottomArea(false);
+    setDragTarget({ id: null, position: null });
 
     const newFieldType = e.dataTransfer.getData("newFieldType");
-    const existingFieldIndex = e.dataTransfer.getData("existingFieldIndex");
-    const newFields = [...localFields];
+    const existingFieldId = e.dataTransfer.getData("existingFieldId");
 
     if (newFieldType) {
-      const newField = createNewField(newFieldType, targetIndex + 1);
-      newFields.splice(targetIndex, 0, newField);
-      setLocalFields(newFields);
+      const newField = createNewField(newFieldType, localFields.length + 1);
+      setLocalFields((prev) => [...prev, newField]);
       setActiveFieldId(newField.id);
-    } else if (existingFieldIndex !== "") {
-      const fromIndex = Number(existingFieldIndex);
-      if (fromIndex === targetIndex) return;
-      const [movedField] = newFields.splice(fromIndex, 1);
-      const targetField = localFields[targetIndex];
-      newFields.splice(targetIndex, 0, { ...movedField, parentId: targetField?.parentId || null });
-      setLocalFields(newFields);
+      toast.success(`Successfully added ${newFieldType.toLowerCase().replace('_', ' ')}`);
+    } else if (existingFieldId) {
+      setLocalFields((prev) => {
+        const fieldIdx = prev.findIndex(f => f.id === existingFieldId);
+        if (fieldIdx === -1) return prev;
+        
+        const list = [...prev];
+        const [moved] = list.splice(fieldIdx, 1);
+        // Moving to canvas background always makes it a root field
+        return [...list, { ...moved, parentId: null }];
+      });
     }
   };
 
-  const handleDropOnGroupChild = (e, targetIndex, groupFieldKey) => {
+  const handleDragOverField = (e, fieldId, position) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverFieldId(null);
+    
+    // Throttle the state update to prevent flickering
+    if (dragTarget.id !== fieldId || dragTarget.position !== position) {
+      setDragTarget({ id: fieldId, position });
+    }
+  };
+
+  const handleDropOnFieldInternal = (e, targetId, position) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const targetIdCopy = targetId; // stabilize
+    setDragTarget({ id: null, position: null });
+    setIsDraggingOverCanvas(false);
 
     const newFieldType = e.dataTransfer.getData("newFieldType");
-    const existingFieldIndex = e.dataTransfer.getData("existingFieldIndex");
+    const existingFieldId = e.dataTransfer.getData("existingFieldId");
 
-    if (newFieldType) {
-      if (newFieldType === "GROUP") return;
-      const newF = createNewField(newFieldType, localFields.length + 1);
-      newF.parentId = groupFieldKey;
-      const newFields = [...localFields];
-      newFields.splice(targetIndex, 0, newF);
-      setLocalFields(newFields);
-      setActiveFieldId(newF.id);
-    } else if (existingFieldIndex !== "") {
-      const fromIndex = Number(existingFieldIndex);
-      if (fromIndex === targetIndex) return;
+    setLocalFields(prev => {
+      let list = [...prev];
+      let movedField;
 
-      const draggedField = localFields[fromIndex];
-      if (!draggedField) return;
-      if (draggedField.fieldType === "GROUP") return;
+      // 1. Identify what we are moving
+      if (newFieldType) {
+        movedField = createNewField(newFieldType, 0);
+      } else if (existingFieldId) {
+        if (existingFieldId === targetIdCopy && position !== 'inside') return prev;
+        const idx = list.findIndex(f => f.id === existingFieldId);
+        if (idx === -1) return prev;
+        [movedField] = list.splice(idx, 1);
+      } else {
+        return prev;
+      }
 
-      setLocalFields(prev => {
-        const list = [...prev];
-        const [moved] = list.splice(fromIndex, 1);
-        const insertIndex = fromIndex < targetIndex ? targetIndex : targetIndex;
-        list.splice(insertIndex, 0, { ...moved, parentId: groupFieldKey });
-        return list;
-      });
-    }
+      // 2. Identify the target
+      const targetIdx = list.findIndex(f => f.id === targetIdCopy);
+      if (targetIdx === -1) {
+        // Fallback: append
+        movedField.parentId = null; // Groups/PageBreaks always null at root append
+        list.push(movedField);
+      } else {
+        const targetField = list[targetIdx];
+        
+        // 3. Apply context (parentId and position)
+        if (position === 'inside' && targetField.fieldType === 'GROUP') {
+          // Restriction: No nested groups or page breaks inside groups
+          if (movedField.fieldType === "GROUP" || movedField.fieldType === "PAGE_BREAK") {
+            toast.error(`${movedField.fieldType.replace('_', ' ')} must stay at the root level.`, { id: 'nesting-error' });
+            return prev;
+          }
+          movedField.parentId = targetField.fieldKey;
+          list.splice(targetIdx + 1, 0, movedField);
+        } else {
+          // Top or Bottom drop
+          const newParentId = targetField.parentId;
+          
+          // Restriction: Groups and Page Breaks can NEVER have a parent
+          if ((movedField.fieldType === "GROUP" || movedField.fieldType === "PAGE_BREAK") && newParentId !== null) {
+            toast.error(`${movedField.fieldType.replace('_', ' ')} can only be placed at the root level.`, { id: 'nesting-error' });
+            return prev; // Cancel the move entirely
+          }
+          
+          movedField.parentId = newParentId;
+          const insertIdx = position === 'top' ? targetIdx : targetIdx + 1;
+          list.splice(insertIdx, 0, movedField);
+        }
+      }
+
+      if (newFieldType) setActiveFieldId(movedField.id);
+      return list;
+    });
   };
 
   const updateLocalField = (id, key, value) =>
@@ -373,7 +423,7 @@ export default function BuilderPage() {
 
       let nextFields = prev.map((f) => {
         if (f.id !== id) return f;
-        
+
         let updatedField = { ...f, [key]: value };
 
         // If label changes, also update the fieldKey IF we are in DRAFT phase to avoid breaking schema.
@@ -510,8 +560,8 @@ export default function BuilderPage() {
       return;
     }
 
-    const invalidReadOnlyHidden = localFields.filter(f => 
-      (f.uiConfig?.readOnly || f.uiConfig?.hidden) && 
+    const invalidReadOnlyHidden = localFields.filter(f =>
+      (f.uiConfig?.readOnly || f.uiConfig?.hidden) &&
       (!f.uiConfig?.defaultValue || String(f.uiConfig.defaultValue).trim() === "")
     );
     if (invalidReadOnlyHidden.length > 0) {
@@ -520,7 +570,7 @@ export default function BuilderPage() {
       setActiveFieldId(invalidReadOnlyHidden[0].id);
       return;
     }
-    
+
     // SRS §2.3 Formula Validation
     for (const field of localFields) {
       const cond = parseConditions(field);
@@ -536,10 +586,10 @@ export default function BuilderPage() {
     }
 
     const keywordViolations = localFields.filter(f => {
-       if (!f.fieldKey) return false;
-       // Get the part before the last underscore (the label-derived base)
-       const baseKey = f.fieldKey.includes('_') ? f.fieldKey.split('_').slice(0, -1).join('_') : f.fieldKey;
-       return RESERVED_KEYWORDS.includes(baseKey.toUpperCase().trim());
+      if (!f.fieldKey) return false;
+      // Get the part before the last underscore (the label-derived base)
+      const baseKey = f.fieldKey.includes('_') ? f.fieldKey.split('_').slice(0, -1).join('_') : f.fieldKey;
+      return RESERVED_KEYWORDS.includes(baseKey.toUpperCase().trim());
     });
     if (keywordViolations.length > 0) {
       const baseName = keywordViolations[0].fieldKey.includes('_') ? keywordViolations[0].fieldKey.split('_').slice(0, -1).join('_') : keywordViolations[0].fieldKey;
@@ -635,10 +685,10 @@ export default function BuilderPage() {
     }
 
     const keywordViolations = localFields.filter(f => {
-       if (!f.fieldKey) return false;
-       // Get the part before the last underscore (the label-derived base)
-       const baseKey = f.fieldKey.includes('_') ? f.fieldKey.split('_').slice(0, -1).join('_') : f.fieldKey;
-       return RESERVED_KEYWORDS.includes(baseKey.toUpperCase().trim());
+      if (!f.fieldKey) return false;
+      // Get the part before the last underscore (the label-derived base)
+      const baseKey = f.fieldKey.includes('_') ? f.fieldKey.split('_').slice(0, -1).join('_') : f.fieldKey;
+      return RESERVED_KEYWORDS.includes(baseKey.toUpperCase().trim());
     });
     if (keywordViolations.length > 0) {
       const baseName = keywordViolations[0].fieldKey.includes('_') ? keywordViolations[0].fieldKey.split('_').slice(0, -1).join('_') : keywordViolations[0].fieldKey;
@@ -1131,10 +1181,10 @@ export default function BuilderPage() {
                         }}
                         onClick={(e) => { e.stopPropagation(); setActiveFieldId(child.id); e.currentTarget.blur(); }}
                         className={`p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer bg-white relative ${dragOverFieldId === child.id
-                            ? "border-t-4 border-t-indigo-500 border-indigo-200 shadow-md scale-[1.01] z-30"
-                            : activeFieldId === child.id
-                              ? "border-indigo-500 shadow-md ring-4 ring-indigo-50"
-                              : "border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow"
+                          ? "border-t-4 border-t-indigo-500 border-indigo-200 shadow-md scale-[1.01] z-30"
+                          : activeFieldId === child.id
+                            ? "border-indigo-500 shadow-md ring-4 ring-indigo-50"
+                            : "border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow"
                           }`}
                       >
                         <div className="flex justify-between items-start mb-2">
@@ -1190,16 +1240,173 @@ export default function BuilderPage() {
       }
     })();
 
-    return (
-      <div className="space-y-2.5">
-        {preview}
-        {helpText && <p className="text-xs font-medium text-slate-500 mt-1.5">{helpText}</p>}
-      </div>
-    );
-  };
+      return (
+        <div className="space-y-2.5">
+          {preview}
+          {helpText && <p className="text-xs font-medium text-slate-500 mt-1.5">{helpText}</p>}
+        </div>
+      );
+    };
 
-  return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden selection:bg-indigo-100 selection:text-indigo-900">
+    // Recursive Sortable Field Item
+    const SortableFieldItem = ({ field, level = 0 }) => {
+      const isGroup = field.fieldType === "GROUP";
+      const children = localFields.filter(f => f.parentId === field.fieldKey);
+      const isActive = activeFieldId === field.id;
+      const isTarget = dragTarget.id === field.id;
+
+      // Drop Line Indicator component for cleaner code
+      const DropLine = ({ position }) => {
+        const active = dragTarget.id === field.id && dragTarget.position === position;
+        return (
+          <div
+            onDragOver={(e) => handleDragOverField(e, field.id, position)}
+            onDragLeave={() => setDragTarget({ id: null, position: null })}
+            onDrop={(e) => handleDropOnFieldInternal(e, field.id, position)}
+            className={`relative w-full transition-all duration-300 z-50 overflow-visible ${active ? 'h-8' : 'h-2 hover:h-4'}`}
+          >
+            <div className={`absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center transition-all duration-300 ${active ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+              <div className="w-3 h-3 rounded-full bg-indigo-600 border-2 border-white shadow-sm -ml-1.5" />
+              <div className="flex-1 h-[3px] bg-gradient-to-r from-indigo-600 to-indigo-400 rounded-full shadow-sm" />
+              <div className="ml-2 px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black uppercase tracking-widest rounded-full shadow-sm">
+                Insert {position}
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      return (
+        <div 
+          className="relative group/sortable" 
+          style={{ 
+            transition: 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            zIndex: isTarget ? 40 : 10 
+          }}
+        >
+          {/* Drop Zone: Top */}
+          <DropLine position="top" />
+
+          <div
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation();
+              handleFieldDragStart(e, field.id);
+              // Make specific element semi-transparent during drag
+              e.currentTarget.classList.add('opacity-30');
+              e.currentTarget.classList.add('grayscale-[0.5]');
+            }}
+            onDragEnd={(e) => { 
+              e.currentTarget.classList.remove('opacity-30'); 
+              e.currentTarget.classList.remove('grayscale-[0.5]');
+              setDragTarget({ id: null, position: null }); 
+            }}
+            onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); }}
+            className={`group relative bg-white rounded-2xl transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] cursor-pointer border-2 outline-none overflow-hidden ${isActive
+              ? "border-indigo-600 shadow-2xl ring-4 ring-indigo-100 scale-[1.015] z-40 bg-white"
+              : isTarget
+                ? "border-indigo-400 bg-indigo-50/20 shadow-lg translate-x-1"
+                : "border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow-md hover:translate-y-[-1px]"
+              }`}
+          >
+            {/* Grip handle and color strip */}
+            <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors ${isActive ? 'bg-indigo-600' : 'bg-slate-100 group-hover:bg-indigo-300'}`} />
+            
+            <div className="absolute left-1 top-0 bottom-0 w-7 flex flex-col items-center justify-center text-slate-300 hover:text-indigo-600 group-hover:bg-slate-50/50 transition-all border-r border-slate-50 opacity-0 group-hover:opacity-100 z-10 cursor-grab active:cursor-grabbing">
+              <GripVertical size={18} />
+            </div>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); deleteLocalField(field.id, e); }}
+              className="absolute right-3 top-3 bg-white/80 backdrop-blur-sm border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 shadow-sm p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all z-20 hover:scale-110 active:scale-95"
+            >
+              <Trash2 size={14} />
+            </button>
+
+            <div className="p-4 pl-10">
+              <div className="flex items-center gap-2 mb-3">
+                <div className={`p-1.5 rounded-lg transition-all duration-300 ${isActive ? 'bg-indigo-600 text-white shadow-indigo-200 shadow-lg scale-110' : 'bg-slate-100 text-slate-500'}`}>
+                  {field.fieldType === 'TEXT' && <Type size={14} />}
+                  {field.fieldType === 'GROUP' && <LayoutTemplate size={14} />}
+                  {field.fieldType === 'PAGE_BREAK' && <BookOpen size={14} />}
+                  {!['TEXT', 'GROUP', 'PAGE_BREAK'].includes(field.fieldType) && <SlidersHorizontal size={14} />}
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 tracking-[0.15em] uppercase block mb-0.5">
+                    {field.fieldType.replace('_', ' ')}
+                  </label>
+                  <label className="text-sm font-black text-slate-800 tracking-tight leading-none capitalize">
+                    {field.fieldLabel} {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                  </label>
+                </div>
+                {field.conditions && (
+                  <div className="ml-auto flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 animate-pulse">
+                    <span className="text-[8px] font-black text-indigo-600 uppercase">Logic Active</span>
+                    <GitBranch size={10} className="text-indigo-500" />
+                  </div>
+                )}
+              </div>
+
+              {isGroup ? (
+                <div
+                  onDragOver={(e) => {
+                    if (children.length === 0) handleDragOverField(e, field.id, 'inside');
+                  }}
+                  onDrop={(e) => {
+                    if (children.length === 0) handleDropOnFieldInternal(e, field.id, 'inside');
+                  }}
+                  className={`min-h-[120px] rounded-2xl border-2 transition-all duration-500 relative overflow-hidden ${dragTarget.id === field.id && dragTarget.position === 'inside'
+                    ? "border-indigo-500 bg-indigo-50 shadow-[inset_0_4px_20px_rgba(99,102,241,0.1)] scale-[1.01]"
+                    : "border-slate-100 bg-slate-50/40 border-dashed"
+                    }`}
+                >
+                  {children.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
+                      <div className={`p-3 rounded-full mb-3 mb-2 transition-all ${dragTarget.id === field.id && dragTarget.position === 'inside' ? 'bg-indigo-600 text-white rotate-90 scale-125' : 'bg-white text-slate-300 shadow-sm opacity-20'}`}>
+                        <Plus size={24} />
+                      </div>
+                      <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-40">Group Container</p>
+                    </div>
+                  ) : (
+                    <div className="p-3 space-y-0.5">
+                      {children.map(child => (
+                        <SortableFieldItem key={child.id} field={child} level={level + 1} />
+                      ))}
+                      
+                      {/* Inside Bottom Target */}
+                      <div
+                        onDragOver={(e) => handleDragOverField(e, field.id, 'inside')}
+                        onDrop={(e) => handleDropOnFieldInternal(e, field.id, 'inside')}
+                        className={`mt-2 transition-all duration-500 rounded-xl flex items-center justify-center border-2 border-dashed ${dragTarget.id === field.id && dragTarget.position === 'inside' 
+                          ? 'h-16 bg-white border-indigo-500 shadow-md opacity-100' 
+                          : 'h-10 border-slate-200 bg-white/50 opacity-40 hover:opacity-100 hover:border-indigo-200'}`}
+                      >
+                        <div className={`flex items-center gap-2 transition-all ${dragTarget.id === field.id && dragTarget.position === 'inside' ? 'scale-110' : 'scale-100'}`}>
+                           <Plus size={14} className={dragTarget.id === field.id && dragTarget.position === 'inside' ? 'text-indigo-600 animate-bounce' : 'text-slate-400'} />
+                           <span className={`text-[9px] font-black uppercase tracking-widest ${dragTarget.id === field.id && dragTarget.position === 'inside' ? 'text-indigo-600' : 'text-slate-500'}`}>
+                             {dragTarget.id === field.id && dragTarget.position === 'inside' ? 'Drop to add to group' : 'Add to group'}
+                           </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="pointer-events-none opacity-90 group-hover:opacity-100 transition-all duration-300">
+                  {renderFieldPreview(field)}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Drop Zone: Bottom */}
+          <DropLine position="bottom" />
+        </div>
+      );
+    };
+
+    return (
+      <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden selection:bg-indigo-100 selection:text-indigo-900">
 
       {/* ── LEFT SIDEBAR ── */}
       <aside className={`bg-white border-r border-slate-200 flex flex-col shrink-0 z-[60] shadow-[1px_0_10px_rgba(0,0,0,0.02)] h-screen overflow-hidden transition-all duration-300 ease-in-out fixed lg:relative lg:translate-x-0 ${leftSidebarOpen ? "w-[260px] translate-x-0" : "w-0 -translate-x-full lg:w-0"}`}>
@@ -1314,7 +1521,7 @@ export default function BuilderPage() {
             <Link href={`/forms/${formId}/versions`} className="hidden md:flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-2 rounded-xl transition-all border border-transparent hover:border-indigo-100">
               <GitBranch size={16} /> <span className="hidden lg:inline">Versions</span>
             </Link>
-            <button 
+            <button
               onClick={() => setShowLogicModal(true)}
               className="hidden md:flex items-center gap-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-2 rounded-xl transition-all border border-indigo-100 hover:border-indigo-200"
             >
@@ -1360,96 +1567,63 @@ export default function BuilderPage() {
             }`}
           onClick={() => setActiveFieldId(null)}
         >
-          <div className="w-full max-w-3xl space-y-5 mx-auto">
+          <div className="w-full max-w-3xl space-y-2 mx-auto pb-64">
 
             {localFields.length === 0 ? (
-              <div className={`h-72 border-[3px] border-dashed rounded-3xl flex flex-col items-center justify-center transition-colors duration-300 ${isDraggingOverCanvas
-                  ? "border-indigo-400 bg-indigo-50/50 text-indigo-500"
+              <div
+                onDrop={handleDropOnCanvas}
+                onDragOver={handleDragOver}
+                className={`h-72 border-[3px] border-dashed rounded-3xl flex flex-col items-center justify-center transition-all duration-500 ${isDraggingOverCanvas
+                  ? "border-indigo-400 bg-indigo-50 shadow-2xl scale-[1.02]"
                   : "border-slate-200 hover:border-indigo-300 bg-white/50 text-slate-400"
-                }`}>
-                <div className={`p-4 rounded-2xl shadow-sm border mb-4 transition-colors ${isDraggingOverCanvas ? "bg-indigo-100 border-indigo-200" : "bg-white border-slate-100"
                   }`}>
-                  <Plus size={32} className={isDraggingOverCanvas ? "text-indigo-600" : "text-indigo-400"} />
+                <div className={`p-5 rounded-2xl shadow-sm border mb-4 transition-all duration-300 ${isDraggingOverCanvas ? "bg-indigo-600 border-indigo-700 animate-bounce" : "bg-white border-slate-100"
+                  }`}>
+                  <Plus size={32} className={isDraggingOverCanvas ? "text-white" : "text-indigo-400"} />
                 </div>
-                <p className={`font-extrabold text-lg tracking-tight ${isDraggingOverCanvas ? "text-indigo-700" : "text-slate-700"}`}>
+                <p className={`font-black text-xl tracking-tight ${isDraggingOverCanvas ? "text-indigo-700" : "text-slate-700"}`}>
                   {isDraggingOverCanvas ? "Drop to add field" : "Your form is empty"}
                 </p>
-                <p className="text-sm mt-1.5 font-medium">
-                  {isDraggingOverCanvas ? "Release the mouse button here." : "Drag and drop elements from the left panel."}
+                <p className="text-sm mt-2 font-semibold opacity-60">
+                  {isDraggingOverCanvas ? "Release now to create this element." : "Drag and drop elements from the left panel."}
                 </p>
               </div>
             ) : (
-              <>
-                {localFields.filter(f => !f.parentId).map((field) => {
-                  const realIndex = localFields.indexOf(field);
-                  return (
-                    <div
-                      key={field.id}
-                      draggable
-                      tabIndex={-1}
-                      onDragStart={(e) => handleFieldDragStart(e, realIndex)}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setDragOverFieldId(field.id);
-                      }}
-                      onDragLeave={(e) => {
-                        e.stopPropagation();
-                        if (e.currentTarget && !e.currentTarget.contains(e.relatedTarget)) {
-                          setDragOverFieldId(null);
-                        }
-                      }}
-                      onDrop={(e) => handleDropOnField(e, realIndex)}
-                      onClick={(e) => { e.stopPropagation(); setActiveFieldId(field.id); e.currentTarget.blur(); }}
-                      className={`group relative bg-white rounded-2xl transition-all duration-200 ease-in-out cursor-pointer border-2 outline-none ${dragOverFieldId === field.id
-                          ? "border-t-[6px] border-t-indigo-500 border-indigo-200 shadow-xl scale-[1.02] z-30"
-                          : activeFieldId === field.id
-                            ? "border-indigo-500 shadow-lg ring-4 ring-indigo-50"
-                            : "border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow-md"
-                        }`}
-                    >
-                      <div className="absolute left-0 top-0 bottom-0 w-10 flex flex-col items-center justify-center text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity bg-slate-50 rounded-l-[22px] border-r border-slate-100 z-10">
-                        <GripVertical size={20} />
-                      </div>
-                      <button
-                        onClick={(e) => deleteLocalField(field.id, e)}
-                        className="absolute -right-3 -top-3 bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 shadow-md p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all z-20 hover:scale-110"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                      {field.conditions && (() => {
-                        try {
-                          const c = JSON.parse(field.conditions);
-                          if (c.rules?.length > 0) return (
-                            <div className="absolute -left-3 -top-3 bg-indigo-600 text-white p-1.5 rounded-full shadow-md z-20 border-2 border-white" title="Has conditions">
-                              <GitBranch size={14} />
-                            </div>
-                          );
-                        } catch { }
-                        return null;
-                      })()}
-                      <div className={`p-3 pl-10 ${field.fieldType === "GROUP" ? "" : "pointer-events-none"}`}>
-                        <label className="block text-xs font-bold text-slate-900 mb-2 tracking-tight">
-                          {field.fieldLabel} {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                        </label>
-                        {renderFieldPreview(field)}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {localFields.filter(f => !f.parentId).map((field) => (
+                  <SortableFieldItem key={field.id} field={field} />
+                ))}
 
-                {/* Physical spacer to guarantee scroll depth */}
-                <div className="h-[400px] w-full pointer-events-none" />
-
-                {/* Dynamic Drop Area Indicator for existing lists */}
-                {isDraggingOverCanvas && !dragOverFieldId && localFields.length > 0 && (
-                  <div className="h-24 border-[3px] border-dashed border-indigo-400 bg-indigo-50/60 rounded-[24px] flex items-center justify-center shadow-inner animate-in fade-in slide-in-from-bottom-4 duration-300">
-                    <p className="font-extrabold text-indigo-600 tracking-widest uppercase text-sm">
-                      Drop here to append
-                    </p>
+                {/* Drop here to append at root */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsOverBottomArea(true);
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsOverBottomArea(true);
+                  }}
+                  onDragLeave={() => setIsOverBottomArea(false)}
+                  onDrop={(e) => {
+                    e.stopPropagation();
+                    handleDropOnCanvas(e);
+                  }}
+                  className={`mt-12 h-32 border-[3px] border-dashed rounded-[32px] flex flex-col items-center justify-center transition-all duration-500 group/bottom ${isOverBottomArea
+                    ? "border-indigo-500 bg-indigo-50 shadow-2xl scale-[1.02]"
+                    : "border-slate-100 bg-slate-50/20 text-slate-300 opacity-60 hover:opacity-100 hover:border-slate-300"
+                    }`}
+                >
+                  <div className={`p-4 rounded-full mb-3 transition-all duration-300 ${isOverBottomArea ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-slate-300 shadow-sm'}`}>
+                    <Plus size={24} />
                   </div>
-                )}
-              </>
+                  <p className={`font-black text-xs tracking-[0.2em] uppercase transition-colors ${isOverBottomArea ? 'text-indigo-600' : 'text-slate-400'}`}>
+                    {isOverBottomArea ? "Drop to append at bottom" : "Drag here to add to root"}
+                  </p>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -1487,284 +1661,249 @@ export default function BuilderPage() {
             <>
               <div className="border-b border-slate-100 bg-white">
                 {activeField ? (
-                <div className="flex px-4 pt-2">
-                  <button
-                    onClick={() => setActiveTab('settings')}
-                    className={`pb-3 px-4 text-sm font-bold border-b-[3px] transition-colors ${activeTab === 'settings' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-                  >
-                    Settings
-                  </button>
-                  {(activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL") && (
+                  <div className="flex px-4 pt-2">
                     <button
-                      onClick={() => setActiveTab('rules')}
-                      className={`pb-3 px-4 text-sm font-bold border-b-[3px] transition-colors ${activeTab === 'rules' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                      onClick={() => setActiveTab('settings')}
+                      className={`pb-3 px-4 text-sm font-bold border-b-[3px] transition-colors ${activeTab === 'settings' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
                     >
-                      Rules
+                      Settings
                     </button>
-                  )}
-                </div>
-              ) : (
-                <div className="h-[46px]"></div>
-              )}
-            </div>
-
-            <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
-              {!activeField ? (
-                <div className="text-center mt-12 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-slate-200">
-                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white shadow-sm border border-slate-100 mb-4">
-                    <SlidersHorizontal size={20} className="text-indigo-400" />
+                    {(activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL") && (
+                      <button
+                        onClick={() => setActiveTab('rules')}
+                        className={`pb-3 px-4 text-sm font-bold border-b-[3px] transition-colors ${activeTab === 'rules' ? 'border-indigo-600 text-indigo-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                      >
+                        Rules
+                      </button>
+                    )}
                   </div>
-                  <p className="text-xs font-bold text-slate-700">No field selected</p>
-                  <p className="text-[10px] text-slate-500 mt-1 font-medium leading-relaxed">Click on any field in the canvas to edit its properties.</p>
-                </div>
-              ) : (
-                <div className="space-y-5">
+                ) : (
+                  <div className="h-[46px]"></div>
+                )}
+              </div>
 
-                  {activeTab === 'settings' ? (
-                    <>
-                      <div className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-md border border-indigo-100/50 w-fit">
-                        {activeField.fieldType.replace(/_/g, " ")}
-                      </div>
+              <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
+                {!activeField ? (
+                  <div className="text-center mt-12 bg-slate-50/50 p-6 rounded-2xl border border-dashed border-slate-200">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-white shadow-sm border border-slate-100 mb-4">
+                      <SlidersHorizontal size={20} className="text-indigo-400" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-700">No field selected</p>
+                    <p className="text-[10px] text-slate-500 mt-1 font-medium leading-relaxed">Click on any field in the canvas to edit its properties.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
 
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
-                          {activeField.fieldType === "SECTION" ? "Section Title" : 
-                           activeField.fieldType === "LABEL" ? "Heading / Text" : 
-                           activeField.fieldType === "GROUP" ? "Group Title" : 
-                           activeField.fieldType === "PAGE_BREAK" ? "Page Name" : "Question / Label"} <span className="text-red-500 font-black">*</span>
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={activeField.fieldLabel}
-                          onChange={(e) => updateLocalField(activeField.id, "fieldLabel", e.target.value)}
-                          className={`w-full bg-slate-50 border rounded-lg px-3 py-2 text-xs text-slate-900 font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm ${(!activeField.fieldLabel?.trim() || RESERVED_KEYWORDS.includes((activeField.fieldLabel || "").toUpperCase().trim())) ? 'border-red-300' : 'border-slate-200'}`}
-                          placeholder="Enter your question name..."
-                        />
-                        {!activeField.fieldLabel?.trim() && <p className="text-[9px] font-bold text-red-500">Name is required.</p>}
-                        {activeField.fieldLabel?.trim() && RESERVED_KEYWORDS.includes(activeField.fieldLabel.toUpperCase().trim()) && (
-                          <p className="text-[9px] font-bold text-red-500 flex items-center gap-1">
-                            <ShieldAlert size={10} /> '{activeField.fieldLabel}' is a reserved SQL keyword.
-                          </p>
-                        )}
-                      </div>
-                      
-                      {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL" || activeField.fieldType === "GROUP") && (
-                        <div className="pt-2 animate-in fade-in slide-in-from-top-1 duration-300">
-                           <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 flex items-center justify-between">
-                            <span>Description</span>
-                            <span className="text-[9px] font-bold text-slate-400 normal-case bg-slate-100 px-1.5 py-0.5 rounded">Optional</span>
+                    {activeTab === 'settings' ? (
+                      <>
+                        <div className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-md border border-indigo-100/50 w-fit">
+                          {activeField.fieldType.replace(/_/g, " ")}
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1">
+                            {activeField.fieldType === "SECTION" ? "Section Title" :
+                              activeField.fieldType === "LABEL" ? "Heading / Text" :
+                                activeField.fieldType === "GROUP" ? "Group Title" :
+                                  activeField.fieldType === "PAGE_BREAK" ? "Page Name" : "Question / Label"} <span className="text-red-500 font-black">*</span>
                           </label>
                           <textarea
-                            rows={3}
-                            value={activeField.uiConfig?.helpText || ""}
-                            onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
-                            placeholder="Add a detailed description or sub-text..."
+                            rows={2}
+                            value={activeField.fieldLabel}
+                            onChange={(e) => updateLocalField(activeField.id, "fieldLabel", e.target.value)}
+                            className={`w-full bg-slate-50 border rounded-lg px-3 py-2 text-xs text-slate-900 font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm ${(!activeField.fieldLabel?.trim() || RESERVED_KEYWORDS.includes((activeField.fieldLabel || "").toUpperCase().trim())) ? 'border-red-300' : 'border-slate-200'}`}
+                            placeholder="Enter your question name..."
                           />
-                        </div>
-                      )}
-
-
-
-                      {OPTIONS_BASED_TYPES.includes(activeField.fieldType) && (
-                        <div className="space-y-4 pt-5 border-t border-slate-100">
-                          <label className="block text-sm font-bold text-slate-800">Options</label>
-                          <div className="space-y-2.5">
-                            {activeField.options?.map((opt, idx) => (
-                              <div key={idx} className="flex items-center gap-3">
-                                {activeField.fieldType === "RADIO" && <CircleDot size={18} className="text-slate-400 shrink-0" />}
-                                {activeField.fieldType === "CHECKBOX_GROUP" && <div className="w-4 h-4 rounded border-2 border-slate-300 shrink-0"></div>}
-                                {activeField.fieldType === "DROPDOWN" && <span className="text-xs font-black text-slate-400 shrink-0 w-4 text-right">{idx + 1}.</span>}
-                                <input
-                                  type="text" value={opt}
-                                  onChange={(e) => updateOption(activeField.id, idx, e.target.value)}
-                                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                                />
-                                <button onClick={() => deleteOption(activeField.id, idx)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100">
-                                  <X size={18} />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          <button onClick={() => addOption(activeField.id)} className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 mt-3 px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100">
-                            <Plus size={16} strokeWidth={2.5} /> Add option
-                          </button>
-                        </div>
-                      )}
-
-                      {activeField.fieldType === "STAR_RATING" && (
-                        <div className="space-y-2 pt-4 border-t border-slate-100">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Max Stars</label>
-                          <input type="number" onWheel={(e) => e.target.blur()} min={1} max={10}
-                            value={activeField.uiConfig?.maxStars || 5}
-                            onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxStars", Number(e.target.value))}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                          />
-                        </div>
-                      )}
-
-                      {activeField.fieldType === "LINEAR_SCALE" && (
-                        <div className="space-y-3 pt-4 border-t border-slate-100">
-                          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Scale Range</label>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Min</label>
-                              <input type="number" onWheel={(e) => e.target.blur()} value={activeField.uiConfig?.scaleMin ?? 1} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMin", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Max</label>
-                              <input type="number" onWheel={(e) => e.target.blur()} value={activeField.uiConfig?.scaleMax ?? 5} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMax", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Low Label</label>
-                            <input type="text" value={activeField.uiConfig?.lowLabel || ""} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "lowLabel", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. Not likely" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">High Label</label>
-                            <input type="text" value={activeField.uiConfig?.highLabel || ""} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "highLabel", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. Very likely" />
-                          </div>
-                        </div>
-                      )}
-
-                      {activeField.fieldType === "LOOKUP_DROPDOWN" && (
-                        <div className="space-y-4 pt-5 border-t border-slate-100">
-                          <label className="block text-sm font-bold text-slate-800">Source Form</label>
-                          <select
-                            value={activeField.uiConfig?.sourceTable || ""}
-                            onChange={(e) => {
-                              updateNestedObject(activeField.id, "uiConfig", "sourceTable", e.target.value);
-                              updateNestedObject(activeField.id, "uiConfig", "sourceColumn", "id");
-                              updateNestedObject(activeField.id, "uiConfig", "sourceDisplayColumn", "");
-                            }}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                          >
-                            <option value="">Select a form...</option>
-                            {publishedForms.map((f) => (
-                              <option key={f.formId} value={f.tableName}>{f.formName}</option>
-                            ))}
-                          </select>
-                          {activeField.uiConfig?.sourceTable && (
-                            <div className="pt-2">
-                              <label className="block text-sm font-bold text-slate-800 mb-1.5">Display Column</label>
-                              <select
-                                value={activeField.uiConfig?.sourceDisplayColumn || ""}
-                                onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "sourceDisplayColumn", e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                              >
-                                <option value="">Select column to display...</option>
-                                {(publishedForms.find((f) => f.tableName === activeField.uiConfig.sourceTable)?.fields || []).map((f) => (
-                                  <option key={f.key} value={f.key}>{f.label}</option>
-                                ))}
-                              </select>
-                              <p className="text-xs font-medium text-slate-400 mt-2 bg-slate-50 p-2 rounded-lg border border-slate-100">This column will show in the dropdown. The record ID is always stored.</p>
-                            </div>
+                          {!activeField.fieldLabel?.trim() && <p className="text-[9px] font-bold text-red-500">Name is required.</p>}
+                          {activeField.fieldLabel?.trim() && RESERVED_KEYWORDS.includes(activeField.fieldLabel.toUpperCase().trim()) && (
+                            <p className="text-[9px] font-bold text-red-500 flex items-center gap-1">
+                              <ShieldAlert size={10} /> '{activeField.fieldLabel}' is a reserved SQL keyword.
+                            </p>
                           )}
                         </div>
-                      )}
 
-                      {(activeField.fieldType === "DROPDOWN" || activeField.fieldType === "LOOKUP_DROPDOWN") && (
-                        <div className="space-y-4 pt-5 border-t border-slate-100">
-                          <label className="block text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
-                            <Users size={16} className="text-indigo-500" />
-                            Selection Mode
-                          </label>
-                          <div className="grid grid-cols-2 gap-2">
-                            {['single', 'multiple'].map(mode => (
-                              <button
-                                key={mode}
-                                onClick={() => updateNestedObject(activeField.id, "uiConfig", "selectionMode", mode)}
-                                className={`px-4 py-3 text-xs font-bold rounded-xl border-2 transition-all ${(activeField.uiConfig?.selectionMode || 'single') === mode
-                                    ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm"
-                                    : "border-slate-200 bg-white text-slate-500 hover:border-indigo-200"
-                                  }`}
-                              >
-                                {mode === 'single' ? 'Single Select' : 'Multi Select'}
-                              </button>
-                            ))}
-                          </div>
-                          {(activeField.uiConfig?.selectionMode === 'multiple') && (
-                            <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                              <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 flex items-center justify-between">
-                                <span>Max Selections</span>
-                                <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-400">Optional</span>
-                              </label>
-                              <input
-                                type="number"
-                                onWheel={(e) => e.target.blur()}
-                                min={1}
-                                value={activeField.uiConfig?.maxSelections || ""}
-                                onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxSelections", e.target.value ? Number(e.target.value) : null)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                                placeholder="No limit"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {activeField.fieldType === "FILE_UPLOAD" && (
-                        <div className="space-y-4 pt-5 border-t border-slate-100">
-                          <div>
-                            <label className="block text-sm font-bold text-slate-800 mb-1.5">Max File Size (MB)</label>
-                            <input type="number" onWheel={(e) => e.target.blur()} min={1} max={100}
-                              value={activeField.uiConfig?.maxFileSizeMb || 5}
-                              onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxFileSizeMb", Number(e.target.value))}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                        {(activeField.fieldType === "SECTION" || activeField.fieldType === "LABEL" || activeField.fieldType === "GROUP") && (
+                          <div className="pt-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1.5 flex items-center justify-between">
+                              <span>Description</span>
+                              <span className="text-[9px] font-bold text-slate-400 normal-case bg-slate-100 px-1.5 py-0.5 rounded">Optional</span>
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={activeField.uiConfig?.helpText || ""}
+                              onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
+                              placeholder="Add a detailed description or sub-text..."
                             />
                           </div>
-                          <div className="pt-2">
-                            <label className="block text-sm font-bold text-slate-800 mb-2">Accepted File Types</label>
+                        )}
+
+
+
+                        {OPTIONS_BASED_TYPES.includes(activeField.fieldType) && (
+                          <div className="space-y-4 pt-5 border-t border-slate-100">
+                            <label className="block text-sm font-bold text-slate-800">Options</label>
                             <div className="space-y-2.5">
-                              {(activeField.uiConfig?.acceptedFileTypes || []).map((ft, idx) => (
+                              {activeField.options?.map((opt, idx) => (
                                 <div key={idx} className="flex items-center gap-3">
-                                  <input type="text" value={ft}
-                                    onChange={(e) => {
-                                      const updated = [...(activeField.uiConfig?.acceptedFileTypes || [])];
-                                      updated[idx] = e.target.value;
-                                      updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
-                                    }}
-                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-mono font-bold text-indigo-700 hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                                    placeholder=".pdf"
+                                  {activeField.fieldType === "RADIO" && <CircleDot size={18} className="text-slate-400 shrink-0" />}
+                                  {activeField.fieldType === "CHECKBOX_GROUP" && <div className="w-4 h-4 rounded border-2 border-slate-300 shrink-0"></div>}
+                                  {activeField.fieldType === "DROPDOWN" && <span className="text-xs font-black text-slate-400 shrink-0 w-4 text-right">{idx + 1}.</span>}
+                                  <input
+                                    type="text" value={opt}
+                                    onChange={(e) => updateOption(activeField.id, idx, e.target.value)}
+                                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
                                   />
-                                  <button onClick={() => {
-                                    const updated = (activeField.uiConfig?.acceptedFileTypes || []).filter((_, i) => i !== idx);
-                                    updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
-                                  }} className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors border border-transparent hover:border-red-100">
+                                  <button onClick={() => deleteOption(activeField.id, idx)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100">
                                     <X size={18} />
                                   </button>
                                 </div>
                               ))}
                             </div>
-                            <button onClick={() => {
-                              const updated = [...(activeField.uiConfig?.acceptedFileTypes || []), ""];
-                              updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
-                            }} className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 mt-3 px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100">
-                              <Plus size={16} strokeWidth={2.5} /> Add file type
+                            <button onClick={() => addOption(activeField.id)} className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 mt-3 px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100">
+                              <Plus size={16} strokeWidth={2.5} /> Add option
                             </button>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {GRID_TYPES.includes(activeField.fieldType) && (
-                        <div className="space-y-5 pt-5 border-t border-slate-100">
-                          {["rows", "columns"].map((key) => (
-                            <div key={key}>
-                              <label className="block text-sm font-bold text-slate-800 capitalize mb-2.5">{key}</label>
+                        {activeField.fieldType === "STAR_RATING" && (
+                          <div className="space-y-2 pt-4 border-t border-slate-100">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Max Stars</label>
+                            <input type="number" onWheel={(e) => e.target.blur()} min={1} max={10}
+                              value={activeField.uiConfig?.maxStars || 5}
+                              onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxStars", Number(e.target.value))}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                            />
+                          </div>
+                        )}
+
+                        {activeField.fieldType === "LINEAR_SCALE" && (
+                          <div className="space-y-3 pt-4 border-t border-slate-100">
+                            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500">Scale Range</label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Min</label>
+                                <input type="number" onWheel={(e) => e.target.blur()} value={activeField.uiConfig?.scaleMin ?? 1} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMin", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" />
+                              </div>
+                              <div>
+                                <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Max</label>
+                                <input type="number" onWheel={(e) => e.target.blur()} value={activeField.uiConfig?.scaleMax ?? 5} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "scaleMax", Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">Low Label</label>
+                              <input type="text" value={activeField.uiConfig?.lowLabel || ""} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "lowLabel", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. Not likely" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5">High Label</label>
+                              <input type="text" value={activeField.uiConfig?.highLabel || ""} onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "highLabel", e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. Very likely" />
+                            </div>
+                          </div>
+                        )}
+
+                        {activeField.fieldType === "LOOKUP_DROPDOWN" && (
+                          <div className="space-y-4 pt-5 border-t border-slate-100">
+                            <label className="block text-sm font-bold text-slate-800">Source Form</label>
+                            <select
+                              value={activeField.uiConfig?.sourceTable || ""}
+                              onChange={(e) => {
+                                updateNestedObject(activeField.id, "uiConfig", "sourceTable", e.target.value);
+                                updateNestedObject(activeField.id, "uiConfig", "sourceColumn", "id");
+                                updateNestedObject(activeField.id, "uiConfig", "sourceDisplayColumn", "");
+                              }}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                            >
+                              <option value="">Select a form...</option>
+                              {publishedForms.map((f) => (
+                                <option key={f.formId} value={f.tableName}>{f.formName}</option>
+                              ))}
+                            </select>
+                            {activeField.uiConfig?.sourceTable && (
+                              <div className="pt-2">
+                                <label className="block text-sm font-bold text-slate-800 mb-1.5">Display Column</label>
+                                <select
+                                  value={activeField.uiConfig?.sourceDisplayColumn || ""}
+                                  onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "sourceDisplayColumn", e.target.value)}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                >
+                                  <option value="">Select column to display...</option>
+                                  {(publishedForms.find((f) => f.tableName === activeField.uiConfig.sourceTable)?.fields || []).map((f) => (
+                                    <option key={f.key} value={f.key}>{f.label}</option>
+                                  ))}
+                                </select>
+                                <p className="text-xs font-medium text-slate-400 mt-2 bg-slate-50 p-2 rounded-lg border border-slate-100">This column will show in the dropdown. The record ID is always stored.</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {(activeField.fieldType === "DROPDOWN" || activeField.fieldType === "LOOKUP_DROPDOWN") && (
+                          <div className="space-y-4 pt-5 border-t border-slate-100">
+                            <label className="block text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+                              <Users size={16} className="text-indigo-500" />
+                              Selection Mode
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {['single', 'multiple'].map(mode => (
+                                <button
+                                  key={mode}
+                                  onClick={() => updateNestedObject(activeField.id, "uiConfig", "selectionMode", mode)}
+                                  className={`px-4 py-3 text-xs font-bold rounded-xl border-2 transition-all ${(activeField.uiConfig?.selectionMode || 'single') === mode
+                                    ? "border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm"
+                                    : "border-slate-200 bg-white text-slate-500 hover:border-indigo-200"
+                                    }`}
+                                >
+                                  {mode === 'single' ? 'Single Select' : 'Multi Select'}
+                                </button>
+                              ))}
+                            </div>
+                            {(activeField.uiConfig?.selectionMode === 'multiple') && (
+                              <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 flex items-center justify-between">
+                                  <span>Max Selections</span>
+                                  <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-400">Optional</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  onWheel={(e) => e.target.blur()}
+                                  min={1}
+                                  value={activeField.uiConfig?.maxSelections || ""}
+                                  onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxSelections", e.target.value ? Number(e.target.value) : null)}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                  placeholder="No limit"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {activeField.fieldType === "FILE_UPLOAD" && (
+                          <div className="space-y-4 pt-5 border-t border-slate-100">
+                            <div>
+                              <label className="block text-sm font-bold text-slate-800 mb-1.5">Max File Size (MB)</label>
+                              <input type="number" onWheel={(e) => e.target.blur()} min={1} max={100}
+                                value={activeField.uiConfig?.maxFileSizeMb || 5}
+                                onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "maxFileSizeMb", Number(e.target.value))}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                              />
+                            </div>
+                            <div className="pt-2">
+                              <label className="block text-sm font-bold text-slate-800 mb-2">Accepted File Types</label>
                               <div className="space-y-2.5">
-                                {(activeField.validation?.[key] || []).map((val, idx) => (
+                                {(activeField.uiConfig?.acceptedFileTypes || []).map((ft, idx) => (
                                   <div key={idx} className="flex items-center gap-3">
-                                    <input type="text" value={val}
+                                    <input type="text" value={ft}
                                       onChange={(e) => {
-                                        const updated = [...(activeField.validation?.[key] || [])];
+                                        const updated = [...(activeField.uiConfig?.acceptedFileTypes || [])];
                                         updated[idx] = e.target.value;
-                                        updateNestedObject(activeField.id, "validation", key, updated);
+                                        updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
                                       }}
-                                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-mono font-bold text-indigo-700 hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                      placeholder=".pdf"
                                     />
                                     <button onClick={() => {
-                                      const updated = (activeField.validation?.[key] || []).filter((_, i) => i !== idx);
-                                      updateNestedObject(activeField.id, "validation", key, updated);
+                                      const updated = (activeField.uiConfig?.acceptedFileTypes || []).filter((_, i) => i !== idx);
+                                      updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
                                     }} className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors border border-transparent hover:border-red-100">
                                       <X size={18} />
                                     </button>
@@ -1772,877 +1911,910 @@ export default function BuilderPage() {
                                 ))}
                               </div>
                               <button onClick={() => {
-                                const current = activeField.validation?.[key] || [];
-                                const lbl = key === "rows" ? "Row" : "Column";
-                                updateNestedObject(activeField.id, "validation", key, [...current, `${lbl} ${current.length + 1}`]);
+                                const updated = [...(activeField.uiConfig?.acceptedFileTypes || []), ""];
+                                updateNestedObject(activeField.id, "uiConfig", "acceptedFileTypes", updated);
                               }} className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 mt-3 px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100">
-                                <Plus size={16} strokeWidth={2.5} /> Add {key === "rows" ? "row" : "column"}
+                                <Plus size={16} strokeWidth={2.5} /> Add file type
                               </button>
                             </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && activeField.fieldType !== "GROUP" && activeField.fieldType !== "PAGE_BREAK" && (
-                        <div className="pt-5 border-t border-slate-100">
-                          <label className={`flex items-center justify-between p-4 border-2 rounded-xl transition-colors ${
-                              (activeField.uiConfig?.readOnly || activeField.uiConfig?.hidden) 
-                              ? 'bg-slate-50 border-slate-100 cursor-not-allowed opacity-60' 
-                              : 'cursor-pointer hover:bg-slate-50 hover:border-slate-200 border-slate-100'
-                            }`}>
-                            <div className="flex flex-col">
-                              <span className="text-sm font-extrabold text-slate-800 tracking-tight">Required Field</span>
-                              <span className="text-xs font-medium text-slate-500 mt-0.5">
-                                {(activeField.uiConfig?.readOnly || activeField.uiConfig?.hidden) 
-                                  ? 'Not available for Read-Only or Hidden fields' 
-                                  : 'Force users to answer this'}
-                              </span>
-                            </div>
-                            <input type="checkbox" 
-                              checked={activeField.required && !activeField.uiConfig?.readOnly && !activeField.uiConfig?.hidden}
-                              disabled={activeField.uiConfig?.readOnly || activeField.uiConfig?.hidden}
-                              onChange={(e) => updateLocalField(activeField.id, "required", e.target.checked)}
-                              className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all disabled:cursor-not-allowed"
-                            />
-                          </label>
-                        </div>
-                      )}
-
-                      {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && activeField.fieldType !== "GROUP" && activeField.fieldType !== "PAGE_BREAK" && (
-                        <div className="pt-5 border-t border-slate-100">
-                          <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2.5 mb-5 uppercase tracking-wider">
-                            <MonitorPlay size={18} className="text-indigo-500" /> Display Settings
-                          </h3>
-                          <div className="space-y-4">
-                            {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
-                              activeField.fieldType !== "BOOLEAN" &&
-                              activeField.fieldType !== "LINEAR_SCALE" &&
-                              activeField.fieldType !== "STAR_RATING" &&
-                              !GRID_TYPES.includes(activeField.fieldType) &&
-                              activeField.fieldType !== "FILE_UPLOAD" &&
-                              activeField.fieldType !== "LOOKUP_DROPDOWN" && (
-                                <div>
-                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Placeholder Text</label>
-                                  <input type="text" value={activeField.uiConfig?.placeholder || ""}
-                                    onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "placeholder", e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                                    placeholder="e.g. Type your answer here..."
-                                  />
-                                </div>
-                              )}
-                            {activeField.fieldType !== "SECTION" && 
-                             activeField.fieldType !== "LABEL" && 
-                             activeField.fieldType !== "GROUP" && (
-                              <div>
-                                <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Help / Subtext</label>
-                                <textarea rows={2} value={activeField.uiConfig?.helpText || ""}
-                                  onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
-                                  placeholder="Add hints or instructions for users..."
-                                />
-                              </div>
-                            )}
-
-                            {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
-                              !GRID_TYPES.includes(activeField.fieldType) &&
-                              activeField.fieldType !== "BOOLEAN" &&
-                              activeField.fieldType !== "LINEAR_SCALE" &&
-                              activeField.fieldType !== "FILE_UPLOAD" &&
-                              activeField.fieldType !== "LOOKUP_DROPDOWN" && (
-                                <div>
-                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Default Value</label>
-                                  <input
-                                    type={activeField.fieldType === "INTEGER" ? "number" : activeField.fieldType === "DATE" ? "date" : activeField.fieldType === "TIME" ? "time" : activeField.fieldType === "DATETIME" ? "datetime-local" : activeField.fieldType === "PHONE" ? "tel" : "text"}
-                                    value={activeField.uiConfig?.defaultValue || ""}
-                                    onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "defaultValue", e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                                    placeholder="Pre-fill this field with a value..."
-                                  />
-                                  <p className="text-[11px] font-medium text-slate-400 mt-1.5">This value will be pre-filled when the form loads. Users can change it unless Read-Only is enabled.</p>
-                                </div>
-                              )}
-
-                             <label className="flex items-center justify-between p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm bg-white">
-                               <div className="flex flex-col">
-                                 <span className="text-xs font-extrabold text-slate-800">Read-Only</span>
-                                 <span className="text-[11px] font-medium text-slate-500 mt-0.5">User can see but not edit this field</span>
-                               </div>
-                               <input type="checkbox"
-                                 checked={activeField.uiConfig?.readOnly || false}
-                                 onChange={(e) => {
-                                   const val = e.target.checked;
-                                   updateNestedObject(activeField.id, "uiConfig", "readOnly", val);
-                                   if (val) {
-                                     updateLocalField(activeField.id, "required", false);
-                                     updateNestedObject(activeField.id, "uiConfig", "hidden", false);
-                                   }
-                                 }}
-                                 className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
-                               />
-                             </label>
- 
-                             <label className="flex items-center justify-between p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm bg-white">
-                               <div className="flex flex-col pr-2">
-                                 <span className="text-xs font-extrabold text-slate-800">Hidden Field</span>
-                                 <span className="text-[11px] font-medium text-slate-500 mt-0.5 leading-tight">Field is hidden from the user but its default value is saved</span>
-                               </div>
-                               <input type="checkbox"
-                                 checked={activeField.uiConfig?.hidden || false}
-                                 onChange={(e) => {
-                                   const val = e.target.checked;
-                                   updateNestedObject(activeField.id, "uiConfig", "hidden", val);
-                                   if (val) {
-                                     updateLocalField(activeField.id, "required", false);
-                                     updateNestedObject(activeField.id, "uiConfig", "readOnly", false);
-                                   }
-                                 }}
-                                 className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
-                               />
-                             </label>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
-                        <div className="pt-5 border-t border-slate-100">
-                          <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2.5 mb-5 uppercase tracking-wider">
-                            <ShieldCheck size={18} className="text-emerald-500" /> Validation Rules
-                          </h3>
-                          <div className="space-y-4">
-                            {activeField.fieldType === "EMAIL" && (
-                              <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center justify-between">
-                                  <span>Allowed Domains</span>
-                                  <span className="text-[9px] bg-indigo-50 px-1.5 py-0.5 rounded text-indigo-500 font-bold">Restrict Submission</span>
-                                </label>
-                                <div className="space-y-2">
-                                  {(activeField.validation?.allowedDomains || []).map((domain, idx) => (
-                                    <div key={idx} className="flex gap-2">
-                                      <input
-                                        type="text"
-                                        value={domain}
+                        {GRID_TYPES.includes(activeField.fieldType) && (
+                          <div className="space-y-5 pt-5 border-t border-slate-100">
+                            {["rows", "columns"].map((key) => (
+                              <div key={key}>
+                                <label className="block text-sm font-bold text-slate-800 capitalize mb-2.5">{key}</label>
+                                <div className="space-y-2.5">
+                                  {(activeField.validation?.[key] || []).map((val, idx) => (
+                                    <div key={idx} className="flex items-center gap-3">
+                                      <input type="text" value={val}
                                         onChange={(e) => {
-                                          const updated = [...(activeField.validation?.allowedDomains || [])];
-                                          updated[idx] = e.target.value.toLowerCase().trim();
-                                          updateNestedObject(activeField.id, "validation", "allowedDomains", updated);
+                                          const updated = [...(activeField.validation?.[key] || [])];
+                                          updated[idx] = e.target.value;
+                                          updateNestedObject(activeField.id, "validation", key, updated);
                                         }}
-                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-600 hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                                        placeholder="e.g. gmail.com"
+                                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
                                       />
-                                      <button
-                                        onClick={() => {
-                                          const updated = (activeField.validation?.allowedDomains || []).filter((_, i) => i !== idx);
-                                          updateNestedObject(activeField.id, "validation", "allowedDomains", updated);
-                                        }}
-                                        className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
-                                      >
-                                        <X size={14} />
+                                      <button onClick={() => {
+                                        const updated = (activeField.validation?.[key] || []).filter((_, i) => i !== idx);
+                                        updateNestedObject(activeField.id, "validation", key, updated);
+                                      }} className="p-2 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors border border-transparent hover:border-red-100">
+                                        <X size={18} />
                                       </button>
                                     </div>
                                   ))}
-                                  <button
-                                    onClick={() => {
-                                      const current = activeField.validation?.allowedDomains || [];
-                                      updateNestedObject(activeField.id, "validation", "allowedDomains", [...current, ""]);
-                                    }}
-                                    className="flex items-center gap-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 mt-2 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors border border-dashed border-indigo-200"
-                                  >
-                                    <Plus size={12} strokeWidth={3} /> Add Domain
-                                  </button>
                                 </div>
-                                <p className="text-[10px] font-medium text-slate-400 mt-2 italic px-1">If set, only emails from these domains will be accepted.</p>
+                                <button onClick={() => {
+                                  const current = activeField.validation?.[key] || [];
+                                  const lbl = key === "rows" ? "Row" : "Column";
+                                  updateNestedObject(activeField.id, "validation", key, [...current, `${lbl} ${current.length + 1}`]);
+                                }} className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 mt-3 px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors border border-transparent hover:border-indigo-100">
+                                  <Plus size={16} strokeWidth={2.5} /> Add {key === "rows" ? "row" : "column"}
+                                </button>
                               </div>
-                            )}
+                            ))}
+                          </div>
+                        )}
 
-                            {TEXT_BASED_TYPES.includes(activeField.fieldType) && activeField.fieldType !== "PHONE" && (
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Min Length</label>
-                                  <input type="number" onWheel={(e) => e.target.blur()} min="0" value={activeField.validation?.minLength || ""}
-                                    onChange={(e) => updateNestedObject(activeField.id, "validation", "minLength", e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 10" />
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Max Length</label>
-                                  <input type="number" onWheel={(e) => e.target.blur()} min="0" value={activeField.validation?.maxLength || ""}
-                                    onChange={(e) => updateNestedObject(activeField.id, "validation", "maxLength", e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 500" />
-                                </div>
+                        {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && activeField.fieldType !== "GROUP" && activeField.fieldType !== "PAGE_BREAK" && (
+                          <div className="pt-5 border-t border-slate-100">
+                            <label className={`flex items-center justify-between p-4 border-2 rounded-xl transition-colors ${(activeField.uiConfig?.readOnly || activeField.uiConfig?.hidden)
+                              ? 'bg-slate-50 border-slate-100 cursor-not-allowed opacity-60'
+                              : 'cursor-pointer hover:bg-slate-50 hover:border-slate-200 border-slate-100'
+                              }`}>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-extrabold text-slate-800 tracking-tight">Required Field</span>
+                                <span className="text-xs font-medium text-slate-500 mt-0.5">
+                                  {(activeField.uiConfig?.readOnly || activeField.uiConfig?.hidden)
+                                    ? 'Not available for Read-Only or Hidden fields'
+                                    : 'Force users to answer this'}
+                                </span>
                               </div>
-                            )}
-                            {NUMBER_BASED_TYPES.includes(activeField.fieldType) && (
-                              <div className="space-y-6">
-                                {/* Number Format Selector - Sleek Segmented UI */}
-                                <div>
-                                  <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mb-2.5 pl-1">Number Precision</label>
-                                  <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200/60">
-                                    {[
-                                      { value: "INTEGER", label: "Integer" },
-                                      { value: "DECIMAL", label: "Decimal" },
-                                    ].map((opt) => {
-                                      const isSelected = (activeField.validation?.numberFormat || "INTEGER") === opt.value;
-                                      return (
-                                        <button
-                                          key={opt.value}
-                                          type="button"
-                                          onClick={() => updateNestedObject(activeField.id, "validation", "numberFormat", opt.value)}
-                                          className={`flex-1 py-1.5 px-3 rounded-lg text-[11px] font-black transition-all duration-200 ${
-                                            isSelected 
-                                              ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/50" 
-                                              : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
-                                          }`}
-                                        >
-                                          {opt.label}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
+                              <input type="checkbox"
+                                checked={activeField.required && !activeField.uiConfig?.readOnly && !activeField.uiConfig?.hidden}
+                                disabled={activeField.uiConfig?.readOnly || activeField.uiConfig?.hidden}
+                                onChange={(e) => updateLocalField(activeField.id, "required", e.target.checked)}
+                                className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all disabled:cursor-not-allowed"
+                              />
+                            </label>
+                          </div>
+                        )}
 
-                                {/* Min / Max Grid */}
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div className="space-y-1.5">
-                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1">Min Value</label>
-                                    <input
-                                      type="number"
-                                      onWheel={(e) => e.target.blur()}
-                                      step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
-                                      value={activeField.validation?.min || ""}
-                                      onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)}
-                                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm" 
-                                      placeholder="No min"
-                                    />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1">Max Value</label>
-                                    <input
-                                      type="number"
-                                      onWheel={(e) => e.target.blur()}
-                                      step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
-                                      value={activeField.validation?.max || ""}
-                                      onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)}
-                                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm" 
-                                      placeholder="No max"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            {activeField.fieldType === "TEXT" && (
-                              <div>
-                                <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Custom Regex Pattern</label>
-                                <input type="text" value={activeField.validation?.pattern || ""}
-                                  onChange={(e) => updateNestedObject(activeField.id, "validation", "pattern", e.target.value)}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono font-bold text-indigo-700 hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                                  placeholder="^([A-Z])+$"
-                                />
-                                {activeField.validation?.pattern && (
-                                  <div className="mt-3">
-                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Validation Message</label>
-                                    <input type="text" value={activeField.validation?.validationMessage || ""}
-                                      onChange={(e) => updateNestedObject(activeField.id, "validation", "validationMessage", e.target.value)}
+                        {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && activeField.fieldType !== "GROUP" && activeField.fieldType !== "PAGE_BREAK" && (
+                          <div className="pt-5 border-t border-slate-100">
+                            <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2.5 mb-5 uppercase tracking-wider">
+                              <MonitorPlay size={18} className="text-indigo-500" /> Display Settings
+                            </h3>
+                            <div className="space-y-4">
+                              {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
+                                activeField.fieldType !== "BOOLEAN" &&
+                                activeField.fieldType !== "LINEAR_SCALE" &&
+                                activeField.fieldType !== "STAR_RATING" &&
+                                !GRID_TYPES.includes(activeField.fieldType) &&
+                                activeField.fieldType !== "FILE_UPLOAD" &&
+                                activeField.fieldType !== "LOOKUP_DROPDOWN" && (
+                                  <div>
+                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Placeholder Text</label>
+                                    <input type="text" value={activeField.uiConfig?.placeholder || ""}
+                                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "placeholder", e.target.value)}
                                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                                      placeholder="e.g. Please enter a valid phone number"
+                                      placeholder="e.g. Type your answer here..."
                                     />
                                   </div>
                                 )}
-                              </div>
-                            )}
-                            {!TEXT_BASED_TYPES.includes(activeField.fieldType) &&
-                              !NUMBER_BASED_TYPES.includes(activeField.fieldType) &&
-                              activeField.fieldType !== "TEXT" &&
-                              !GRID_TYPES.includes(activeField.fieldType) && (
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                  <p className="text-[11px] font-medium text-slate-500">No additional validation rules available for this field type.</p>
-                                </div>
-                              )}
+                              {activeField.fieldType !== "SECTION" &&
+                                activeField.fieldType !== "LABEL" &&
+                                activeField.fieldType !== "GROUP" && (
+                                  <div>
+                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Help / Subtext</label>
+                                    <textarea rows={2} value={activeField.uiConfig?.helpText || ""}
+                                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "helpText", e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all resize-none shadow-sm"
+                                      placeholder="Add hints or instructions for users..."
+                                    />
+                                  </div>
+                                )}
 
-                            {["TEXT", "EMAIL", "INTEGER", "DATE", "TIME"].includes(activeField.fieldType) && (
-                              <label className="flex items-center justify-between p-4 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors mt-5 shadow-sm bg-white">
-                                <div className="flex flex-col pr-2">
-                                  <span className="text-xs font-extrabold text-slate-800">Unique Field</span>
-                                  <span className="text-[11px] font-medium text-slate-500 mt-0.5 leading-tight">Disallow duplicate answers across all submissions</span>
+                              {!OPTIONS_BASED_TYPES.includes(activeField.fieldType) &&
+                                !GRID_TYPES.includes(activeField.fieldType) &&
+                                activeField.fieldType !== "BOOLEAN" &&
+                                activeField.fieldType !== "LINEAR_SCALE" &&
+                                activeField.fieldType !== "FILE_UPLOAD" &&
+                                activeField.fieldType !== "LOOKUP_DROPDOWN" && (
+                                  <div>
+                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Default Value</label>
+                                    <input
+                                      type={activeField.fieldType === "INTEGER" ? "number" : activeField.fieldType === "DATE" ? "date" : activeField.fieldType === "TIME" ? "time" : activeField.fieldType === "DATETIME" ? "datetime-local" : activeField.fieldType === "PHONE" ? "tel" : "text"}
+                                      value={activeField.uiConfig?.defaultValue || ""}
+                                      onChange={(e) => updateNestedObject(activeField.id, "uiConfig", "defaultValue", e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                      placeholder="Pre-fill this field with a value..."
+                                    />
+                                    <p className="text-[11px] font-medium text-slate-400 mt-1.5">This value will be pre-filled when the form loads. Users can change it unless Read-Only is enabled.</p>
+                                  </div>
+                                )}
+
+                              <label className="flex items-center justify-between p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm bg-white">
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-extrabold text-slate-800">Read-Only</span>
+                                  <span className="text-[11px] font-medium text-slate-500 mt-0.5">User can see but not edit this field</span>
                                 </div>
                                 <input type="checkbox"
-                                  checked={activeField.validation?.unique || false}
-                                  onChange={(e) => updateNestedObject(activeField.id, "validation", "unique", e.target.checked)}
+                                  checked={activeField.uiConfig?.readOnly || false}
+                                  onChange={(e) => {
+                                    const val = e.target.checked;
+                                    updateNestedObject(activeField.id, "uiConfig", "readOnly", val);
+                                    if (val) {
+                                      updateLocalField(activeField.id, "required", false);
+                                      updateNestedObject(activeField.id, "uiConfig", "hidden", false);
+                                    }
+                                  }}
                                   className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
                                 />
                               </label>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div className="space-y-6">
-                      {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
-                        <div className="space-y-5">
-                          <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2.5 mb-5 uppercase tracking-wider">
-                            <GitBranch size={18} className="text-indigo-600" /> Conditional Logic
-                          </h3>
 
-                          {(() => {
-                            const cond = parseConditions(activeField);
-                            const updateCond = (updates) => saveConditions(activeField.id, { ...cond, ...updates });
-                            const addRule = () => updateCond({ rules: [...cond.rules, { fieldKey: "", operator: "equals", value: "" }] });
-                            const removeRule = (idx) => updateCond({ rules: cond.rules.filter((_, i) => i !== idx) });
-                            const updateRule = (idx, key, val) => {
-                              const newRules = [...cond.rules];
-                              newRules[idx] = { ...newRules[idx], [key]: val };
-                              updateCond({ rules: newRules });
-                            };
-
-                            const otherFields = localFields.filter(
-                              (f) => f.id !== activeField.id &&
-                                f.fieldType !== "SECTION" &&
-                                f.fieldType !== "LABEL" &&
-                                f.fieldType !== "FILE_UPLOAD"
-                            );
-
-                            return (
-                              <div className="space-y-4">
-                                <div>
-                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Action</label>
-                                  <select
-                                    value={cond.action}
-                                    onChange={(e) => updateCond({ action: e.target.value })}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
-                                  >
-                                    {CONDITION_ACTIONS.map((a) => (
-                                      <option key={a.value} value={a.value}>{a.label} this field when:</option>
-                                    ))}
-                                  </select>
+                              <label className="flex items-center justify-between p-3.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm bg-white">
+                                <div className="flex flex-col pr-2">
+                                  <span className="text-xs font-extrabold text-slate-800">Hidden Field</span>
+                                  <span className="text-[11px] font-medium text-slate-500 mt-0.5 leading-tight">Field is hidden from the user but its default value is saved</span>
                                 </div>
+                                <input type="checkbox"
+                                  checked={activeField.uiConfig?.hidden || false}
+                                  onChange={(e) => {
+                                    const val = e.target.checked;
+                                    updateNestedObject(activeField.id, "uiConfig", "hidden", val);
+                                    if (val) {
+                                      updateLocalField(activeField.id, "required", false);
+                                      updateNestedObject(activeField.id, "uiConfig", "readOnly", false);
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        )}
 
-                                {cond.action === "calculate" && (
-                                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 shadow-inner">
-                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Formula</label>
-                                    <input
-                                      type="text"
-                                      value={cond.formula || ""}
-                                      onChange={(e) => updateCond({ formula: e.target.value })}
-                                      className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-mono font-bold text-indigo-700 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
-                                      placeholder="e.g. {price_1} * {quantity_2}"
-                                    />
-                                    <p className="text-[10px] font-medium text-slate-400 mt-2">
-                                      Use <span className="font-mono bg-slate-200 px-1 rounded text-slate-600">{"{fieldKey}"}</span> to reference other fields. Supports + - * / ( )
-                                    </p>
-                                    <div className="mt-3 flex flex-wrap gap-1.5">
-                                      {otherFields.map((f) => (
+                        {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
+                          <div className="pt-5 border-t border-slate-100">
+                            <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2.5 mb-5 uppercase tracking-wider">
+                              <ShieldCheck size={18} className="text-emerald-500" /> Validation Rules
+                            </h3>
+                            <div className="space-y-4">
+                              {activeField.fieldType === "EMAIL" && (
+                                <div className="pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center justify-between">
+                                    <span>Allowed Domains</span>
+                                    <span className="text-[9px] bg-indigo-50 px-1.5 py-0.5 rounded text-indigo-500 font-bold">Restrict Submission</span>
+                                  </label>
+                                  <div className="space-y-2">
+                                    {(activeField.validation?.allowedDomains || []).map((domain, idx) => (
+                                      <div key={idx} className="flex gap-2">
+                                        <input
+                                          type="text"
+                                          value={domain}
+                                          onChange={(e) => {
+                                            const updated = [...(activeField.validation?.allowedDomains || [])];
+                                            updated[idx] = e.target.value.toLowerCase().trim();
+                                            updateNestedObject(activeField.id, "validation", "allowedDomains", updated);
+                                          }}
+                                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-600 hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                          placeholder="e.g. gmail.com"
+                                        />
                                         <button
-                                          key={f.id}
-                                          type="button"
-                                          onClick={() => updateCond({ formula: (cond.formula || "") + `{${f.fieldKey}}` })}
-                                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md text-[11px] font-bold hover:bg-indigo-100 hover:border-indigo-200 transition-all"
+                                          onClick={() => {
+                                            const updated = (activeField.validation?.allowedDomains || []).filter((_, i) => i !== idx);
+                                            updateNestedObject(activeField.id, "validation", "allowedDomains", updated);
+                                          }}
+                                          className="p-1.5 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
                                         >
-                                          <Plus size={12} strokeWidth={3} /> {f.fieldLabel}
+                                          <X size={14} />
                                         </button>
-                                      ))}
+                                      </div>
+                                    ))}
+                                    <button
+                                      onClick={() => {
+                                        const current = activeField.validation?.allowedDomains || [];
+                                        updateNestedObject(activeField.id, "validation", "allowedDomains", [...current, ""]);
+                                      }}
+                                      className="flex items-center gap-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 mt-2 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors border border-dashed border-indigo-200"
+                                    >
+                                      <Plus size={12} strokeWidth={3} /> Add Domain
+                                    </button>
+                                  </div>
+                                  <p className="text-[10px] font-medium text-slate-400 mt-2 italic px-1">If set, only emails from these domains will be accepted.</p>
+                                </div>
+                              )}
+
+                              {TEXT_BASED_TYPES.includes(activeField.fieldType) && activeField.fieldType !== "PHONE" && (
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Min Length</label>
+                                    <input type="number" onWheel={(e) => e.target.blur()} min="0" value={activeField.validation?.minLength || ""}
+                                      onChange={(e) => updateNestedObject(activeField.id, "validation", "minLength", e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 10" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Max Length</label>
+                                    <input type="number" onWheel={(e) => e.target.blur()} min="0" value={activeField.validation?.maxLength || ""}
+                                      onChange={(e) => updateNestedObject(activeField.id, "validation", "maxLength", e.target.value)}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm" placeholder="e.g. 500" />
+                                  </div>
+                                </div>
+                              )}
+                              {NUMBER_BASED_TYPES.includes(activeField.fieldType) && (
+                                <div className="space-y-6">
+                                  {/* Number Format Selector - Sleek Segmented UI */}
+                                  <div>
+                                    <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 mb-2.5 pl-1">Number Precision</label>
+                                    <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200/60">
+                                      {[
+                                        { value: "INTEGER", label: "Integer" },
+                                        { value: "DECIMAL", label: "Decimal" },
+                                      ].map((opt) => {
+                                        const isSelected = (activeField.validation?.numberFormat || "INTEGER") === opt.value;
+                                        return (
+                                          <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => updateNestedObject(activeField.id, "validation", "numberFormat", opt.value)}
+                                            className={`flex-1 py-1.5 px-3 rounded-lg text-[11px] font-black transition-all duration-200 ${isSelected
+                                              ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200/50"
+                                              : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                                              }`}
+                                          >
+                                            {opt.label}
+                                          </button>
+                                        );
+                                      })}
                                     </div>
+                                  </div>
+
+                                  {/* Min / Max Grid */}
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1">Min Value</label>
+                                      <input
+                                        type="number"
+                                        onWheel={(e) => e.target.blur()}
+                                        step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
+                                        value={activeField.validation?.min || ""}
+                                        onChange={(e) => updateNestedObject(activeField.id, "validation", "min", e.target.value)}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
+                                        placeholder="No min"
+                                      />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1">Max Value</label>
+                                      <input
+                                        type="number"
+                                        onWheel={(e) => e.target.blur()}
+                                        step={(activeField.validation?.numberFormat || "INTEGER") === "DECIMAL" ? "0.01" : "1"}
+                                        value={activeField.validation?.max || ""}
+                                        onChange={(e) => updateNestedObject(activeField.id, "validation", "max", e.target.value)}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all shadow-sm"
+                                        placeholder="No max"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              {activeField.fieldType === "TEXT" && (
+                                <div>
+                                  <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Custom Regex Pattern</label>
+                                  <input type="text" value={activeField.validation?.pattern || ""}
+                                    onChange={(e) => updateNestedObject(activeField.id, "validation", "pattern", e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono font-bold text-indigo-700 hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                    placeholder="^([A-Z])+$"
+                                  />
+                                  {activeField.validation?.pattern && (
+                                    <div className="mt-3">
+                                      <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Validation Message</label>
+                                      <input type="text" value={activeField.validation?.validationMessage || ""}
+                                        onChange={(e) => updateNestedObject(activeField.id, "validation", "validationMessage", e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                        placeholder="e.g. Please enter a valid phone number"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {!TEXT_BASED_TYPES.includes(activeField.fieldType) &&
+                                !NUMBER_BASED_TYPES.includes(activeField.fieldType) &&
+                                activeField.fieldType !== "TEXT" &&
+                                !GRID_TYPES.includes(activeField.fieldType) && (
+                                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                    <p className="text-[11px] font-medium text-slate-500">No additional validation rules available for this field type.</p>
                                   </div>
                                 )}
 
-                                {cond.action !== "calculate" && (
-                                  <>
-                                    {cond.rules.length > 1 && (
-                                      <div className="flex items-center gap-2.5 bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
-                                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Match:</span>
-                                        <div className="flex gap-1">
-                                          {["AND", "OR"].map((l) => (
-                                            <button key={l} type="button"
-                                              onClick={() => updateCond({ logic: l })}
-                                              className={`px-3 py-1 rounded-md text-xs font-black transition-all ${cond.logic === l
-                                                ? "bg-indigo-600 text-white shadow-sm"
-                                                : "bg-transparent text-slate-500 hover:bg-slate-200"
-                                                }`}
-                                            >
-                                              {l}
-                                            </button>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
+                              {["TEXT", "EMAIL", "INTEGER", "DATE", "TIME"].includes(activeField.fieldType) && (
+                                <label className="flex items-center justify-between p-4 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors mt-5 shadow-sm bg-white">
+                                  <div className="flex flex-col pr-2">
+                                    <span className="text-xs font-extrabold text-slate-800">Unique Field</span>
+                                    <span className="text-[11px] font-medium text-slate-500 mt-0.5 leading-tight">Disallow duplicate answers across all submissions</span>
+                                  </div>
+                                  <input type="checkbox"
+                                    checked={activeField.validation?.unique || false}
+                                    onChange={(e) => updateNestedObject(activeField.id, "validation", "unique", e.target.checked)}
+                                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer transition-all"
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="space-y-6">
+                        {activeField.fieldType !== "SECTION" && activeField.fieldType !== "LABEL" && (
+                          <div className="space-y-5">
+                            <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2.5 mb-5 uppercase tracking-wider">
+                              <GitBranch size={18} className="text-indigo-600" /> Conditional Logic
+                            </h3>
 
-                                    <div className="space-y-3">
-                                      {cond.rules.map((rule, idx) => (
-                                        <div key={idx} className="flex flex-col gap-2 bg-slate-50 rounded-xl p-3 border border-slate-200 shadow-sm relative pt-6 group">
-                                          <button onClick={() => removeRule(idx)}
-                                            className="absolute right-2 top-2 p-1.5 text-slate-400 hover:text-red-500 bg-white hover:bg-red-50 rounded-lg transition-colors border border-slate-100 hover:border-red-100 shadow-sm">
+                            {(() => {
+                              const cond = parseConditions(activeField);
+                              const updateCond = (updates) => saveConditions(activeField.id, { ...cond, ...updates });
+                              const addRule = () => updateCond({ rules: [...cond.rules, { fieldKey: "", operator: "equals", value: "" }] });
+                              const removeRule = (idx) => updateCond({ rules: cond.rules.filter((_, i) => i !== idx) });
+                              const updateRule = (idx, key, val) => {
+                                const newRules = [...cond.rules];
+                                newRules[idx] = { ...newRules[idx], [key]: val };
+                                updateCond({ rules: newRules });
+                              };
+
+                              const otherFields = localFields.filter(
+                                (f) => f.id !== activeField.id &&
+                                  f.fieldType !== "SECTION" &&
+                                  f.fieldType !== "LABEL" &&
+                                  f.fieldType !== "FILE_UPLOAD"
+                              );
+
+                              return (
+                                <div className="space-y-4">
+                                  <div>
+                                    <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Action</label>
+                                    <select
+                                      value={cond.action}
+                                      onChange={(e) => updateCond({ action: e.target.value })}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium hover:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-white transition-all shadow-sm"
+                                    >
+                                      {CONDITION_ACTIONS.map((a) => (
+                                        <option key={a.value} value={a.value}>{a.label} this field when:</option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {cond.action === "calculate" && (
+                                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 shadow-inner">
+                                      <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 mb-1.5">Formula</label>
+                                      <input
+                                        type="text"
+                                        value={cond.formula || ""}
+                                        onChange={(e) => updateCond({ formula: e.target.value })}
+                                        className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2.5 text-sm font-mono font-bold text-indigo-700 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                                        placeholder="e.g. {price_1} * {quantity_2}"
+                                      />
+                                      <p className="text-[10px] font-medium text-slate-400 mt-2">
+                                        Use <span className="font-mono bg-slate-200 px-1 rounded text-slate-600">{"{fieldKey}"}</span> to reference other fields. Supports + - * / ( )
+                                      </p>
+                                      <div className="mt-3 flex flex-wrap gap-1.5">
+                                        {otherFields.map((f) => (
+                                          <button
+                                            key={f.id}
+                                            type="button"
+                                            onClick={() => updateCond({ formula: (cond.formula || "") + `{${f.fieldKey}}` })}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md text-[11px] font-bold hover:bg-indigo-100 hover:border-indigo-200 transition-all"
+                                          >
+                                            <Plus size={12} strokeWidth={3} /> {f.fieldLabel}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {cond.action !== "calculate" && (
+                                    <>
+                                      {cond.rules.length > 1 && (
+                                        <div className="flex items-center gap-2.5 bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
+                                          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Match:</span>
+                                          <div className="flex gap-1">
+                                            {["AND", "OR"].map((l) => (
+                                              <button key={l} type="button"
+                                                onClick={() => updateCond({ logic: l })}
+                                                className={`px-3 py-1 rounded-md text-xs font-black transition-all ${cond.logic === l
+                                                  ? "bg-indigo-600 text-white shadow-sm"
+                                                  : "bg-transparent text-slate-500 hover:bg-slate-200"
+                                                  }`}
+                                              >
+                                                {l}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      <div className="space-y-3">
+                                        {cond.rules.map((rule, idx) => (
+                                          <div key={idx} className="flex flex-col gap-2 bg-slate-50 rounded-xl p-3 border border-slate-200 shadow-sm relative pt-6 group">
+                                            <button onClick={() => removeRule(idx)}
+                                              className="absolute right-2 top-2 p-1.5 text-slate-400 hover:text-red-500 bg-white hover:bg-red-50 rounded-lg transition-colors border border-slate-100 hover:border-red-100 shadow-sm">
+                                              <X size={14} />
+                                            </button>
+                                            <div className="flex flex-col gap-2 mt-1">
+                                              <select
+                                                value={rule.fieldKey}
+                                                onChange={(e) => updateRule(idx, "fieldKey", e.target.value)}
+                                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                                              >
+                                                <option value="">Select field...</option>
+                                                <option value={activeField.fieldKey}>This Field</option>
+                                                {otherFields.map((f) => (
+                                                  <option key={f.id} value={f.fieldKey}>
+                                                    {f.fieldLabel}
+                                                  </option>
+                                                ))}
+                                              </select>
+
+                                              <div className="flex gap-2">
+                                                <select
+                                                  value={rule.operator}
+                                                  onChange={(e) => updateRule(idx, "operator", e.target.value)}
+                                                  className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                                                >
+                                                  {OPERATORS.map((op) => (
+                                                    <option key={op.value} value={op.value}>{op.label}</option>
+                                                  ))}
+                                                </select>
+
+                                                {!["isEmpty", "isNotEmpty"].includes(rule.operator) && (
+                                                  <input
+                                                    type="text"
+                                                    value={rule.value}
+                                                    onChange={(e) => updateRule(idx, "value", e.target.value)}
+                                                    className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                                                    placeholder="Value"
+                                                  />
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+
+                                      <button onClick={addRule}
+                                        className="flex items-center justify-center w-full gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 bg-white border-2 border-dashed border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50 py-2.5 rounded-xl transition-all">
+                                        <Plus size={16} strokeWidth={2.5} /> Add Condition
+                                      </button>
+
+                                      {cond.rules.length === 0 && (
+                                        <p className="text-[11px] font-medium text-slate-400 bg-slate-50 p-3 rounded-lg border border-slate-100 text-center">
+                                          No conditions attached. Field is always visible and enabled.
+                                        </p>
+                                      )}
+                                    </>
+                                  )}
+
+                                  <div className="pt-6 mt-6 border-t border-slate-100">
+                                    <label className="block text-xs font-black uppercase tracking-widest text-slate-700 mb-3">If conditions match, execute:</label>
+                                    <div className="space-y-4">
+                                      {cond.actions.map((act, actIdx) => (
+                                        <div key={actIdx} className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 relative shadow-sm">
+                                          <button onClick={() => {
+                                            updateCond({ actions: cond.actions.filter((_, i) => i !== actIdx) });
+                                          }} className="absolute right-2 top-2 p-1.5 text-slate-400 hover:text-red-500 bg-white hover:bg-red-50 rounded-lg transition-colors shadow-sm border border-slate-100">
                                             <X size={14} />
                                           </button>
-                                          <div className="flex flex-col gap-2 mt-1">
-                                            <select
-                                              value={rule.fieldKey}
-                                              onChange={(e) => updateRule(idx, "fieldKey", e.target.value)}
-                                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
-                                            >
-                                              <option value="">Select field...</option>
-                                              <option value={activeField.fieldKey}>This Field</option>
-                                              {otherFields.map((f) => (
-                                                <option key={f.id} value={f.fieldKey}>
-                                                  {f.fieldLabel}
-                                                </option>
-                                              ))}
-                                            </select>
 
-                                            <div className="flex gap-2">
-                                              <select
-                                                value={rule.operator}
-                                                onChange={(e) => updateRule(idx, "operator", e.target.value)}
-                                                className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
-                                              >
-                                                {OPERATORS.map((op) => (
-                                                  <option key={op.value} value={op.value}>{op.label}</option>
-                                                ))}
-                                              </select>
-
-                                              {!["isEmpty", "isNotEmpty"].includes(rule.operator) && (
-                                                <input
-                                                  type="text"
-                                                  value={rule.value}
-                                                  onChange={(e) => updateRule(idx, "value", e.target.value)}
-                                                  className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
-                                                  placeholder="Value"
-                                                />
-                                              )}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-
-                                    <button onClick={addRule}
-                                      className="flex items-center justify-center w-full gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 bg-white border-2 border-dashed border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50 py-2.5 rounded-xl transition-all">
-                                      <Plus size={16} strokeWidth={2.5} /> Add Condition
-                                    </button>
-
-                                    {cond.rules.length === 0 && (
-                                      <p className="text-[11px] font-medium text-slate-400 bg-slate-50 p-3 rounded-lg border border-slate-100 text-center">
-                                        No conditions attached. Field is always visible and enabled.
-                                      </p>
-                                    )}
-                                  </>
-                                )}
-
-                                <div className="pt-6 mt-6 border-t border-slate-100">
-                                  <label className="block text-xs font-black uppercase tracking-widest text-slate-700 mb-3">If conditions match, execute:</label>
-                                  <div className="space-y-4">
-                                    {cond.actions.map((act, actIdx) => (
-                                      <div key={actIdx} className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 relative shadow-sm">
-                                        <button onClick={() => {
-                                          updateCond({ actions: cond.actions.filter((_, i) => i !== actIdx) });
-                                        }} className="absolute right-2 top-2 p-1.5 text-slate-400 hover:text-red-500 bg-white hover:bg-red-50 rounded-lg transition-colors shadow-sm border border-slate-100">
-                                          <X size={14} />
-                                        </button>
-
-                                        <select value={act.type || ""} onChange={(e) => {
-                                          const newActions = [...cond.actions];
-                                          newActions[actIdx] = { ...act, type: e.target.value };
-                                          updateCond({ actions: newActions });
-                                        }} className="w-[calc(100%-2rem)] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 mb-3 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all">
-                                          <option value="">Select Action Type...</option>
-                                          <option value="VALIDATION_ERROR">Block Submission w/ Error</option>
-                                          <option value="REQUIRE">Require a Field</option>
-                                          <option value="MIN_LENGTH">Enforce Minimum Length</option>
-                                          <option value="MAX_LENGTH">Enforce Maximum Length</option>
-                                          <option value="MIN_VALUE">Enforce Minimum Value</option>
-                                          <option value="MAX_VALUE">Enforce Maximum Value</option>
-                                          <option value="REGEX_MATCH">Match Regex Pattern</option>
-                                          <option value="MATCH_FIELD">Must Match Another Field</option>
-                                        </select>
-
-                                        {act.type === "VALIDATION_ERROR" && (
-                                          <input type="text" value={act.message || ""} onChange={(e) => {
+                                          <select value={act.type || ""} onChange={(e) => {
                                             const newActions = [...cond.actions];
-                                            newActions[actIdx] = { ...act, message: e.target.value };
+                                            newActions[actIdx] = { ...act, type: e.target.value };
                                             updateCond({ actions: newActions });
-                                          }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Custom error message..." />
-                                        )}
+                                          }} className="w-[calc(100%-2rem)] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold text-slate-700 mb-3 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all">
+                                            <option value="">Select Action Type...</option>
+                                            <option value="VALIDATION_ERROR">Block Submission w/ Error</option>
+                                            <option value="REQUIRE">Require a Field</option>
+                                            <option value="MIN_LENGTH">Enforce Minimum Length</option>
+                                            <option value="MAX_LENGTH">Enforce Maximum Length</option>
+                                            <option value="MIN_VALUE">Enforce Minimum Value</option>
+                                            <option value="MAX_VALUE">Enforce Maximum Value</option>
+                                            <option value="REGEX_MATCH">Match Regex Pattern</option>
+                                            <option value="MATCH_FIELD">Must Match Another Field</option>
+                                          </select>
 
-                                        {act.type === "REQUIRE" && (
-                                          <div className="space-y-2.5">
-                                            <select value={act.targetField || ""} onChange={(e) => {
-                                              const newActions = [...cond.actions];
-                                              newActions[actIdx] = { ...act, targetField: e.target.value };
-                                              updateCond({ actions: newActions });
-                                            }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
-                                              <option value="">Select field to require...</option>
-                                              <option value={activeField.fieldKey}>This Field</option>
-                                              {otherFields.map(f => (
-                                                <option key={f.id} value={f.fieldKey}>{f.fieldLabel}</option>
-                                              ))}
-                                            </select>
+                                          {act.type === "VALIDATION_ERROR" && (
                                             <input type="text" value={act.message || ""} onChange={(e) => {
                                               const newActions = [...cond.actions];
                                               newActions[actIdx] = { ...act, message: e.target.value };
                                               updateCond({ actions: newActions });
-                                            }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Optional custom required message..." />
-                                          </div>
-                                        )}
+                                            }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Custom error message..." />
+                                          )}
 
-                                        {["MIN_LENGTH", "MAX_LENGTH", "MIN_VALUE", "MAX_VALUE"].includes(act.type) && (
-                                          <div className="space-y-2.5">
-                                            <div className="flex gap-2">
-                                              <select value={act.targetField || ""} onChange={(e) => {
-                                                const newActions = [...cond.actions];
-                                                newActions[actIdx] = { ...act, targetField: e.target.value };
-                                                updateCond({ actions: newActions });
-                                              }} className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
-                                                <option value="">Select field...</option>
-                                                <option value={activeField.fieldKey}>This Field</option>
-                                                {otherFields.map(f => (
-                                                  <option key={f.id} value={f.fieldKey}>{f.fieldLabel}</option>
-                                                ))}
-                                              </select>
-                                              <input type="number" onWheel={(e) => e.target.blur()} min="1" value={act.value || ""} onChange={(e) => {
-                                                const newActions = [...cond.actions];
-                                                newActions[actIdx] = { ...act, value: e.target.value };
-                                                updateCond({ actions: newActions });
-                                              }} className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Length" />
-                                            </div>
-                                            <input type="text" value={act.message || ""} onChange={(e) => {
-                                              const newActions = [...cond.actions];
-                                              newActions[actIdx] = { ...act, message: e.target.value };
-                                              updateCond({ actions: newActions });
-                                            }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Optional custom message..." />
-                                          </div>
-                                        )}
-
-                                        {act.type === "REGEX_MATCH" && (
-                                          <div className="space-y-2.5">
-                                            <div className="flex gap-2">
-                                              <select value={act.targetField || ""} onChange={(e) => {
-                                                const newActions = [...cond.actions];
-                                                newActions[actIdx] = { ...act, targetField: e.target.value };
-                                                updateCond({ actions: newActions });
-                                              }} className="flex-[0.8] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
-                                                <option value="">Select field...</option>
-                                                <option value={activeField.fieldKey}>This Field</option>
-                                                {otherFields.map(f => (
-                                                  <option key={f.id} value={f.fieldKey}>{f.fieldLabel}</option>
-                                                ))}
-                                              </select>
-                                              <input type="text" value={act.value || ""} onChange={(e) => {
-                                                const newActions = [...cond.actions];
-                                                newActions[actIdx] = { ...act, value: e.target.value };
-                                                updateCond({ actions: newActions });
-                                              }} className="flex-[1.2] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Regex (^...$)" />
-                                            </div>
-                                            <input type="text" value={act.message || ""} onChange={(e) => {
-                                              const newActions = [...cond.actions];
-                                              newActions[actIdx] = { ...act, message: e.target.value };
-                                              updateCond({ actions: newActions });
-                                            }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Optional custom regex message..." />
-                                          </div>
-                                        )}
-
-                                        {act.type === "MATCH_FIELD" && (
-                                          <div className="space-y-2.5">
-                                            <div className="flex flex-col gap-2">
+                                          {act.type === "REQUIRE" && (
+                                            <div className="space-y-2.5">
                                               <select value={act.targetField || ""} onChange={(e) => {
                                                 const newActions = [...cond.actions];
                                                 newActions[actIdx] = { ...act, targetField: e.target.value };
                                                 updateCond({ actions: newActions });
                                               }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
-                                                <option value="">Select first field...</option>
+                                                <option value="">Select field to require...</option>
                                                 <option value={activeField.fieldKey}>This Field</option>
                                                 {otherFields.map(f => (
                                                   <option key={f.id} value={f.fieldKey}>{f.fieldLabel}</option>
                                                 ))}
                                               </select>
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white px-2 py-1 rounded border border-slate-100 shadow-sm">must match</span>
-                                                <select value={act.value || ""} onChange={(e) => {
+                                              <input type="text" value={act.message || ""} onChange={(e) => {
+                                                const newActions = [...cond.actions];
+                                                newActions[actIdx] = { ...act, message: e.target.value };
+                                                updateCond({ actions: newActions });
+                                              }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Optional custom required message..." />
+                                            </div>
+                                          )}
+
+                                          {["MIN_LENGTH", "MAX_LENGTH", "MIN_VALUE", "MAX_VALUE"].includes(act.type) && (
+                                            <div className="space-y-2.5">
+                                              <div className="flex gap-2">
+                                                <select value={act.targetField || ""} onChange={(e) => {
                                                   const newActions = [...cond.actions];
-                                                  newActions[actIdx] = { ...act, value: e.target.value };
+                                                  newActions[actIdx] = { ...act, targetField: e.target.value };
                                                   updateCond({ actions: newActions });
                                                 }} className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
-                                                  <option value="">Select field to match...</option>
+                                                  <option value="">Select field...</option>
                                                   <option value={activeField.fieldKey}>This Field</option>
                                                   {otherFields.map(f => (
                                                     <option key={f.id} value={f.fieldKey}>{f.fieldLabel}</option>
                                                   ))}
                                                 </select>
+                                                <input type="number" onWheel={(e) => e.target.blur()} min="1" value={act.value || ""} onChange={(e) => {
+                                                  const newActions = [...cond.actions];
+                                                  newActions[actIdx] = { ...act, value: e.target.value };
+                                                  updateCond({ actions: newActions });
+                                                }} className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Length" />
                                               </div>
+                                              <input type="text" value={act.message || ""} onChange={(e) => {
+                                                const newActions = [...cond.actions];
+                                                newActions[actIdx] = { ...act, message: e.target.value };
+                                                updateCond({ actions: newActions });
+                                              }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Optional custom message..." />
                                             </div>
-                                            <input type="text" value={act.message || ""} onChange={(e) => {
-                                              const newActions = [...cond.actions];
-                                              newActions[actIdx] = { ...act, message: e.target.value };
-                                              updateCond({ actions: newActions });
-                                            }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Optional custom match message..." />
-                                          </div>
-                                        )}
-                                      </div>
-                                    ))}
+                                          )}
 
-                                    <button onClick={() => updateCond({ actions: [...cond.actions, { type: "", message: "", targetField: "" }] })}
-                                      className="flex items-center justify-center w-full gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700 bg-white border-2 border-dashed border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 py-2.5 rounded-xl transition-all">
-                                      <Plus size={16} strokeWidth={2.5} /> Add Business Action
-                                    </button>
+                                          {act.type === "REGEX_MATCH" && (
+                                            <div className="space-y-2.5">
+                                              <div className="flex gap-2">
+                                                <select value={act.targetField || ""} onChange={(e) => {
+                                                  const newActions = [...cond.actions];
+                                                  newActions[actIdx] = { ...act, targetField: e.target.value };
+                                                  updateCond({ actions: newActions });
+                                                }} className="flex-[0.8] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
+                                                  <option value="">Select field...</option>
+                                                  <option value={activeField.fieldKey}>This Field</option>
+                                                  {otherFields.map(f => (
+                                                    <option key={f.id} value={f.fieldKey}>{f.fieldLabel}</option>
+                                                  ))}
+                                                </select>
+                                                <input type="text" value={act.value || ""} onChange={(e) => {
+                                                  const newActions = [...cond.actions];
+                                                  newActions[actIdx] = { ...act, value: e.target.value };
+                                                  updateCond({ actions: newActions });
+                                                }} className="flex-[1.2] bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Regex (^...$)" />
+                                              </div>
+                                              <input type="text" value={act.message || ""} onChange={(e) => {
+                                                const newActions = [...cond.actions];
+                                                newActions[actIdx] = { ...act, message: e.target.value };
+                                                updateCond({ actions: newActions });
+                                              }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Optional custom regex message..." />
+                                            </div>
+                                          )}
+
+                                          {act.type === "MATCH_FIELD" && (
+                                            <div className="space-y-2.5">
+                                              <div className="flex flex-col gap-2">
+                                                <select value={act.targetField || ""} onChange={(e) => {
+                                                  const newActions = [...cond.actions];
+                                                  newActions[actIdx] = { ...act, targetField: e.target.value };
+                                                  updateCond({ actions: newActions });
+                                                }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
+                                                  <option value="">Select first field...</option>
+                                                  <option value={activeField.fieldKey}>This Field</option>
+                                                  {otherFields.map(f => (
+                                                    <option key={f.id} value={f.fieldKey}>{f.fieldLabel}</option>
+                                                  ))}
+                                                </select>
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white px-2 py-1 rounded border border-slate-100 shadow-sm">must match</span>
+                                                  <select value={act.value || ""} onChange={(e) => {
+                                                    const newActions = [...cond.actions];
+                                                    newActions[actIdx] = { ...act, value: e.target.value };
+                                                    updateCond({ actions: newActions });
+                                                  }} className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
+                                                    <option value="">Select field to match...</option>
+                                                    <option value={activeField.fieldKey}>This Field</option>
+                                                    {otherFields.map(f => (
+                                                      <option key={f.id} value={f.fieldKey}>{f.fieldLabel}</option>
+                                                    ))}
+                                                  </select>
+                                                </div>
+                                              </div>
+                                              <input type="text" value={act.message || ""} onChange={(e) => {
+                                                const newActions = [...cond.actions];
+                                                newActions[actIdx] = { ...act, message: e.target.value };
+                                                updateCond({ actions: newActions });
+                                              }} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm" placeholder="Optional custom match message..." />
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+
+                                      <button onClick={() => updateCond({ actions: [...cond.actions, { type: "", message: "", targetField: "" }] })}
+                                        className="flex items-center justify-center w-full gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700 bg-white border-2 border-dashed border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 py-2.5 rounded-xl transition-all">
+                                        <Plus size={16} strokeWidth={2.5} /> Add Business Action
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          /* ── FORM ACCESS TAB ── */
-          <div className="flex-1 flex flex-col min-h-0 bg-slate-50/50">
-            <div className="p-8 space-y-10 overflow-y-auto flex-1 custom-scrollbar">
-
-              {/* Visibility Section */}
-              <section className="space-y-5">
-                <div className="flex items-center gap-3.5">
-                  <div className="p-2.5 bg-white shadow-sm border border-slate-100 rounded-xl">
-                    <Eye className="text-indigo-600" size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-                      Form Visibility
-                      {!isOwnerOrAdmin && <Shield size={14} className="text-slate-400" title="Only owner or admin can change" />}
-                    </h3>
-                    <p className="text-xs font-medium text-slate-500 mt-0.5">
-                      {isOwnerOrAdmin ? "Control who can see and submit this form" : "Only form owner or admin can change these settings"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-2">
-                  {[
-                    { id: 'PUBLIC', label: 'Public', desc: 'Anyone with the link can view and submit.', icon: <Users size={18} /> },
-                    { id: 'LINK', label: 'Authenticated Only', desc: 'Only logged-in users can access.', icon: <Lock size={18} /> },
-                    { id: 'RESTRICTED', label: 'Restricted', desc: 'Only specified users can access.', icon: <ShieldAlert size={18} /> }
-                  ].map((v) => (
-                    <label key={v.id} className={`flex items-start gap-4 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group ${visibility === v.id ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-4 ring-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'}`}>
-                      <div className="pt-0.5">
-                        <input
-                          type="radio"
-                          name="visibility"
-                          value={v.id}
-                          checked={visibility === v.id}
-                          onChange={(e) => setVisibility(e.target.value)}
-                          disabled={!isOwnerOrAdmin}
-                          className={`w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 transition-all ${!isOwnerOrAdmin ? 'cursor-not-allowed opacity-50' : ''}`}
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`${visibility === v.id ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-400 transition-colors'}`}>{v.icon}</span>
-                          <span className="text-sm font-extrabold text-slate-900">{v.label}</span>
-                        </div>
-                        <p className="text-xs font-medium text-slate-500 leading-relaxed">{v.desc}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-
-                <button
-                  onClick={async () => {
-                    setIsUpdatingForm(true);
-                    try {
-                      await api.updateVisibility(formId, visibility);
-                      setFormFromServer(prev => ({ ...prev, visibility: visibility }));
-                      setUpdateStatus({ type: 'success', message: 'Settings saved!' });
-                      setTimeout(() => setUpdateStatus(null), 3000);
-                    } catch (err) {
-
-                      setUpdateStatus({ type: 'error', message: 'Failed to save settings.' });
-                      setTimeout(() => setUpdateStatus(null), 3000);
-                    } finally {
-                      setIsUpdatingForm(false);
-                    }
-                  }}
-                  disabled={isUpdatingForm || !isOwnerOrAdmin}
-                  className={`w-full mt-4 py-3.5 text-white rounded-xl text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 ${isOwnerOrAdmin
-                      ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
-                      : "bg-slate-400 cursor-not-allowed shadow-none"
-                    } disabled:opacity-50`}
-                >
-                  {isUpdatingForm ? <div className="w-5 h-5 border-[3px] border-white/20 border-t-white rounded-full animate-spin" /> : (!isOwnerOrAdmin ? <Lock size={18} /> : <Save size={18} />)}
-                  {isOwnerOrAdmin ? "Update Visibility Settings" : "Visibility Settings Locked"}
-                </button>
-
-                {updateStatus && (
-                  <div className={`mt-3 p-3.5 rounded-xl text-xs font-bold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2 shadow-sm ${updateStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                    {updateStatus.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                    {updateStatus.message}
-                  </div>
-                )}
-              </section>
-
-              <hr className="border-slate-200/60" />
-
-              {/* Permissions Section */}
-              <section className="space-y-6 pb-12">
-                <div className="flex items-center gap-3.5">
-                  <div className="p-2.5 bg-white shadow-sm border border-slate-100 rounded-xl">
-                    <ShieldCheck className="text-emerald-500" size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-extrabold text-slate-900 tracking-tight">User Permissions</h3>
-                    <p className="text-xs font-medium text-slate-500 mt-0.5">Manage specific user access roles</p>
-                  </div>
-                </div>
-                {/* 1. Add Permission Input — ONLY for Owner/Admin */}
-                {isOwnerOrAdmin && (
-                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Username / Email</label>
-                      <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
-                          <UserPlus size={18} />
-                        </div>
-                        <input
-                          type="text"
-                          className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none font-medium placeholder:text-slate-400"
-                          placeholder="Type username..."
-                          value={newPermissionUser}
-                          onChange={(e) => setNewPermissionUser(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1.5 block">Select Role</label>
-                        <select
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                          value={newPermissionRole}
-                          onChange={(e) => setNewPermissionRole(e.target.value)}
-                        >
-                          <option value="VIEWER">Viewer</option>
-                          <option value="BUILDER">Builder</option>
-                        </select>
-                      </div>
-                      <div className="flex items-end">
-                        <button
-                          onClick={async () => {
-                            if (!newPermissionUser) return;
-                            setIsAddingPermission(true);
-                            try {
-                              await api.addPermission(formId, newPermissionUser, newPermissionRole);
-
-                              // Success path
-                              setNewPermissionUser("");
-                              toast.success(`Permission granted to ${newPermissionUser} successfully!`);
-
-                              // Refresh permissions list
-                              const resp = await api.getPermissions(formId);
-                              setPermissions(resp.data || []);
-                            } catch (err) {
-                              console.error("Failed to add permission", err);
-
-                              // Robust error message extraction
-                              const errorMsg = err.response?.data?.message
-                                || err.response?.data?.error
-                                || err.message
-                                || "Failed to add permission. Please try again.";
-
-                              toast.error(errorMsg);
-                            } finally {
-                              setIsAddingPermission(false);
-                            }
-                          }}
-                          disabled={isAddingPermission || !newPermissionUser}
-                          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 h-[42px] min-w-[100px] ${isAddingPermission || !newPermissionUser
-                              ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
-                              : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
-                            }`}
-                        >
-                          {isAddingPermission ? (
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <>
-                              <Plus size={16} />
-                              <span>Add</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Active Permissions</label>
-                  <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-
-                    <div className="flex items-center justify-between p-3.5 bg-slate-100/80 border border-slate-200/80 rounded-xl">
-                      <div className="flex items-center gap-3.5">
-                        <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-black text-slate-600 uppercase shadow-inner">
-                          {user?.id === form?.ownerId ? "YOU" : (form?.ownerName?.charAt(0) || "?")}
-                        </div>
-                        <div>
-                          <p className="text-sm font-extrabold text-slate-900 leading-tight">
-                            {user?.id === form?.ownerId ? "You (Owner)" : `${form?.ownerName} (Owner)`}
-                          </p>
-                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Full Access</p>
-                        </div>
-                      </div>
-                      <Shield size={18} className="text-slate-400" />
-                    </div>
-
-                    {permissions.map((p) => (
-                      <div key={p.id} className="flex items-center justify-between p-3.5 bg-white border border-slate-200 rounded-xl group hover:border-slate-300 hover:shadow-sm transition-all">
-                        <div className="flex items-center gap-3.5">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black uppercase shadow-inner border ${p.role === 'BUILDER' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                            {p.username.charAt(0)}
+                              );
+                            })()}
                           </div>
-                          <div>
-                            <p className="text-sm font-extrabold text-slate-900 leading-tight">{p.username}</p>
-                            <div className="mt-1">
-                              <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${p.role === 'BUILDER' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                {p.role}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        {isOwnerOrAdmin && (
-                          <button
-                            onClick={async () => {
-                              try {
-                                await api.removePermission(formId, p.id);
-                                setPermissions(prev => prev.filter(x => x.id !== p.id));
-                              } catch (err) {
-                                console.error("Failed to remove permission", err);
-                              }
-                            }}
-                            className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-xl transition-all opacity-0 group-hover:opacity-100 hover:scale-110 shadow-sm"
-                          >
-                            <Trash2 size={16} />
-                          </button>
                         )}
-                      </div>
-                    ))}
-
-                    {permissions.length === 0 && (
-                      <div className="py-8 text-center border-[3px] border-dashed border-slate-200 rounded-2xl bg-white/50">
-                        <Users size={24} className="mx-auto text-slate-300 mb-3" />
-                        <p className="text-xs font-bold text-slate-500">No specific user permissions yet.</p>
                       </div>
                     )}
                   </div>
-                </div>
-              </section>
-            </div>
-          </div>
-        )}
-      </div>
-    </aside>
+                )}
+              </div>
+            </>
+          ) : (
+            /* ── FORM ACCESS TAB ── */
+            <div className="flex-1 flex flex-col min-h-0 bg-slate-50/50">
+              <div className="p-8 space-y-10 overflow-y-auto flex-1 custom-scrollbar">
 
-      <CustomValidationsPanel 
-        formId={formId} 
-        fields={localFields} 
-        isOpen={showLogicModal} 
-        onClose={() => setShowLogicModal(false)} 
+                {/* Visibility Section */}
+                <section className="space-y-5">
+                  <div className="flex items-center gap-3.5">
+                    <div className="p-2.5 bg-white shadow-sm border border-slate-100 rounded-xl">
+                      <Eye className="text-indigo-600" size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                        Form Visibility
+                        {!isOwnerOrAdmin && <Shield size={14} className="text-slate-400" title="Only owner or admin can change" />}
+                      </h3>
+                      <p className="text-xs font-medium text-slate-500 mt-0.5">
+                        {isOwnerOrAdmin ? "Control who can see and submit this form" : "Only form owner or admin can change these settings"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    {[
+                      { id: 'PUBLIC', label: 'Public', desc: 'Anyone with the link can view and submit.', icon: <Users size={18} /> },
+                      { id: 'LINK', label: 'Authenticated Only', desc: 'Only logged-in users can access.', icon: <Lock size={18} /> },
+                      { id: 'RESTRICTED', label: 'Restricted', desc: 'Only specified users can access.', icon: <ShieldAlert size={18} /> }
+                    ].map((v) => (
+                      <label key={v.id} className={`flex items-start gap-4 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group ${visibility === v.id ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-4 ring-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-sm'}`}>
+                        <div className="pt-0.5">
+                          <input
+                            type="radio"
+                            name="visibility"
+                            value={v.id}
+                            checked={visibility === v.id}
+                            onChange={(e) => setVisibility(e.target.value)}
+                            disabled={!isOwnerOrAdmin}
+                            className={`w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 transition-all ${!isOwnerOrAdmin ? 'cursor-not-allowed opacity-50' : ''}`}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`${visibility === v.id ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-400 transition-colors'}`}>{v.icon}</span>
+                            <span className="text-sm font-extrabold text-slate-900">{v.label}</span>
+                          </div>
+                          <p className="text-xs font-medium text-slate-500 leading-relaxed">{v.desc}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      setIsUpdatingForm(true);
+                      try {
+                        await api.updateVisibility(formId, visibility);
+                        setFormFromServer(prev => ({ ...prev, visibility: visibility }));
+                        setUpdateStatus({ type: 'success', message: 'Settings saved!' });
+                        setTimeout(() => setUpdateStatus(null), 3000);
+                      } catch (err) {
+
+                        setUpdateStatus({ type: 'error', message: 'Failed to save settings.' });
+                        setTimeout(() => setUpdateStatus(null), 3000);
+                      } finally {
+                        setIsUpdatingForm(false);
+                      }
+                    }}
+                    disabled={isUpdatingForm || !isOwnerOrAdmin}
+                    className={`w-full mt-4 py-3.5 text-white rounded-xl text-sm font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-95 ${isOwnerOrAdmin
+                      ? "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200"
+                      : "bg-slate-400 cursor-not-allowed shadow-none"
+                      } disabled:opacity-50`}
+                  >
+                    {isUpdatingForm ? <div className="w-5 h-5 border-[3px] border-white/20 border-t-white rounded-full animate-spin" /> : (!isOwnerOrAdmin ? <Lock size={18} /> : <Save size={18} />)}
+                    {isOwnerOrAdmin ? "Update Visibility Settings" : "Visibility Settings Locked"}
+                  </button>
+
+                  {updateStatus && (
+                    <div className={`mt-3 p-3.5 rounded-xl text-xs font-bold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2 shadow-sm ${updateStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                      {updateStatus.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                      {updateStatus.message}
+                    </div>
+                  )}
+                </section>
+
+                <hr className="border-slate-200/60" />
+
+                {/* Permissions Section */}
+                <section className="space-y-6 pb-12">
+                  <div className="flex items-center gap-3.5">
+                    <div className="p-2.5 bg-white shadow-sm border border-slate-100 rounded-xl">
+                      <ShieldCheck className="text-emerald-500" size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-900 tracking-tight">User Permissions</h3>
+                      <p className="text-xs font-medium text-slate-500 mt-0.5">Manage specific user access roles</p>
+                    </div>
+                  </div>
+                  {/* 1. Add Permission Input — ONLY for Owner/Admin */}
+                  {isOwnerOrAdmin && (
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Username / Email</label>
+                        <div className="relative group">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                            <UserPlus size={18} />
+                          </div>
+                          <input
+                            type="text"
+                            className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none font-medium placeholder:text-slate-400"
+                            placeholder="Type username..."
+                            value={newPermissionUser}
+                            onChange={(e) => setNewPermissionUser(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 mb-1.5 block">Select Role</label>
+                          <select
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                            value={newPermissionRole}
+                            onChange={(e) => setNewPermissionRole(e.target.value)}
+                          >
+                            <option value="VIEWER">Viewer</option>
+                            <option value="BUILDER">Builder</option>
+                          </select>
+                        </div>
+                        <div className="flex items-end">
+                          <button
+                            onClick={async () => {
+                              if (!newPermissionUser) return;
+                              setIsAddingPermission(true);
+                              try {
+                                await api.addPermission(formId, newPermissionUser, newPermissionRole);
+
+                                // Success path
+                                setNewPermissionUser("");
+                                toast.success(`Permission granted to ${newPermissionUser} successfully!`);
+
+                                // Refresh permissions list
+                                const resp = await api.getPermissions(formId);
+                                setPermissions(resp.data || []);
+                              } catch (err) {
+                                console.error("Failed to add permission", err);
+
+                                // Robust error message extraction
+                                const errorMsg = err.response?.data?.message
+                                  || err.response?.data?.error
+                                  || err.message
+                                  || "Failed to add permission. Please try again.";
+
+                                toast.error(errorMsg);
+                              } finally {
+                                setIsAddingPermission(false);
+                              }
+                            }}
+                            disabled={isAddingPermission || !newPermissionUser}
+                            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md flex items-center justify-center gap-2 active:scale-95 h-[42px] min-w-[100px] ${isAddingPermission || !newPermissionUser
+                              ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+                              : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-200"
+                              }`}
+                          >
+                            {isAddingPermission ? (
+                              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <Plus size={16} />
+                                <span>Add</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Active Permissions</label>
+                    <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+
+                      <div className="flex items-center justify-between p-3.5 bg-slate-100/80 border border-slate-200/80 rounded-xl">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-black text-slate-600 uppercase shadow-inner">
+                            {user?.id === form?.ownerId ? "YOU" : (form?.ownerName?.charAt(0) || "?")}
+                          </div>
+                          <div>
+                            <p className="text-sm font-extrabold text-slate-900 leading-tight">
+                              {user?.id === form?.ownerId ? "You (Owner)" : `${form?.ownerName} (Owner)`}
+                            </p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Full Access</p>
+                          </div>
+                        </div>
+                        <Shield size={18} className="text-slate-400" />
+                      </div>
+
+                      {permissions.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between p-3.5 bg-white border border-slate-200 rounded-xl group hover:border-slate-300 hover:shadow-sm transition-all">
+                          <div className="flex items-center gap-3.5">
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black uppercase shadow-inner border ${p.role === 'BUILDER' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                              {p.username.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-sm font-extrabold text-slate-900 leading-tight">{p.username}</p>
+                              <div className="mt-1">
+                                <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${p.role === 'BUILDER' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                  {p.role}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          {isOwnerOrAdmin && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await api.removePermission(formId, p.id);
+                                  setPermissions(prev => prev.filter(x => x.id !== p.id));
+                                } catch (err) {
+                                  console.error("Failed to remove permission", err);
+                                }
+                              }}
+                              className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-xl transition-all opacity-0 group-hover:opacity-100 hover:scale-110 shadow-sm"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+
+                      {permissions.length === 0 && (
+                        <div className="py-8 text-center border-[3px] border-dashed border-slate-200 rounded-2xl bg-white/50">
+                          <Users size={24} className="mx-auto text-slate-300 mb-3" />
+                          <p className="text-xs font-bold text-slate-500">No specific user permissions yet.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <CustomValidationsPanel
+        formId={formId}
+        fields={localFields}
+        isOpen={showLogicModal}
+        onClose={() => setShowLogicModal(false)}
       />
 
       <ConfirmationModal
