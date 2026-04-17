@@ -581,8 +581,13 @@ public class FormSubmissionService {
 
         Map<String, Object> values = request.getData();
         if (values != null) {
-            for (String key : values.keySet()) {
-                if (!allowedKeys.contains(key)) throw new BusinessException("Unknown field: " + key, HttpStatus.BAD_REQUEST);
+            // Filter keys to exclude layout-only fields (SECTION, LABEL, PAGE_BREAK, GROUP)
+            // This prevents "Unknown field" errors when the frontend sends values for these elements.
+            Set<String> keysToProcess = new HashSet<>(values.keySet());
+            for (String key : keysToProcess) {
+                if (!allowedKeys.contains(key)) {
+                    values.remove(key);
+                }
             }
         }
 

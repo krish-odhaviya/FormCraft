@@ -121,7 +121,7 @@ export default function VersionsPage() {
                 Manage immutable snapshots of your form definitions over time.
               </p>
             </div>
-            
+{/*             
             <button
               onClick={handleCreateVersion}
               disabled={isCreating}
@@ -129,7 +129,7 @@ export default function VersionsPage() {
             >
               {isCreating ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} strokeWidth={3} />}
               Create Snapshot
-            </button>
+            </button> */}
           </div>
         </div>
 

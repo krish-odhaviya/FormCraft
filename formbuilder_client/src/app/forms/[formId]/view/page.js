@@ -374,7 +374,7 @@ function FormPageContent() {
 
         const initialValues = {};
         fieldsData.forEach((field) => {
-          if (field.fieldType === "SECTION" || field.fieldType === "LABEL") return;
+          if (["SECTION", "LABEL", "PAGE_BREAK", "GROUP"].includes(field.fieldType)) return;
           const def = field.uiConfig?.defaultValue;
           if (field.fieldType === "BOOLEAN")         initialValues[field.fieldKey] = def === "true";
           else if (field.fieldType === "CHECKBOX_GROUP") initialValues[field.fieldKey] = [];
@@ -452,9 +452,15 @@ function FormPageContent() {
     const EXCLUDED = new Set(["SECTION", "LABEL", "PAGE_BREAK", "GROUP"]);
     const visibleValues = {};
     Object.keys(formValues).forEach((key) => {
-      const state = fieldStates[key];
       const fieldDef = fields.find((f) => f.fieldKey === key);
-      if (state?.visible !== false && !EXCLUDED.has(fieldDef?.fieldType)) visibleValues[key] = formValues[key];
+      // Only include fields that exist in the current schema and are NOT layout-only types
+      if (fieldDef && !EXCLUDED.has(fieldDef.fieldType)) {
+        const state = fieldStates[key];
+        // For final submission, we only send visible fields
+        if (state?.visible !== false) {
+          visibleValues[key] = formValues[key];
+        }
+      }
     });
 
     // ── Client-side validation ────────────────────────────────────────────
@@ -694,7 +700,18 @@ function FormPageContent() {
     setDraftSaveMessage(null);
     try {
       const vid = formDetails.activeVersionId;
-      const res = await api.saveDraftSubmission(formId, vid, formValues);
+      
+      // Filter out layout fields and non-existent fields before saving draft
+      const EXCLUDED = new Set(["SECTION", "LABEL", "PAGE_BREAK", "GROUP"]);
+      const filteredValues = {};
+      Object.keys(formValues).forEach((key) => {
+        const fieldDef = fields.find((f) => f.fieldKey === key);
+        if (fieldDef && !EXCLUDED.has(fieldDef.fieldType)) {
+          filteredValues[key] = formValues[key];
+        }
+      });
+
+      const res = await api.saveDraftSubmission(formId, vid, filteredValues);
       setDraftSubmissionId(res.data.submissionId);
       setDraftSaveMessage({ type: "success", text: "Draft saved successfully" });
       setTimeout(() => setDraftSaveMessage(null), 3000);

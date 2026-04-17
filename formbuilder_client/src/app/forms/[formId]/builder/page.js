@@ -273,11 +273,13 @@ export default function BuilderPage() {
 
   const handleSidebarDragStart = (e, type) => {
     e.dataTransfer.setData("newFieldType", type);
+    e.dataTransfer.setData("text/plain", type); // Standard fallback
     e.dataTransfer.effectAllowed = "copy";
   };
 
   const handleFieldDragStart = (e, id) => {
     e.dataTransfer.setData("existingFieldId", id);
+    e.dataTransfer.setData("text/plain", id); // Standard fallback
     e.dataTransfer.effectAllowed = "move";
     
     // Create a custom ghost-like state without hiding the original immediately
@@ -298,7 +300,9 @@ export default function BuilderPage() {
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
+    // Determine the source to set the correct dropEffect
+    const isNew = e.dataTransfer.types.includes("newfieldtype") || e.dataTransfer.types.includes("newFieldType");
+    e.dataTransfer.dropEffect = isNew ? "copy" : "move";
   };
 
   const handleCanvasDragEnter = (e) => {
@@ -320,7 +324,7 @@ export default function BuilderPage() {
     setIsOverBottomArea(false);
     setDragTarget({ id: null, position: null });
 
-    const newFieldType = e.dataTransfer.getData("newFieldType");
+    const newFieldType = e.dataTransfer.getData("newFieldType") || e.dataTransfer.getData("text/plain");
     const existingFieldId = e.dataTransfer.getData("existingFieldId");
 
     if (newFieldType) {
@@ -345,6 +349,10 @@ export default function BuilderPage() {
     e.preventDefault();
     e.stopPropagation();
     
+    // Determine the source to set the correct dropEffect
+    const isNew = e.dataTransfer.types.includes("newfieldtype") || e.dataTransfer.types.includes("newFieldType");
+    e.dataTransfer.dropEffect = isNew ? "copy" : "move";
+    
     // Throttle the state update to prevent flickering
     if (dragTarget.id !== fieldId || dragTarget.position !== position) {
       setDragTarget({ id: fieldId, position });
@@ -358,7 +366,7 @@ export default function BuilderPage() {
     setDragTarget({ id: null, position: null });
     setIsDraggingOverCanvas(false);
 
-    const newFieldType = e.dataTransfer.getData("newFieldType");
+    const newFieldType = e.dataTransfer.getData("newFieldType") || e.dataTransfer.getData("text/plain");
     const existingFieldId = e.dataTransfer.getData("existingFieldId");
 
     setLocalFields(prev => {
@@ -1109,8 +1117,8 @@ export default function BuilderPage() {
                 setDragOverGroupKey(null);
                 e.preventDefault();
                 e.stopPropagation();
-                const newType = e.dataTransfer.getData("newFieldType");
-                const existingIdx = e.dataTransfer.getData("existingFieldIndex");
+                const newType = e.dataTransfer.getData("newFieldType") || e.dataTransfer.getData("text/plain");
+                const existingId = e.dataTransfer.getData("existingFieldId");
 
                 if (newType) {
                   if (newType === "GROUP") return;
@@ -1118,14 +1126,18 @@ export default function BuilderPage() {
                   newF.parentId = field.fieldKey;
                   setLocalFields(prev => [...prev, newF]);
                   setActiveFieldId(newF.id);
-                } else if (existingIdx !== "") {
-                  const fromIdx = Number(existingIdx);
-                  const moved = { ...localFields[fromIdx] };
-                  if (moved.id === field.id) return;
-                  if (moved.fieldType === "GROUP") return;
+                } else if (existingId) {
+                  if (existingId === field.id) return;
                   setLocalFields(prev => {
                     const list = [...prev];
-                    list[fromIdx] = { ...moved, parentId: field.fieldKey };
+                    const movedIdx = list.findIndex(f => f.id === existingId);
+                    if (movedIdx === -1) return list;
+                    const [moved] = list.splice(movedIdx, 1);
+                    if (moved.fieldType === "GROUP") {
+                      toast.error("Groups cannot be nested.");
+                      return prev;
+                    }
+                    list.push({ ...moved, parentId: field.fieldKey });
                     return list;
                   });
                 }
@@ -1163,11 +1175,13 @@ export default function BuilderPage() {
                       <div
                         key={child.id}
                         draggable
-                        onDragStart={(e) => handleFieldDragStart(e, childIndex)}
+                        onDragStart={(e) => handleFieldDragStart(e, child.id)}
                         onDragOver={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           setDragOverFieldId(child.id);
+                          // Set move effect for existing fields
+                          e.dataTransfer.dropEffect = "move";
                         }}
                         onDragLeave={(e) => {
                           e.stopPropagation();
@@ -1177,7 +1191,7 @@ export default function BuilderPage() {
                         }}
                         onDrop={(e) => {
                           setDragOverFieldId(null);
-                          handleDropOnGroupChild(e, childIndex, field.fieldKey);
+                          handleDropOnFieldInternal(e, child.id, 'bottom'); // Default to bottom for child drops
                         }}
                         onClick={(e) => { e.stopPropagation(); setActiveFieldId(child.id); e.currentTarget.blur(); }}
                         className={`p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer bg-white relative ${dragOverFieldId === child.id
