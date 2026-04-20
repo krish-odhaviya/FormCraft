@@ -7,10 +7,15 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.sttl.formbuilder.dto.FormSummaryDTO;
+import com.sttl.formbuilder.dto.PublishedFormDTO;
 import com.sttl.formbuilder.Enums.FormStatusEnum;
+import com.sttl.formbuilder.dto.CreateFormRequest;
 import com.sttl.formbuilder.dto.FieldDto;
 import com.sttl.formbuilder.dto.VersionDto;
 import com.sttl.formbuilder.entity.User;
+import com.sttl.formbuilder.mapper.FieldMapper;
+import com.sttl.formbuilder.mapper.FormMapper;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.FormSubmissionMetaRepository;
 import com.sttl.formbuilder.repository.UserRepository;
@@ -42,6 +47,8 @@ public class FormService {
     private final FormSubmissionMetaRepository submissionMetaRepository;
     private final FormVersionRepository       versionRepository;
     private final SchemaService              schemaService;
+    private final FormMapper                 formMapper;
+    private final FieldMapper                fieldMapper;
 
     public FormService(FormRepository formRepository,
                        FormFieldRepository formFieldRepository,
@@ -51,7 +58,9 @@ public class FormService {
                        FormVersionService formVersionService,
                        FormSubmissionMetaRepository submissionMetaRepository,
                        FormVersionRepository versionRepository,
-                       SchemaService schemaService) {
+                       SchemaService schemaService,
+                       FormMapper formMapper,
+                       FieldMapper fieldMapper) {
         this.formRepository      = formRepository;
         this.formFieldRepository = formFieldRepository;
         this.userRepository      = userRepository;
@@ -61,13 +70,15 @@ public class FormService {
         this.submissionMetaRepository = submissionMetaRepository;
         this.versionRepository   = versionRepository;
         this.schemaService       = schemaService;
+        this.formMapper          = formMapper;
+        this.fieldMapper         = fieldMapper;
     }
 
     /** Returns forms the user has access to manage (Owner or Admin or Builder).
      *  Requires: "Form Vault" module.
      */
     public List<Form> getAllForms(String currentUsername) {
-        moduleAccessService.assertHasModule(currentUsername, ModuleAccessService.MODULE_FORM_VAULT);  // ← ADDED
+        moduleAccessService.assertHasModule(currentUsername, ModuleAccessService.MODULE_FORM_VAULT);
 
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -80,41 +91,44 @@ public class FormService {
     }
 
     /** Returns forms the user has access to manage (Owner or Admin or Builder) - Paginated. */
-    public Page<Form> getFormsPaginated(String currentUsername, Pageable pageable) {
+    public Page<FormSummaryDTO> getFormsPaginated(String currentUsername, Pageable pageable) {
         moduleAccessService.assertHasModule(currentUsername, ModuleAccessService.MODULE_FORM_VAULT);
 
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
 
+        Page<Form> formsPage;
         if (permissionService.canManageSystem(user)) {
-            return formRepository.findAll(pageable);
+            formsPage = formRepository.findAll(pageable);
+        } else {
+            formsPage = formRepository.findFormsAccessibleToUser(user, pageable);
         }
 
-        return formRepository.findFormsAccessibleToUser(user, pageable);
+        return formsPage.map(form -> {
+            FormSummaryDTO summary = formMapper.toSummary(form);
+            summary.setCanEdit(permissionService.canManageSystem(user) || permissionService.canConfigureForm(user, form));
+            summary.setCanViewSubmissions(permissionService.canManageSystem(user) || permissionService.canViewSubmissions(user, form));
+            return summary;
+        });
     }
 
     /** Creates a form tagged with the current user as owner.
      *  Requires: "Create New Form" module.
      */
-    public Form createForm(String name, String code, String description, String currentUsername) {
+    public Form createForm(CreateFormRequest requestBody, String currentUsername) {
         moduleAccessService.assertHasModule(currentUsername, ModuleAccessService.MODULE_CREATE_FORM);
 
         User user = userRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
 
-        // Validate uniqueness of code (SRS: code is globally unique)
-        if (formRepository.existsByCode(code)) {
-            throw new BusinessException("A form with code '" + code + "' already exists. Please choose a different code.", HttpStatus.CONFLICT);
+        if (formRepository.existsByCode(requestBody.getCode())) {
+            throw new BusinessException("A form with code '" + requestBody.getCode() + "' already exists.", HttpStatus.CONFLICT);
         }
-        // Also check name uniqueness per owner
-        if (formRepository.existsByNameAndOwner(name, user)) {
+        if (formRepository.existsByNameAndOwner(requestBody.getName(), user)) {
             throw new BusinessException("You already have a form with that name", HttpStatus.CONFLICT);
         }
 
-        Form form = new Form();
-        form.setName(name);
-        form.setCode(code);
-        form.setDescription(description);
+        Form form = formMapper.toEntity(requestBody);
         form.setCreatedByUsername(currentUsername);
         form.setOwner(user);
 
@@ -143,17 +157,7 @@ public class FormService {
             }
         }
 
-        FormDetailsResponse response = new FormDetailsResponse();
-        response.setId(form.getId());
-        response.setCode(form.getCode());
-        response.setName(form.getName());
-        response.setDescription(form.getDescription());
-        response.setCreatedAt(form.getCreatedAt());
-        response.setUpdatedAt(form.getUpdatedAt());
-        response.setStatus(String.valueOf(form.getStatus()));
-        response.setVisibility(form.getVisibility() != null ? form.getVisibility().name() : "PUBLIC");
-        response.setTableName(form.getTableName());
-        response.setPublishedAt(form.getPublishedAt());
+        FormDetailsResponse response = formMapper.toResponse(form);
 
         // ── SRS §4.3 Schema Drift Detection ──────────────────────────────────
         if (form.getStatus() == FormStatusEnum.PUBLISHED || form.getStatus() == FormStatusEnum.ARCHIVED) {
@@ -215,9 +219,9 @@ public class FormService {
         response.setOwnerName(form.getOwner() != null ? form.getOwner().getUsername() : "Unknown");
         response.setOwnerId(form.getOwner() != null ? form.getOwner().getId() : null);
 
-        // 3. Map Entities to FieldDto with Nested Maps
+        // 3. Map Entities to FieldDto using MapStruct
         List<FieldDto> fieldDtos = fields.stream()
-                .map(FieldDto::fromEntity)
+                .map(fieldMapper::toDto)
                 .collect(Collectors.toList());
 
         response.setFields(fieldDtos);
@@ -262,5 +266,27 @@ public class FormService {
 
         form.setStatus(FormStatusEnum.DRAFT);
         return formRepository.save(form);
+    }
+
+    public List<PublishedFormDTO> getPublishedForms(UUID excludeFormId, String currentUsername) {
+        User user = currentUsername != null ? userRepository.findByUsername(currentUsername).orElse(null) : null;
+
+        List<Form> publishedForms = formRepository.findAllByStatus(FormStatusEnum.PUBLISHED);
+
+        return publishedForms.stream()
+                .filter(f -> permissionService.canViewForm(user, f))
+                .filter(f -> excludeFormId == null || !f.getId().equals(excludeFormId))
+                .map(f -> PublishedFormDTO.builder()
+                        .formId(f.getId())
+                        .formName(f.getName())
+                        .tableName(f.getTableName())
+                        .fields(formVersionService.getActiveVersion(f.getId())
+                                .map(v -> formFieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(v.getId())
+                                        .stream()
+                                        .map(field -> new PublishedFormDTO.PublishedFormFieldDTO(field.getFieldKey(), field.getFieldLabel()))
+                                        .collect(Collectors.toList()))
+                                .orElse(List.of()))
+                        .build())
+                .collect(Collectors.toList());
     }
 }

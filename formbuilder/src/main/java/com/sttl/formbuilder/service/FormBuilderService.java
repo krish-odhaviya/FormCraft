@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.User;
+import com.sttl.formbuilder.mapper.FieldMapper;
 import com.sttl.formbuilder.repository.FormRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -46,6 +47,7 @@ public class FormBuilderService {
     private final FormSubmissionMetaRepository submissionMetaRepository;
     private final FieldValidationRepository validationRepository;
     private final ObjectMapper                objectMapper;
+    private final FieldMapper                 fieldMapper;
 
     private static final Set<String> RESERVED_KEYWORDS = SchemaService.RESERVED_COLUMNS;
 
@@ -238,7 +240,7 @@ public class FormBuilderService {
         // 5. Final save for all new/updated fields
         fieldRepository.saveAllAndFlush(fieldsToSave);
         return activeResult.stream()
-                .map(FieldDto::fromEntity)
+                .map(fieldMapper::toDto)
                 .collect(Collectors.toList());
     }
 

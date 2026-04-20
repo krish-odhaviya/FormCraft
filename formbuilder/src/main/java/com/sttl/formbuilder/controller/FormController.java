@@ -1,26 +1,33 @@
 package com.sttl.formbuilder.controller;
 
-import com.sttl.formbuilder.constant.ApiEndpoints;
-
+import com.sttl.formbuilder.Enums.FormRole;
 import com.sttl.formbuilder.Enums.FormStatusEnum;
+import com.sttl.formbuilder.Enums.VisibilityType;
+import com.sttl.formbuilder.constant.ApiEndpoints;
 import com.sttl.formbuilder.common.ApiResponse;
 import com.sttl.formbuilder.common.ApiResponseUtil;
-import com.sttl.formbuilder.dto.FormDetailsResponse;
 import com.sttl.formbuilder.dto.CreateFormRequest;
+import com.sttl.formbuilder.dto.FormDetailsResponse;
 import com.sttl.formbuilder.entity.Form;
+import com.sttl.formbuilder.entity.FormPermission;
+import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.exception.BusinessException;
+import com.sttl.formbuilder.repository.FormPermissionRepository;
 import com.sttl.formbuilder.repository.FormRepository;
+import com.sttl.formbuilder.repository.UserRepository;
 import com.sttl.formbuilder.service.FormService;
+import com.sttl.formbuilder.service.PermissionService;
 import com.sttl.formbuilder.service.FormVersionService;
 import com.sttl.formbuilder.repository.FormFieldRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import com.sttl.formbuilder.dto.FormSummaryDTO;
+import com.sttl.formbuilder.dto.PublishedFormDTO;
 import com.sttl.formbuilder.dto.PagedResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,17 +35,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
-import com.sttl.formbuilder.Enums.FormRole;
-import com.sttl.formbuilder.Enums.VisibilityType;
-import com.sttl.formbuilder.entity.FormPermission;
-import com.sttl.formbuilder.entity.User;
-import com.sttl.formbuilder.repository.FormPermissionRepository;
-import com.sttl.formbuilder.repository.UserRepository;
-import com.sttl.formbuilder.service.PermissionService;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -48,52 +45,34 @@ public class FormController {
 
     private final FormService formService;
     private final FormRepository formRepository;
+    private final FormPermissionRepository permissionRepository;
     private final PermissionService permissionService;
+    private final UserRepository userRepository;
     private final FormVersionService formVersionService;
     private final FormFieldRepository formFieldRepository;
-    private final UserRepository userRepository;
-    private final FormPermissionRepository permissionRepository;
 
     // ── GET /api/forms — Paginated form list ───────
     @GetMapping
-    public ResponseEntity<ApiResponse<PagedResponse<Map<String, Object>>>> getAllForms(
+    public ResponseEntity<ApiResponse<PagedResponse<FormSummaryDTO>>> getAllForms(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortDir,
+            @RequestParam(defaultValue = "desc") String direction,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        Sort sort = sortDir.equalsIgnoreCase("asc") 
+        Sort sort = direction.equalsIgnoreCase(Sort.Direction.ASC.name()) 
             ? Sort.by(sortBy).ascending() 
             : Sort.by(sortBy).descending();
             
         Pageable pageable = PageRequest.of(page, size, sort);
 
-        Page<Form> formsPage = 
+        Page<FormSummaryDTO> formsPage = 
             formService.getFormsPaginated(currentUser.getUsername(), pageable);
 
-        User user = userRepository.findByUsername(currentUser.getUsername()).orElse(null);
-
-        List<Map<String, Object>> content = formsPage.getContent().stream().map(form -> {
-            Map<String, Object> map = new LinkedHashMap<>();
-            map.put("id", form.getId());
-            map.put("code", form.getCode());
-            map.put("name", form.getName());
-            map.put("description", form.getDescription());
-            map.put("createdAt", form.getCreatedAt());
-            map.put("updatedAt", form.getUpdatedAt());
-            map.put("status", form.getStatus().name());
-            map.put("visibility", form.getVisibility() != null ? form.getVisibility().name() : "PUBLIC");
-            map.put("ownerUsername", form.getOwner() != null ? form.getOwner().getUsername() : null);
-            map.put("canEdit", user != null && (permissionService.canManageSystem(user) || permissionService.canConfigureForm(user, form)));
-            map.put("canViewSubmissions", user != null && (permissionService.canManageSystem(user) || permissionService.canViewSubmissions(user, form)));
-            return map;
-        }).collect(Collectors.toList());
-
-        PagedResponse<Map<String, Object>> pagedResponse = 
-            PagedResponse.<Map<String, Object>>builder()
-                .content(content)
+        PagedResponse<FormSummaryDTO> pagedResponse = 
+            PagedResponse.<FormSummaryDTO>builder()
+                .content(formsPage.getContent())
                 .page(formsPage.getNumber())
                 .size(formsPage.getSize())
                 .totalElements(formsPage.getTotalElements())
@@ -104,33 +83,17 @@ public class FormController {
         return ApiResponseUtil.success(pagedResponse, "Forms fetched successfully", request);
     }
 
-    // ── GET /api/forms/{formId} — ownership enforced ──────────────────────────
     @GetMapping("/{formId}")
     public ResponseEntity<ApiResponse<FormDetailsResponse>> getForm(
             @PathVariable UUID formId,
-            @RequestParam(required = false) String mode,
+            @RequestParam(defaultValue = "runtime") String mode,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
         String username = currentUser != null ? currentUser.getUsername() : null;
         FormDetailsResponse response = formService.getFormWithStructure(formId, username, mode);
-        return ApiResponseUtil.success(response, "Form fetched successfully", request);
-    }
 
-    // ── GET /api/forms/code/{code} — public form view by form code ────────────
-    @GetMapping("/code/{code}")
-    public ResponseEntity<ApiResponse<FormDetailsResponse>> getFormByCode(
-            @PathVariable String code,
-            @RequestParam(required = false) String mode,
-            @AuthenticationPrincipal UserDetails currentUser,
-            HttpServletRequest request) {
-
-        String username = currentUser != null ? currentUser.getUsername() : null;
-        Form form = formRepository.findByCode(code)
-                .orElseThrow(() -> new BusinessException(
-                        "Form not found for code: " + code, HttpStatus.NOT_FOUND));
-        FormDetailsResponse response = formService.getFormWithStructure(form.getId(), username, mode);
-        return ApiResponseUtil.success(response, "Form fetched successfully", request);
+        return ApiResponseUtil.success(response, "Form structure fetched successfully", request);
     }
 
     @PostMapping
@@ -144,50 +107,20 @@ public class FormController {
             return ApiResponseUtil.error("Access Denied: You do not have permission to create forms", null, HttpStatus.FORBIDDEN, request);
         }
 
-        Form form = formService.createForm(
-                requestBody.getName(),
-                requestBody.getCode(),
-                requestBody.getDescription(),
-                currentUser.getUsername()
-        );
+        Form form = formService.createForm(requestBody, currentUser.getUsername());
         return ApiResponseUtil.success(form, "Form created successfully", request);
     }
 
-
     @GetMapping(ApiEndpoints.PUBLISHED_LIST)
-    public ResponseEntity<?> getPublishedForms(
+    public ResponseEntity<ApiResponse<List<PublishedFormDTO>>> getPublishedForms(
             @RequestParam(required = false) UUID excludeFormId,
             @AuthenticationPrincipal UserDetails currentUser,
             HttpServletRequest request) {
 
-        // Note: For Anonymous users, currentUser will be null. 
-        // We should allow them to see PUBLIC forms.
-        User user = currentUser != null ? userRepository.findByUsername(currentUser.getUsername()).orElse(null) : null;
+        String username = currentUser != null ? currentUser.getUsername() : null;
+        List<PublishedFormDTO> result = formService.getPublishedForms(excludeFormId, username);
 
-        List<Form> publishedForms = formRepository.findAllByStatus(FormStatusEnum.PUBLISHED);
-
-        List<Map<String, Object>> result = publishedForms.stream()
-                .filter(f -> permissionService.canViewForm(user, f))
-                .filter(f -> excludeFormId == null || !f.getId().equals(excludeFormId))
-                .map(f -> {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("formId", f.getId());
-                    m.put("formName", f.getName());
-                    m.put("tableName", f.getTableName());
-                    
-                    List<Map<String, String>> fieldOptions = formVersionService.getActiveVersion(f.getId())
-                            .map(v -> formFieldRepository.findByFormVersionIdAndIsDeletedFalseOrderByFieldOrder(v.getId())
-                                    .stream()
-                                    .map(field -> Map.of("key", field.getFieldKey(), "label", field.getFieldLabel()))
-                                    .collect(Collectors.toList()))
-                            .orElse(List.of());
-                                    
-                    m.put("fields", fieldOptions);
-                    return m;
-                })
-                .collect(Collectors.toList());
-
-        return ApiResponseUtil.success(result, "Published forms", request);
+        return ApiResponseUtil.success(result, "Published forms fetched successfully", request);
     }
 
     @PostMapping("/{formId}" + ApiEndpoints.ARCHIVE)
@@ -222,11 +155,6 @@ public class FormController {
         }
     }
 
-    /**
-     * POST /api/forms/{formId}/reactivate
-     * Reactivates an archived form — sets status back to DRAFT.
-     * SRS §11.2: "Archived forms may be reactivated."
-     */
     @PostMapping("/{formId}" + ApiEndpoints.REACTIVATE)
     public ResponseEntity<?> reactivateForm(
             @PathVariable java.util.UUID formId,
@@ -265,7 +193,6 @@ public class FormController {
         }
     }
 
-    // ── POST /api/forms/{formId}/visibility ──────────────────────────────────
     @PostMapping("/{formId}" + ApiEndpoints.VISIBILITY)
     public ResponseEntity<?> updateVisibility(
             @PathVariable UUID formId,
@@ -291,8 +218,6 @@ public class FormController {
         return ApiResponseUtil.success(null, "Visibility updated successfully", request);
     }
 
-
-    // ── GET /api/forms/{formId}/permissions ──────────────────────────────────
     @GetMapping("/{formId}" + ApiEndpoints.PERMISSIONS)
     public ResponseEntity<?> getPermissions(
             @PathVariable UUID formId,
@@ -322,7 +247,6 @@ public class FormController {
         return ApiResponseUtil.success(result, "Permissions fetched", request);
     }
 
-    // ── POST /api/forms/{formId}/permissions ─────────────────────────────────
     @PostMapping("/{formId}" + ApiEndpoints.PERMISSIONS)
     public ResponseEntity<?> addPermission(
             @PathVariable UUID formId,
@@ -348,7 +272,6 @@ public class FormController {
         return ApiResponseUtil.success(null, "Permission granted", request);
     }
 
-    // ── DELETE /api/forms/{formId}/permissions/{permissionId} ────────────────
     @DeleteMapping("/{formId}" + ApiEndpoints.PERMISSIONS + "/{permissionId}")
     public ResponseEntity<?> removePermission(
             @PathVariable UUID formId,

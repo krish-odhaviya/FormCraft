@@ -4,6 +4,7 @@ import com.sttl.formbuilder.dto.RoleRequestDTO;
 import com.sttl.formbuilder.dto.RoleResponseDTO;
 import com.sttl.formbuilder.entity.*;
 import com.sttl.formbuilder.entity.Module;
+import com.sttl.formbuilder.mapper.RoleMapper;
 import com.sttl.formbuilder.exception.BusinessException;
 import com.sttl.formbuilder.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class RoleService {
     private final UserRoleRepository userRoleRepository;
     private final ModuleRepository moduleRepository;
     private final UserRepository userRepository;
+    private final RoleMapper roleMapper;
 
     private static final java.util.Set<String> RESTRICTED_MODULES = java.util.Set.of(
             "System Admin", "Module Management", "Role Management", "User Management", "All Access Requests"
@@ -32,14 +34,14 @@ public class RoleService {
 
     public List<RoleResponseDTO> getAllRoles() {
         return roleRepository.findAll().stream()
-                .map(this::toDTO)
+                .map(roleMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     public RoleResponseDTO getRole(UUID id) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Role not found", HttpStatus.NOT_FOUND));
-        return toDTO(role);
+        return roleMapper.toResponse(role);
     }
 
     @Transactional
@@ -47,39 +49,28 @@ public class RoleService {
         if (roleRepository.existsByRoleName(dto.getRoleName())) {
             throw new BusinessException("Role with this name already exists", HttpStatus.CONFLICT);
         }
-        Role role = new Role();
-        role.setRoleName(dto.getRoleName());
-        role.setDescription(dto.getDescription());
-        role.setCanCreateForm(dto.isCanCreateForm());
-        role.setCanEditForm(dto.isCanEditForm());
-        role.setCanDeleteForm(dto.isCanDeleteForm());
-        role.setCanArchiveForm(dto.isCanArchiveForm());
-        role.setCanViewSubmissions(dto.isCanViewSubmissions());
-        role.setCanDeleteSubmissions(dto.isCanDeleteSubmissions());
+        Role role = roleMapper.toEntity(dto);
         Role saved = roleRepository.save(role);
 
         if (dto.getModuleIds() != null && !dto.getModuleIds().isEmpty()) {
             assignModules(saved, dto.getModuleIds());
         }
-        return toDTO(saved);
+        return roleMapper.toResponse(saved);
     }
 
     @Transactional
     public RoleResponseDTO updateRole(UUID id, RoleRequestDTO dto) {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Role not found", HttpStatus.NOT_FOUND));
-        role.setRoleName(dto.getRoleName());
-        role.setDescription(dto.getDescription());
-        role.setCanCreateForm(dto.isCanCreateForm());
-        role.setCanEditForm(dto.isCanEditForm());
-        role.setCanDeleteForm(dto.isCanDeleteForm());
-        role.setCanArchiveForm(dto.isCanArchiveForm());
-        role.setCanViewSubmissions(dto.isCanViewSubmissions());
-        role.setCanDeleteSubmissions(dto.isCanDeleteSubmissions());
-        roleRepository.save(role);
+        
+        Role updated = roleMapper.toEntity(dto);
+        updated.setId(role.getId());
+        updated.setDefault(role.isDefault());
+        
+        roleRepository.save(updated);
         // NOTE: module assignment is handled exclusively by assignModulesToRole()
         // — do NOT touch modules here to avoid race condition with Promise.all
-        return toDTO(role);
+        return roleMapper.toResponse(updated);
     }
 
     @Transactional
@@ -179,26 +170,4 @@ public class RoleService {
             }
         }
     }
-
-    public RoleResponseDTO toDTO(Role role) {
-        RoleResponseDTO dto = new RoleResponseDTO();
-        dto.setId(role.getId());
-        dto.setRoleName(role.getRoleName());
-        dto.setDescription(role.getDescription());
-        dto.setDefault(role.isDefault());
-        dto.setCreatedAt(role.getCreatedAt());
-        dto.setCanCreateForm(role.isCanCreateForm());
-        dto.setCanEditForm(role.isCanEditForm());
-        dto.setCanDeleteForm(role.isCanDeleteForm());
-        dto.setCanArchiveForm(role.isCanArchiveForm());
-        dto.setCanViewSubmissions(role.isCanViewSubmissions());
-        dto.setCanDeleteSubmissions(role.isCanDeleteSubmissions());
-        dto.setModuleIds(roleModuleRepository.findByRole(role).stream()
-                .map(rm -> rm.getModule().getId())
-                .collect(Collectors.toList()));
-        dto.setAssignedUserCount((int) userRoleRepository.findAll().stream()
-                .filter(ur -> ur.getRole().getId().equals(role.getId()))
-                .count());
-        return dto;
-    }
-}
+}

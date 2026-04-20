@@ -4,6 +4,7 @@ import com.sttl.formbuilder.Enums.FormRole;
 import com.sttl.formbuilder.dto.AccessRequestDTO;
 import com.sttl.formbuilder.dto.AccessRequestResponseDTO;
 import com.sttl.formbuilder.entity.AccessRequest;
+import com.sttl.formbuilder.mapper.AccessRequestMapper;
 import com.sttl.formbuilder.entity.Form;
 import com.sttl.formbuilder.entity.User;
 import com.sttl.formbuilder.exception.BusinessException;
@@ -28,7 +29,8 @@ public class AccessRequestService {
     private final FormRepository          formRepository;
     private final UserRepository          userRepository;
     private final PermissionService       permissionService;
-    private final ModuleAccessService     moduleAccessService;  // ← ADDED
+    private final ModuleAccessService     moduleAccessService;
+    private final AccessRequestMapper     accessRequestMapper;
 
     /**
      * Creates a new access request (VIEW_FORM or CREATE_FORM) for the given user.
@@ -64,7 +66,7 @@ public class AccessRequestService {
         }
 
         requestRepository.save(request);
-        return toDto(request);
+        return accessRequestMapper.toResponse(request);
     }
 
     /**
@@ -72,11 +74,11 @@ public class AccessRequestService {
      * Requires: "My Requests" module.
      */
     public List<AccessRequestResponseDTO> getMyRequests(String username) {
-        moduleAccessService.assertHasModule(username, MODULE_MY_REQUESTS);  // ← ADDED
+        moduleAccessService.assertHasModule(username, MODULE_MY_REQUESTS);
 
         User user = resolveUser(username);
         return requestRepository.findByUser(user).stream()
-                .map(this::toDto)
+                .map(accessRequestMapper::toResponse)
                 .toList();
     }
 
@@ -101,7 +103,7 @@ public class AccessRequestService {
                 : requestRepository.findByFormOwnerAndStatus(user, "PENDING");
 
         return requests.stream()
-                .map(this::toDto)
+                .map(accessRequestMapper::toResponse)
                 .toList();
     }
 
@@ -153,37 +155,11 @@ public class AccessRequestService {
             permissionService.grantFormRole(processor, request.getUser(), request.getForm(), roleToGrant, null);
         }
 
-        return toDto(request);
+        return accessRequestMapper.toResponse(request);
     }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private User resolveUser(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND));
-    }
-
-    private AccessRequestResponseDTO toDto(AccessRequest request) {
-        return AccessRequestResponseDTO.builder()
-                .id(request.getId())
-                .user(new AccessRequestResponseDTO.UserInfo(
-                        request.getUser().getId(),
-                        request.getUser().getUsername()))
-                .form(request.getForm() != null
-                        ? new AccessRequestResponseDTO.FormInfo(
-                        request.getForm().getId(),
-                        request.getForm().getName())
-                        : null)
-                .type(request.getType())
-                .reason(request.getReason())
-                .status(request.getStatus())
-                .requestedAt(request.getRequestedAt())
-                .processedAt(request.getProcessedAt())
-                .processedBy(request.getProcessedBy() != null
-                        ? new AccessRequestResponseDTO.UserInfo(
-                        request.getProcessedBy().getId(),
-                        request.getProcessedBy().getUsername())
-                        : null)
-                .build();
     }
 }
