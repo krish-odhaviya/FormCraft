@@ -73,7 +73,7 @@ public class FormSubmissionMeta {
     @Column(nullable = false)
     private Boolean isDeleted = false;
 
-    private java.time.LocalDateTime restoredAt;
+    private LocalDateTime restoredAt;
 
     @Version
     private Long version;

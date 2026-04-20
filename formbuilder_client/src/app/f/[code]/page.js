@@ -213,7 +213,13 @@ function FormPageContent() {
   const [requestReason,   setRequestReason]   = useState("");
   const [requestStatus,   setRequestStatus]   = useState(null);
 
+  // ── Smart Auto-Save States ───────────────────────────────────────────────
+  const [isDirty, setIsDirty] = useState(false);
+  const [lastSavedData, setLastSavedData] = useState(null);
+  const [saveStatus, setSaveStatus] = useState("idle"); // idle | unsaved | saving | saved | error
+
   const scrollToFieldKey = useRef(null);
+  const autoSaveTimerRef = useRef(null);
 
   // ── Page splitting ────────────────────────────────────────────────────────
   const formPages = useMemo(() => {
@@ -372,6 +378,7 @@ function FormPageContent() {
           else initialValues[field.fieldKey] = def || "";
         });
         setFormValues(initialValues);
+        setLastSavedData(JSON.stringify(initialValues));
       } catch (err) {
         const errorData = err.response?.data;
         // Check if the error response explicitly mentions archiving or status is ARCHIVED
@@ -398,26 +405,61 @@ function FormPageContent() {
     if (code) fetchFields().catch(() => {});
   }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const hasFetchedDraft = useRef(false);
+
   // ── Fetch draft on mount ──────────────────────────────────────────────────
   useEffect(() => {
     async function fetchDraft() {
-      if (!isAuthenticated || !formDetails.activeVersionId) return;
+      if (!isAuthenticated || !formDetails.activeVersionId || hasFetchedDraft.current) return;
+      hasFetchedDraft.current = true;
+      
       try {
         const res = await api.getDraftByCode(code);
         if (res.data) {
           const draft = res.data;
           if (draft.formVersionId === formDetails.activeVersionId) {
-            setFormValues((prev) => ({ ...prev, ...draft.data }));
+            setFormValues((prev) => {
+              const newData = { ...prev, ...draft.data };
+              setLastSavedData(JSON.stringify(newData));
+              return newData;
+            });
             setDraftBanner("You have a saved draft. Resuming where you left off.");
             setDraftSubmissionId(draft.submissionId);
           } else {
             setDraftBanner("warning: Your previous draft was for an older version of this form and cannot be restored.");
           }
         }
-      } catch { /* ignore optional draft fetch */ }
+      } catch (err) {
+        console.error("Draft fetch failed:", err);
+      }
     }
-    if (formDetails.activeVersionId) fetchDraft();
+    if (formDetails.activeVersionId && isAuthenticated) {
+      fetchDraft();
+    }
   }, [code, formDetails.activeVersionId, isAuthenticated]);
+
+  // ── Auto-save Logic (The Engine) ──────────────────────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated || !isDirty || submitting) return;
+
+    const currentDataStr = JSON.stringify(formValues);
+    if (currentDataStr === lastSavedData) {
+      setIsDirty(false);
+      return;
+    }
+
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+
+    setSaveStatus("unsaved");
+
+    autoSaveTimerRef.current = setTimeout(() => {
+      handleSaveDraft(true);
+    }, 2000);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [formValues, isDirty, isAuthenticated, submitting, lastSavedData]);
 
   // ── Scroll to error field after page nav ──────────────────────────────────
   useEffect(() => {
@@ -431,6 +473,7 @@ function FormPageContent() {
 
   const handleChange = (key, value) => {
     setFormValues((prev) => ({ ...prev, [key]: value }));
+    setIsDirty(true);
     setFieldErrors((prev) => { if (!prev[key]) return prev; const u = { ...prev }; delete u[key]; return u; });
   };
 
@@ -664,16 +707,28 @@ function FormPageContent() {
     }
   };
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = async (isQuiet = false) => {
     setIsDraftSaving(true);
-    setDraftSaveMessage(null);
+    setSaveStatus("saving");
+    if (!isQuiet) setDraftSaveMessage(null);
+
     try {
       const res = await api.saveDraftByCode(code, formDetails.activeVersionId, formValues);
       if (res.data?.submissionId) setDraftSubmissionId(res.data.submissionId);
-      setDraftSaveMessage({ type: "success", text: "Draft saved successfully" });
-      setTimeout(() => setDraftSaveMessage(null), 3000);
+
+      setIsDirty(false);
+      setLastSavedData(JSON.stringify(formValues));
+      setSaveStatus("saved");
+
+      if (!isQuiet) {
+        setDraftSaveMessage({ type: "success", text: "Draft saved successfully" });
+        setTimeout(() => setDraftSaveMessage(null), 3000);
+      }
     } catch (err) {
-      setDraftSaveMessage({ type: "error", text: err.response?.data?.message || "Failed to save draft" });
+      setSaveStatus("error");
+      if (!isQuiet) {
+        setDraftSaveMessage({ type: "error", text: err.response?.data?.message || "Failed to save draft" });
+      }
     } finally {
       setIsDraftSaving(false);
     }
@@ -948,17 +1003,50 @@ function FormPageContent() {
                   )}
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-center">
                   {isAuthenticated && (
-                    <button
-                      type="button"
-                      onClick={handleSaveDraft}
-                      disabled={isDraftSaving || submitting}
-                      className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl border-2 border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-all text-sm disabled:opacity-50"
-                    >
-                      {isDraftSaving ? <Loader2 size={18} className="animate-spin text-indigo-600" /> : <LayoutTemplate size={18} className="text-slate-400" />}
-                      {isDraftSaving ? "Saving..." : "Save Draft"}
-                    </button>
+                    <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2 rounded-2xl animate-in fade-in slide-in-from-right-4 duration-500">
+                      <div className="flex items-center gap-2 mr-1">
+                        {saveStatus === "saving" ? (
+                          <div className="flex items-center gap-2 text-indigo-600">
+                            <Loader2 size={16} className="animate-spin" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Saving...</span>
+                          </div>
+                        ) : saveStatus === "unsaved" ? (
+                          <div className="flex items-center gap-2 text-amber-600">
+                            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse ring-4 ring-amber-400/20" />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Unsaved Changes</span>
+                          </div>
+                        ) : saveStatus === "saved" ? (
+                          <div className="flex items-center gap-2 text-emerald-600">
+                            <CheckCircle2 size={16} />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Progress Saved</span>
+                          </div>
+                        ) : saveStatus === "error" ? (
+                          <div className="flex items-center gap-2 text-red-600">
+                            <AlertCircle size={16} />
+                            <span className="text-[11px] font-black uppercase tracking-widest">Save Failed</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-slate-400">
+                            <LayoutTemplate size={16} />
+                            <span className="text-[11px] font-black uppercase tracking-widest italic">All Up to date</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="w-[1px] h-4 bg-slate-200" />
+                      
+                      <button
+                        type="button"
+                        onClick={() => handleSaveDraft(false)}
+                        disabled={isDraftSaving || submitting}
+                        title="Manual sync now"
+                        className="p-1 text-slate-400 hover:text-indigo-600 hover:rotate-180 transition-all duration-500 disabled:opacity-30"
+                      >
+                        <LayoutTemplate size={18} className={isDraftSaving ? "animate-pulse" : ""} />
+                      </button>
+                    </div>
                   )}
 
                   <button

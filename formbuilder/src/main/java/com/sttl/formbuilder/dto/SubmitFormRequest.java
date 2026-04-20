@@ -7,17 +7,18 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Getter
 @Setter
 public class SubmitFormRequest {
 
     @NotNull(message = "Form ID is required")
-    private java.util.UUID formId;
+    private UUID formId;
 
     @NotNull(message = "Submission values are required")
     @NotEmpty(message = "Submission cannot be empty")
     private Map<String, Object> values;
 
-    private java.util.UUID formVersionId;
+    private UUID formVersionId;
 }
