@@ -47,6 +47,7 @@ public class FormService {
     private final FormSubmissionMetaRepository submissionMetaRepository;
     private final FormVersionRepository       versionRepository;
     private final SchemaService              schemaService;
+    private final FormSubmissionService      formSubmissionService;
     private final FormMapper                 formMapper;
     private final FieldMapper                fieldMapper;
 
@@ -59,6 +60,7 @@ public class FormService {
                        FormSubmissionMetaRepository submissionMetaRepository,
                        FormVersionRepository versionRepository,
                        SchemaService schemaService,
+                       FormSubmissionService formSubmissionService,
                        FormMapper formMapper,
                        FieldMapper fieldMapper) {
         this.formRepository      = formRepository;
@@ -70,6 +72,7 @@ public class FormService {
         this.submissionMetaRepository = submissionMetaRepository;
         this.versionRepository   = versionRepository;
         this.schemaService       = schemaService;
+        this.formSubmissionService = formSubmissionService;
         this.formMapper          = formMapper;
         this.fieldMapper         = fieldMapper;
     }
@@ -218,6 +221,15 @@ public class FormService {
         response.setCanDeleteSubmissions(user != null && (permissionService.canManageSystem(user) || permissionService.canDeleteSubmissions(user, form)));
         response.setOwnerName(form.getOwner() != null ? form.getOwner().getUsername() : "Unknown");
         response.setOwnerId(form.getOwner() != null ? form.getOwner().getId() : null);
+
+        // 4. Fetch submission draft if viewing (runtime)
+        if (!"builder".equalsIgnoreCase(mode) && currentUsername != null) {
+            try {
+                response.setSubmissionDraft(formSubmissionService.getDraft(formId, currentUsername));
+            } catch (Exception e) {
+                log.warn("Failed to fetch submission draft for user {}: {}", currentUsername, e.getMessage());
+            }
+        }
 
         // 3. Map Entities to FieldDto using MapStruct
         List<FieldDto> fieldDtos = fields.stream()

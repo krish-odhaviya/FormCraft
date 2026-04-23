@@ -364,7 +364,7 @@ function FormPageContent() {
 
         const initialValues = {};
         fieldsData.forEach((field) => {
-          if (field.fieldType === "SECTION" || field.fieldType === "LABEL") return;
+          if (field.fieldType === "SECTION" || field.fieldType === "LABEL" || field.fieldType === "PAGE_BREAK" || field.fieldType === "GROUP") return;
           const def = field.uiConfig?.defaultValue;
           if (field.fieldType === "BOOLEAN")         initialValues[field.fieldKey] = def === "true";
           else if (field.fieldType === "CHECKBOX_GROUP") initialValues[field.fieldKey] = [];
@@ -377,6 +377,20 @@ function FormPageContent() {
           else if (field.fieldType === "PHONE") initialValues[field.fieldKey] = def || "";
           else initialValues[field.fieldKey] = def || "";
         });
+
+        // ── Resume Draft (Avoid Separate Effect Race Condition) ────────────
+        if (res.data.submissionDraft) {
+          const draft = res.data.submissionDraft;
+          // Only resume if version matches
+          if (draft.formVersionId === res.data.activeVersionId) {
+            Object.assign(initialValues, draft.data);
+            setDraftBanner("You have a saved draft. Resuming where you left off.");
+            setDraftSubmissionId(draft.submissionId);
+          } else if (draft.formVersionId) {
+            setDraftBanner("warning: Your previous draft was for an older version of this form and cannot be restored.");
+          }
+        }
+
         setFormValues(initialValues);
         setLastSavedData(JSON.stringify(initialValues));
       } catch (err) {
@@ -404,39 +418,6 @@ function FormPageContent() {
     }
     if (code) fetchFields().catch(() => {});
   }, [code]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const hasFetchedDraft = useRef(false);
-
-  // ── Fetch draft on mount ──────────────────────────────────────────────────
-  useEffect(() => {
-    async function fetchDraft() {
-      if (!isAuthenticated || !formDetails.activeVersionId || hasFetchedDraft.current) return;
-      hasFetchedDraft.current = true;
-      
-      try {
-        const res = await api.getDraftByCode(code);
-        if (res.data) {
-          const draft = res.data;
-          if (draft.formVersionId === formDetails.activeVersionId) {
-            setFormValues((prev) => {
-              const newData = { ...prev, ...draft.data };
-              setLastSavedData(JSON.stringify(newData));
-              return newData;
-            });
-            setDraftBanner("You have a saved draft. Resuming where you left off.");
-            setDraftSubmissionId(draft.submissionId);
-          } else {
-            setDraftBanner("warning: Your previous draft was for an older version of this form and cannot be restored.");
-          }
-        }
-      } catch (err) {
-        console.error("Draft fetch failed:", err);
-      }
-    }
-    if (formDetails.activeVersionId && isAuthenticated) {
-      fetchDraft();
-    }
-  }, [code, formDetails.activeVersionId, isAuthenticated]);
 
   // ── Auto-save Logic (The Engine) ──────────────────────────────────────────
   useEffect(() => {

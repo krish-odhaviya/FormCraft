@@ -9,6 +9,7 @@ import {
   Trash2, Star, SlidersHorizontal, LayoutGrid,
   Grid3x3, Upload, CheckSquare, Link2, Search, X,
   FileText, FileDown, ChevronDown, ShieldAlert,
+  ExternalLink
 } from "lucide-react";
 import { api } from "@/lib/api/formService";
 import { useAuth } from "@/context/AuthContext";
@@ -53,6 +54,7 @@ export default function SubmissionsPage() {
   const [versions,              setVersions]              = useState([]);
   const [selectedVersionId,     setSelectedVersionId]     = useState("");
   const [showDeleted,           setShowDeleted]           = useState(false);
+  const [formCode,              setFormCode]              = useState("");
 
   const debounceRef = useRef(null);
 
@@ -94,6 +96,7 @@ export default function SubmissionsPage() {
 
       const status = formRes.data?.status;
       setCanDelete(formRes.data?.canDeleteSubmissions || false);
+      setFormCode(formRes.data?.code || "");
 
       if (status !== "PUBLISHED" && status !== "ARCHIVED") {
         // If it's a DRAFT, it must have been published at least once (tableName exists) to show submissions
@@ -591,10 +594,10 @@ export default function SubmissionsPage() {
             )}
 
             <Link
-              href={`/forms/${formId}/view`}
+              href={formCode ? `/f/${formCode}` : `/forms/${formId}/view`}
               className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest transition-colors shadow-sm"
             >
-              <Database size={14} className="text-indigo-600" /> Fill Form
+              <ExternalLink size={14} className="text-indigo-600" /> Fill Form
             </Link>
 
             <div className="relative">

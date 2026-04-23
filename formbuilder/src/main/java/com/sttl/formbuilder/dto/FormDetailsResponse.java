@@ -30,4 +30,5 @@ public class FormDetailsResponse {
     private UUID draftVersionId;
     private UUID activeVersionId;
     private Integer activeVersionNumber;
+    private Object submissionDraft;
 }

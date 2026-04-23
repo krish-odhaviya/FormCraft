@@ -385,6 +385,20 @@ function FormPageContent() {
           } else if (field.fieldType === "STAR_RATING") initialValues[field.fieldKey] = def ? parseInt(def) : 0;
           else initialValues[field.fieldKey] = def || "";
         });
+
+        // ── Resume Draft (Avoid Separate Effect Race Condition) ────────────
+        if (res.data.submissionDraft) {
+          const draft = res.data.submissionDraft;
+          // Only resume if version matches
+          if (draft.formVersionId === res.data.activeVersionId) {
+            Object.assign(initialValues, draft.data);
+            setDraftBanner("You have a saved draft. Resuming where you left off.");
+            setDraftSubmissionId(draft.submissionId);
+          } else if (draft.formVersionId) {
+            setDraftBanner("warning: Your previous draft was for an older version of this form and cannot be restored.");
+          }
+        }
+
         setFormValues(initialValues);
       } catch (err) {
         if (err.response?.status === 403)      setMessage("forbidden");
@@ -403,29 +417,6 @@ function FormPageContent() {
     }
     if (formId) fetchFields().catch(() => {});
   }, [formId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Fetch draft on mount ──────────────────────────────────────────────────
-  useEffect(() => {
-    async function fetchDraft() {
-      if (!isAuthenticated || !formDetails.activeVersionId) return;
-      try {
-        const res = await api.getDraftSubmission(formId);
-        if (res.data) {
-          const draft = res.data;
-          if (draft.formVersionId === formDetails.activeVersionId) {
-            setFormValues((prev) => ({ ...prev, ...draft.data }));
-            setDraftBanner("You have a saved draft. Resuming where you left off.");
-            setDraftSubmissionId(draft.submissionId);
-          } else {
-            setDraftBanner("warning: Your previous draft was for an older version of this form and cannot be restored.");
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch draft", err);
-      }
-    }
-    if (formDetails.activeVersionId) fetchDraft();
-  }, [formDetails.activeVersionId, isAuthenticated]);
 
   // ── Scroll to error field after page nav ──────────────────────────────────
   useEffect(() => {

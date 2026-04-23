@@ -849,7 +849,8 @@ public class FormSubmissionService {
      * Build WHERE clause — always filters deleted rows, optionally applies search
      */
     private String buildWhere(List<FormField> fields, String search, UUID versionId, boolean showDeleted) {
-        StringBuilder where = new StringBuilder(" WHERE t.is_delete = ").append(showDeleted);
+        StringBuilder where = new StringBuilder(" WHERE t.is_delete = ").append(showDeleted)
+                .append(" AND t.is_draft = false");
         
         if (versionId != null) {
             where.append(" AND t.form_version_id = '").append(versionId).append("'");
