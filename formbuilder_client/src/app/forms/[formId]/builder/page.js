@@ -299,13 +299,18 @@ export default function BuilderPage() {
   };
 
   const handleDragOver = (e) => {
+    const isNew = e.dataTransfer.types.includes("newfieldtype") || e.dataTransfer.types.includes("newFieldType");
+    const isExisting = e.dataTransfer.types.includes("existingfieldid") || e.dataTransfer.types.includes("existingFieldId");
+    if (!isNew && !isExisting) return;
     e.preventDefault();
     // Determine the source to set the correct dropEffect
-    const isNew = e.dataTransfer.types.includes("newfieldtype") || e.dataTransfer.types.includes("newFieldType");
     e.dataTransfer.dropEffect = isNew ? "copy" : "move";
   };
 
   const handleCanvasDragEnter = (e) => {
+    const isNew = e.dataTransfer.types.includes("newfieldtype") || e.dataTransfer.types.includes("newFieldType");
+    const isExisting = e.dataTransfer.types.includes("existingfieldid") || e.dataTransfer.types.includes("existingFieldId");
+    if (!isNew && !isExisting) return;
     e.preventDefault();
     setIsDraggingOverCanvas(true);
   };
@@ -324,8 +329,12 @@ export default function BuilderPage() {
     setIsOverBottomArea(false);
     setDragTarget({ id: null, position: null });
 
-    const newFieldType = e.dataTransfer.getData("newFieldType") || e.dataTransfer.getData("text/plain");
-    const existingFieldId = e.dataTransfer.getData("existingFieldId");
+    const isNew = e.dataTransfer.types.includes("newfieldtype") || e.dataTransfer.types.includes("newFieldType");
+    const isExisting = e.dataTransfer.types.includes("existingfieldid") || e.dataTransfer.types.includes("existingFieldId");
+    if (!isNew && !isExisting) return;
+
+    const newFieldType = isNew ? (e.dataTransfer.getData("newFieldType") || e.dataTransfer.getData("newfieldtype") || e.dataTransfer.getData("text/plain")) : null;
+    const existingFieldId = isExisting ? (e.dataTransfer.getData("existingFieldId") || e.dataTransfer.getData("existingfieldid") || e.dataTransfer.getData("text/plain")) : null;
 
     if (newFieldType) {
       const newField = createNewField(newFieldType, localFields.length + 1);
@@ -346,11 +355,13 @@ export default function BuilderPage() {
   };
 
   const handleDragOverField = (e, fieldId, position) => {
+    const isNew = e.dataTransfer.types.includes("newfieldtype") || e.dataTransfer.types.includes("newFieldType");
+    const isExisting = e.dataTransfer.types.includes("existingfieldid") || e.dataTransfer.types.includes("existingFieldId");
+    if (!isNew && !isExisting) return;
     e.preventDefault();
     e.stopPropagation();
     
     // Determine the source to set the correct dropEffect
-    const isNew = e.dataTransfer.types.includes("newfieldtype") || e.dataTransfer.types.includes("newFieldType");
     e.dataTransfer.dropEffect = isNew ? "copy" : "move";
     
     // Throttle the state update to prevent flickering
@@ -366,8 +377,12 @@ export default function BuilderPage() {
     setDragTarget({ id: null, position: null });
     setIsDraggingOverCanvas(false);
 
-    const newFieldType = e.dataTransfer.getData("newFieldType") || e.dataTransfer.getData("text/plain");
-    const existingFieldId = e.dataTransfer.getData("existingFieldId");
+    const isNew = e.dataTransfer.types.includes("newfieldtype") || e.dataTransfer.types.includes("newFieldType");
+    const isExisting = e.dataTransfer.types.includes("existingfieldid") || e.dataTransfer.types.includes("existingFieldId");
+    if (!isNew && !isExisting) return;
+
+    const newFieldType = isNew ? (e.dataTransfer.getData("newFieldType") || e.dataTransfer.getData("newfieldtype") || e.dataTransfer.getData("text/plain")) : null;
+    const existingFieldId = isExisting ? (e.dataTransfer.getData("existingFieldId") || e.dataTransfer.getData("existingfieldid") || e.dataTransfer.getData("text/plain")) : null;
 
     setLocalFields(prev => {
       let list = [...prev];
